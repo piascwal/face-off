@@ -1,0 +1,163 @@
+import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
+import type { Rink } from '@core/types';
+import type { Banniere } from './effects';
+import { largeurTexte, texte } from './pixel-font';
+import { bouton, panneau, type ZoneBouton } from './widgets';
+import { C, EQUIPES } from './theme';
+
+export interface EtatMenu {
+  niveauIdx: number;
+  dureeIdx: number;
+  effectifIdx: number;
+  son: boolean;
+  victoires: number;
+  matchs: number;
+  tactile: boolean;
+  onNiveau: () => void;
+  onDuree: () => void;
+  onEffectif: () => void;
+  onSon: () => void;
+  onJouer: () => void;
+}
+
+export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, menu: EtatMenu): void {
+  g.fillStyle = 'rgba(7,9,20,0.45)';
+  g.fillRect(0, 0, W, H);
+  const cx = Math.round(W / 2);
+  const t = temps;
+  const titre = 'FACE-OFF';
+  const e = W > 300 ? 4 : 3;
+  const lw = largeurTexte(titre, e);
+  const ox = cx - lw / 2;
+  const ty = Math.max(6, Math.round(H * 0.05));
+  for (let i = 0; i < titre.length; i++) {
+    const dy = Math.round(Math.sin(t * 3 + i * 0.6) * 1.5);
+    const col = i < 4 ? EQUIPES[0].maillot : i === 4 ? C.blanc : EQUIPES[1].maillot;
+    texte(g, titre[i]!, ox + i * 6 * e + 2.5 * e, ty + dy, col, e, 'c');
+  }
+  texte(g, 'HOCKEY ARCADE', cx, ty + 7 * e + 5, C.or, 1, 'c');
+
+  const pw = 186;
+  const ph = 106;
+  const py = ty + 7 * e + 16;
+  panneau(g, cx - pw / 2, py, pw, ph);
+  const lignes: [string, string, () => void][] = [
+    ['NIVEAU', NIVEAUX[menu.niveauIdx]!.nom, menu.onNiveau],
+    ['DUREE', `${DUREES[menu.dureeIdx]! / 60} MIN`, menu.onDuree],
+    ['EQUIPES', `${EFFECTIFS[menu.effectifIdx]} CONTRE ${EFFECTIFS[menu.effectifIdx]}`, menu.onEffectif],
+    ['SON', menu.son ? 'OUI' : 'NON', menu.onSon],
+  ];
+  lignes.forEach(([k, v, act], i) => {
+    const y = py + 5 + i * 15;
+    texte(g, k, cx - pw / 2 + 10, y + 4, C.gris, 1, 'g');
+    bouton(g, boutons, `< ${v} >`, cx - 14, y, 98, 13, act, { couleur: '#232a58' });
+  });
+  const jy = py + ph - 29;
+  const pulse = Math.sin(t * 5) > 0;
+  bouton(g, boutons, 'JOUER', cx - 50, jy, 100, 24, menu.onJouer, {
+    e: 2,
+    couleur: pulse ? '#e63a58' : '#d12f4c',
+    clair: '#ff7a90',
+    fonce: '#8c1b3a',
+  });
+  const bas = py + ph + 6;
+  if (bas + 8 < H) texte(g, menu.matchs ? `VICTOIRES ${menu.victoires} / ${menu.matchs}` : 'PREMIER MATCH ?', cx, bas, C.gris, 1, 'c');
+  if (bas + 20 < H) {
+    texte(
+      g,
+      menu.tactile ? 'GAUCHE : PATINER   DROITE : TIR / PASSE / CHECK' : 'FLECHES  ESPACE : TIR  L : PASSE  MAJ : CHECK',
+      cx,
+      bas + 11,
+      '#6f7aa6',
+      1,
+      'c',
+    );
+  }
+}
+
+export function dessinePause(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, onReprendre: () => void, onAbandonner: () => void): void {
+  g.fillStyle = 'rgba(7,9,20,0.6)';
+  g.fillRect(0, 0, W, H);
+  const cx = Math.round(W / 2);
+  const cy = Math.round(H / 2);
+  texte(g, 'PAUSE', cx, cy - 40, C.blanc, 3, 'c');
+  bouton(g, boutons, 'REPRENDRE', cx - 55, cy - 6, 110, 18, onReprendre, { couleur: '#1f7fb3', clair: '#6fd0ff', fonce: '#0f4d73' });
+  bouton(g, boutons, 'ABANDONNER', cx - 55, cy + 18, 110, 18, onAbandonner);
+}
+
+export interface EtatFin {
+  score: [number, number];
+  tirs: [number, number];
+  prolong: boolean;
+  niveauNom: string;
+  victoires: number;
+  matchs: number;
+  onRejouer: () => void;
+  onMenu: () => void;
+}
+
+export function dessineFin(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, fin: EtatFin): void {
+  g.fillStyle = 'rgba(7,9,20,0.62)';
+  g.fillRect(0, 0, W, H);
+  const cx = Math.round(W / 2);
+  const cy = Math.round(H / 2);
+  const gagne = fin.score[0] > fin.score[1];
+  const t = temps;
+  const titre = gagne ? 'VICTOIRE !' : 'DEFAITE';
+  texte(g, titre, cx, cy - 58 + Math.round(Math.sin(t * 4) * 1.5), gagne ? C.or : EQUIPES[1].maillot, 3, 'c');
+  texte(g, `${fin.score[0]} - ${fin.score[1]}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 28, C.blanc, 2, 'c');
+  texte(g, `TIRS CADRES  ${fin.tirs[0]} - ${fin.tirs[1]}`, cx, cy - 8, C.gris, 1, 'c');
+  bouton(g, boutons, 'REJOUER', cx - 108, cy + 10, 100, 20, fin.onRejouer, { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' });
+  bouton(g, boutons, 'MENU', cx + 8, cy + 10, 100, 20, fin.onMenu);
+  texte(g, `NIVEAU ${fin.niveauNom}   VICTOIRES ${fin.victoires} / ${fin.matchs}`, cx, cy + 40, '#6f7aa6', 1, 'c');
+}
+
+export function dessineBanniere(g: CanvasRenderingContext2D, W: number, rink: Rink, banniere: Banniere | null, ecranUI: string): void {
+  if (!banniere || ecranUI === 'menu') return;
+  const b = banniere;
+  const age = b.max - b.vie;
+  const e = b.txt.length > 9 ? 2 : 3;
+  const entree = Math.min(1, age * 6);
+  const cx = Math.round(W / 2);
+  const cy = Math.round(rink.cy - 12);
+  const bandeH = 7 * e + (b.sous ? 18 : 10);
+  g.globalAlpha = Math.min(1, b.vie * 3) * 0.75;
+  g.fillStyle = '#070914';
+  const bw = Math.round(W * entree);
+  g.fillRect(cx - bw / 2, cy - 6, bw, bandeH);
+  g.fillStyle = b.c;
+  g.fillRect(cx - bw / 2, cy - 6, bw, 1);
+  g.fillRect(cx - bw / 2, cy - 7 + bandeH, bw, 1);
+  g.globalAlpha = Math.min(1, b.vie * 3);
+  const dx = Math.round((1 - entree) * 60);
+  texte(g, b.txt, cx - dx, cy, b.c, e, 'c');
+  if (b.sous) texte(g, b.sous, cx + dx, cy + 7 * e + 4, C.blanc, 1, 'c');
+  g.globalAlpha = 1;
+}
+
+export function dessinePortrait(g: CanvasRenderingContext2D, W: number, H: number, temps: number): void {
+  g.fillStyle = C.nuit;
+  g.fillRect(0, 0, W, H);
+  const cx = Math.round(W / 2);
+  const cy = Math.round(H / 2);
+  const t = temps;
+  const a = ((Math.sin(t * 2) * 0.5 + 0.5) * Math.PI) / 2;
+  g.save();
+  g.translate(cx, cy - 30);
+  g.rotate(-a);
+  g.fillStyle = C.contour;
+  g.fillRect(-15, -26, 30, 52);
+  g.fillStyle = '#b6c2e0';
+  g.fillRect(-14, -25, 28, 50);
+  g.fillStyle = '#3a8fd1';
+  g.fillRect(-12, -21, 24, 40);
+  g.fillStyle = '#e8f6ff';
+  g.fillRect(-10, -19, 20, 36);
+  g.fillStyle = C.rouge;
+  g.fillRect(-1, -19, 2, 36);
+  g.restore();
+  texte(g, 'TOURNEZ', cx, cy + 20, C.blanc, 2, 'c');
+  texte(g, 'VOTRE TELEPHONE', cx, cy + 40, C.or, 1, 'c');
+  texte(g, 'LE MATCH SE JOUE', cx, cy + 58, C.gris, 1, 'c');
+  texte(g, 'EN PAYSAGE', cx, cy + 68, C.gris, 1, 'c');
+}

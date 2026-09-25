@@ -1,0 +1,178 @@
+export type TeamId = 0 | 1;
+
+export interface Vec2 {
+  x: number;
+  y: number;
+}
+
+/** Géométrie de la patinoire, recalculée à chaque redimensionnement de l'écran. */
+export interface Rink {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  r: number;
+  cx: number;
+  cy: number;
+  butG: number;
+  butD: number;
+  bleueG: number;
+  bleueD: number;
+}
+
+export interface Skater {
+  eq: TeamId;
+  rang: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  face: number;
+  r: number;
+  tient: boolean;
+  recupCd: number;
+  elanT: number;
+  elanCd: number;
+  sonne: number;
+  charge: number;
+  arme: boolean;
+  pokeT: number;
+  anim: number;
+  humain: boolean;
+  ex: number;
+  ey: number;
+  vit: number;
+  grince: number;
+  vise: number | null;
+  ia: { t: number; tx: number; ty: number; but: number };
+}
+
+export interface Goalie {
+  eq: TeamId;
+  a: number;
+  x: number;
+  y: number;
+  r: number;
+  tient: number;
+  cd: number;
+  vit: number;
+  antic: number;
+  secoue: number;
+}
+
+export type Porteur = Skater | Goalie;
+
+export interface Puck {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  porteur: Porteur | null;
+  dernier: Porteur | null;
+  tireur: TeamId | null;
+  passe: { vers: Skater; t: number } | null;
+  trace: Vec2[];
+  /**
+   * Qualité (0..1) du tir en cours : combine la puissance et la précision du
+   * placement par rapport à la position du gardien au moment du tir. Sert à
+   * moduler la probabilité d'un but sans casser la simulation physique — voir
+   * `shooting.ts`.
+   */
+  qualite: number;
+}
+
+export interface LevelConfig {
+  nom: string;
+  vit: number;
+  reac: number;
+  err: number;
+  poke: number;
+  check: number;
+  gk: number;
+  antic: number;
+  portee: number;
+}
+
+export type GamePhase = 'engagement' | 'jeu' | 'but' | 'fin';
+export type GameMode = 'demo' | 'match';
+
+/** Un évènement de gameplay à effet de bord (son, particule, vibration, texte...). */
+export type GameEvent =
+  | { type: 'frappe'; puissance: number }
+  | { type: 'touche' }
+  | { type: 'bande'; force: number }
+  | { type: 'poteau' }
+  | { type: 'jambiere' }
+  | { type: 'charge' }
+  | { type: 'elan' }
+  | { type: 'raclement' }
+  | { type: 'clic' }
+  | { type: 'sifflet'; long: boolean }
+  | { type: 'klaxon' }
+  | { type: 'ovation'; niveau: number }
+  | { type: 'but'; eq: TeamId; buteur: Porteur | null }
+  | { type: 'arret'; eq: TeamId }
+  | { type: 'vole'; eq: TeamId; x: number; y: number }
+  | { type: 'check'; x: number; y: number; humain: boolean }
+  | { type: 'etincelles'; x: number; y: number; n: number; c?: string }
+  | { type: 'neige'; x: number; y: number; n: number; vx?: number; vy?: number }
+  | { type: 'confettis'; x: number; y: number; eq: TeamId }
+  | { type: 'secousse'; force: number }
+  | { type: 'flash'; force: number }
+  | { type: 'vibre'; ms: number | number[] }
+  | { type: 'bulle'; txt: string; x: number; y: number; c: string }
+  | { type: 'annonce'; txt: string; sous: string; c: string; duree: number };
+
+/** Entrée d'un joueur humain pour une image de simulation. */
+export interface InputIntent {
+  ix: number;
+  iy: number;
+  tirAppui: boolean;
+  tirTenu: boolean;
+  tirRelache: boolean;
+  passeAppui: boolean;
+  elanAppui: boolean;
+  /** Angle de visée manuelle (glissé), ou null si pilotage à l'analogique/clavier. */
+  viseeManuelle: number | null;
+}
+
+export const INTENT_VIDE: InputIntent = {
+  ix: 0,
+  iy: 0,
+  tirAppui: false,
+  tirTenu: false,
+  tirRelache: false,
+  passeAppui: false,
+  elanAppui: false,
+  viseeManuelle: null,
+};
+
+export interface MatchState {
+  mode: GameMode;
+  niv: LevelConfig;
+  nivEq: [LevelConfig, LevelConfig];
+  nb: number;
+  patineurs: Skater[];
+  controle: Skater | null;
+  gardiens: [Goalie, Goalie];
+  palet: Puck;
+  score: [number, number];
+  tirs: [number, number];
+  arrets: [number, number];
+  horloge: number;
+  prolong: boolean;
+  phase: GamePhase;
+  phaseT: number;
+  temps: number;
+  lampe: [number, number];
+  excite: number;
+  marqueur: TeamId | null;
+  buteur: Porteur | null;
+  /** Évènements à effet de bord produits pendant le dernier pas de simulation. */
+  evenements: GameEvent[];
+}
+
+export function estPatineur(o: Porteur | null | undefined): o is Skater {
+  return !!o && 'face' in o;
+}

@@ -1,0 +1,31 @@
+{
+  "name": "face-off",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Face-Off — hockey arcade en pixel art (humain vs CPU pour l'instant, en ligne joueur contre joueur plus tard).",
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sprites": "node scripts/generate-sprites.mjs"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^0.1.65",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^9.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vite-plugin-pwa": "^0.20.5",
+    "vitest": "^2.1.5"
+  }
+}
