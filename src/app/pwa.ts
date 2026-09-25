@@ -1,5 +1,8 @@
 /**
- * Tente le plein écran + verrouillage paysage au lancement d'un match.
+ * Tente le plein écran + verrouillage paysage. Appelé dès le premier geste
+ * de l'utilisateur (voir `PleinEcranAuPremierGeste`) : les navigateurs
+ * refusent le plein écran sans geste (clic, touche, fin de toucher), on ne
+ * peut donc pas le déclencher au simple chargement de la page.
  *
  * Sur le web ouvert (pas installé), l'API Fullscreen masque la barre
  * d'adresse sur les navigateurs qui la supportent (Chrome/Edge Android) —
@@ -10,38 +13,56 @@
  * l'écran d'accueil, elle s'ouvre sans barre de navigateur du tout, y compris
  * sur iOS. On tente donc les deux : le meilleur des deux mondes selon
  * comment le jeu est ouvert.
+ *
+ * Résout `true` si l'écran est (ou était déjà) en plein écran.
  */
-export function demandePleinEcranPaysage(): void {
+export async function demandePleinEcranPaysage(): Promise<boolean> {
   const el = document.documentElement as HTMLElement & {
     webkitRequestFullscreen?: () => Promise<void> | void;
   };
   const req = el.requestFullscreen?.bind(el) ?? el.webkitRequestFullscreen?.bind(el);
-  const dejaPlein = document.fullscreenElement ?? (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement;
-  const verrouille = () => {
-    try {
-      const orientation = screen.orientation as (ScreenOrientation & { lock?: (o: string) => Promise<void> }) | undefined;
-      orientation?.lock?.('landscape')?.catch(() => {
-        /* refusé (desktop, ou pas encore plein écran) : tant pis */
-      });
-    } catch {
-      /* API indisponible */
-    }
-  };
-  if (!req || dejaPlein) {
-    verrouille();
-    return;
+  if (estPleinEcran()) return true;
+  if (!req) return false;
+  try {
+    await req({ navigationUI: 'hide' } as FullscreenOptions);
+  } catch {
+    // refusé : pas de geste utilisateur valable (ex. pointerdown d'un doigt,
+    // l'activation n'arrive qu'au pointerup) ou navigateur sans support (iPhone)
+    return false;
   }
   try {
-    const r = req({ navigationUI: 'hide' } as FullscreenOptions);
-    if (r && typeof (r as Promise<void>).then === 'function') {
-      (r as Promise<void>).then(verrouille).catch(() => {
-        /* plein écran refusé (ex. iPhone) : tant pis, on retente le verrou quand même */
-      });
-    } else {
-      verrouille();
-    }
+    const orientation = screen.orientation as
+      (ScreenOrientation & { lock?: (o: string) => Promise<void> }) | undefined;
+    await orientation?.lock?.('landscape');
   } catch {
-    /* pas de plein écran possible : tant pis */
+    /* verrou refusé (desktop) ou API indisponible : tant pis */
+  }
+  return estPleinEcran();
+}
+
+function estPleinEcran(): boolean {
+  return Boolean(
+    document.fullscreenElement ??
+    (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement,
+  );
+}
+
+/**
+ * Passe en plein écran au tout premier geste possible, puis se tait : si le
+ * joueur quitte volontairement le plein écran, on ne le lui réimpose pas à
+ * chaque clic (seulement au lancement d'un match).
+ */
+export class PleinEcranAuPremierGeste {
+  private obtenu = estAutonome();
+  private enCours = false;
+
+  tente(): void {
+    if (this.obtenu || this.enCours) return;
+    this.enCours = true;
+    void demandePleinEcranPaysage().then((ok) => {
+      this.enCours = false;
+      if (ok) this.obtenu = true;
+    });
   }
 }
 

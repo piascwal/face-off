@@ -55,6 +55,12 @@ function fleche(g: CanvasRenderingContext2D, boutons: ZoneBouton[], x: number, y
   boutons.push({ x, y, w, h, act });
 }
 
+/** « VOUS » calé à gauche, « ADVERSAIRE » à droite : le titre d'écran garde le centre. */
+function titrePanneau(g: CanvasRenderingContext2D, titre: string, x: number, w: number): void {
+  if (x === 0) texte(g, titre, x + 6, 2, C.gris, 1, 'g');
+  else texte(g, titre, x + w - 6, 2, C.gris, 1, 'd');
+}
+
 // ============================================== étape 1 : les équipes ======
 
 function dessinePanneauEquipe(
@@ -69,13 +75,13 @@ function dessinePanneauEquipe(
   onSuivant: () => void,
 ): void {
   const cx = x + w / 2;
-  texte(g, titre, cx, 5, C.gris, 1, 'c');
+  titrePanneau(g, titre, x, w);
 
   // Le logo grossit avec la hauteur dispo, pour occuper tout le panneau plutôt
   // que de rester tassé en haut — les flèches restent calées sur son centre.
-  const tailleLogo = Math.round(H * 0.32);
-  const logoY = Math.round(H * 0.1);
-  const tailleFleche = Math.round(tailleLogo * 0.32);
+  const tailleLogo = Math.round(H * 0.5);
+  const logoY = 13;
+  const tailleFleche = Math.round(tailleLogo * 0.3);
   const yFleche = Math.round(logoY + (tailleLogo - tailleFleche) / 2);
   fleche(g, boutons, x + 4, yFleche, tailleFleche, false, onPrecedent);
   fleche(g, boutons, x + w - 4 - tailleFleche, yFleche, tailleFleche, true, onSuivant);
@@ -94,11 +100,9 @@ function dessinePanneauEquipe(
   texte(g, def.code, cx, y, pal.clair, 1, 'c');
   y += 9;
   texte(g, def.nom, cx, y, C.gris, 1, 'c');
-  y += 14;
-  texte(g, '< > POUR CHANGER', cx, y, '#4f5780', 1, 'c');
 
   const notes = notesEquipe(carte.profil);
-  const statsY = Math.round(H * 0.68);
+  const statsY = Math.max(y + 12, Math.round(H * 0.7));
   const cols: [string, number, string][] = [
     ['ATT', notes.attaque, '#ff8a3d'],
     ['DEF', notes.defense, '#6fd0ff'],
@@ -162,18 +166,11 @@ function dessinePanneauMaillot(
   onToggle: () => void,
 ): void {
   const cx = x + w / 2;
-  texte(g, titre, cx, 5, C.gris, 1, 'c');
+  titrePanneau(g, titre, x, w);
 
   const def = cote.def;
   const pal = palette(def, cote.variante);
-  const tailleLogo = 22;
-  const logo = obtientLogo(def.id);
-  if (logo) {
-    g.imageSmoothingEnabled = true;
-    g.drawImage(logo, cx - tailleLogo / 2, 8, tailleLogo, tailleLogo);
-    g.imageSmoothingEnabled = false;
-  }
-  texte(g, def.code, cx, 32, C.gris, 1, 'c');
+  texte(g, def.code, cx, 16, def.interieur.clair, 2, 'c');
 
   // le joueur porte le maillot choisi, tourné vers le centre de l'écran
   const spriteId = `${def.id}-${cote.variante}`;
@@ -182,7 +179,7 @@ function dessinePanneauMaillot(
   const { w: tw, h: th } = sprites.tailleJoueur;
   const sw = tw * echelle;
   const sh = th * echelle;
-  const sy = 42;
+  const sy = 36;
   if (sprite) {
     g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, cx - sw / 2, sy, sw, sh);
   }

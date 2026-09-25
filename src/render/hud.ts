@@ -1,6 +1,6 @@
 import type { GamePhase, MatchState } from '@core/types';
 import { zonePause } from './hud-zones';
-import { texte } from './pixel-font';
+import { largeurTexte, texte } from './pixel-font';
 import { px } from './primitives';
 import { C } from './theme';
 import type { EquipeVisuelle } from './team-visuals';
@@ -18,7 +18,9 @@ export function dessineTableau(
   equipes: [EquipeVisuelle, EquipeVisuelle],
 ): void {
   const cx = Math.round(W / 2);
-  const lw = 150;
+  // assez large pour les noms longs (TOULOUSE, GRENOBLE) sans toucher le score
+  const plusLong = Math.max(largeurTexte(equipes[0].code), largeurTexte(equipes[1].code));
+  const lw = Math.max(150, 2 * (plusLong + 9 + 32));
   const x = cx - lw / 2;
   const y = 2;
   px(g, x - 1, y - 1, lw + 2, 21, C.contour);

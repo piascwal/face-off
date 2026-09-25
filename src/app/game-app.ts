@@ -13,6 +13,7 @@ import {
   construitFoule,
   construitGlace,
   dessineBanniere,
+  dessineLogoBut,
   dessineChoixMaillots,
   dessineCommandes,
   dessineFin,
@@ -40,7 +41,7 @@ import {
   type ZoneBouton,
 } from '@render/index';
 import { chargePreferences, sauvePreferences, type Preferences } from './preferences';
-import { demandePleinEcranPaysage } from './pwa';
+import { demandePleinEcranPaysage, PleinEcranAuPremierGeste } from './pwa';
 
 const PAS_FIXE = 1 / 120;
 
@@ -67,6 +68,7 @@ export class GameApp {
   private readonly sprites = new BanqueSprites();
   private readonly audio = new MoteurAudio();
   private readonly effets = new SystemeEffets();
+  private readonly pleinEcran = new PleinEcranAuPremierGeste();
   private readonly entrees = new GestionnaireEntreesJeu();
   private readonly pref: Preferences = chargePreferences();
 
@@ -229,7 +231,7 @@ export class GameApp {
 
   private lanceMatch(equipeJoueur: EquipeVisuelle, equipeAdverse: EquipeVisuelle): void {
     this.audio.init();
-    demandePleinEcranPaysage();
+    void demandePleinEcranPaysage();
     this.equipesActuelles = [equipeJoueur, equipeAdverse];
     this.effets.definitEquipes(this.equipesActuelles);
     this.construitDecor();
@@ -289,6 +291,8 @@ export class GameApp {
       (e) => {
         e.preventDefault();
         this.audio.init();
+        // souris : le pointerdown suffit comme geste ; doigt : voir pointerup
+        if (e.pointerType === 'mouse') this.pleinEcran.tente();
         const p = this.versLogique(e);
         if (this.portrait) return;
         if (this.ecranUI === 'jeu' && !this.enPause) {
@@ -316,12 +320,16 @@ export class GameApp {
       this.entrees.onPointerMove(e.pointerId, this.versLogique(e));
     });
     const relache = (e: PointerEvent) => this.entrees.onPointerUp(e.pointerId);
-    this.ecran.addEventListener('pointerup', relache);
+    this.ecran.addEventListener('pointerup', (e) => {
+      if (e.pointerType !== 'mouse') this.pleinEcran.tente();
+      relache(e);
+    });
     this.ecran.addEventListener('pointercancel', relache);
     this.ecran.addEventListener('contextmenu', (e) => e.preventDefault());
 
     window.addEventListener('keydown', (e) => {
       if (!e.repeat) this.audio.init();
+      if (e.code !== 'Escape') this.pleinEcran.tente();
       this.entrees.onKeyDown(e);
       if (this.entrees.pauseDemandee) {
         this.entrees.pauseDemandee = false;
@@ -406,10 +414,14 @@ export class GameApp {
       g.setTransform(1, 0, 0, 1, sx, sy);
       dessineScene(g, this.rink, state, this.decor, this.sprites, this.effets, this.ecranUI, this.equipesActuelles);
       g.setTransform(1, 0, 0, 1, 0, 0);
+      // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
       if (this.ecranUI !== 'menu' && this.ecranUI !== 'equipes' && this.ecranUI !== 'maillots') {
+        dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, tempsUI);
         dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
       }
-      dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
+      if (this.ecranUI !== 'equipes' && this.ecranUI !== 'maillots') {
+        dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
+      }
       if (this.ecranUI === 'jeu') {
         dessineCommandes(g, this.W, this.H, state.temps, state.controle, this.entrees.instantaneUI());
       } else if (this.ecranUI === 'menu') {

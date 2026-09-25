@@ -136,23 +136,43 @@ export function dessineBanniere(g: CanvasRenderingContext2D, W: number, rink: Ri
   texte(g, b.txt, cx - dx, cy, b.c, e, 'c');
   if (b.sous) texte(g, b.sous, cx + dx, cy + 7 * e + 4, C.blanc, 1, 'c');
   g.globalAlpha = 1;
+}
 
-  if (b.logoId) {
-    const logo = obtientLogo(b.logoId);
-    if (logo) {
-      // rebond « easeOutBack » à l'entrée, léger fondu à la sortie
-      const c1 = 1.70158;
-      const c3 = c1 + 1;
-      const tt = Math.min(1, age / 0.35);
-      const echelle = tt <= 0 ? 0 : 1 + c3 * Math.pow(tt - 1, 3) + c1 * Math.pow(tt - 1, 2);
-      const taille = 30 * Math.max(0, echelle);
-      g.globalAlpha = Math.min(1, b.vie * 3);
-      g.imageSmoothingEnabled = true;
-      g.drawImage(logo, cx - taille / 2, cy - 14 - taille, taille, taille);
-      g.imageSmoothingEnabled = false;
-      g.globalAlpha = 1;
-    }
-  }
+/**
+ * Écusson géant de l'équipe qui marque, entre la patinoire et le bandeau
+ * « BUT ! » : entrée avec rebond (easeOutBack), légère respiration, fondu en
+ * sortie. La patinoire est assombrie derrière pour que l'écusson ressorte.
+ */
+export function dessineLogoBut(
+  g: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  rink: Rink,
+  banniere: Banniere | null,
+  ecranUI: string,
+  temps: number,
+): void {
+  if (!banniere?.logoId || ecranUI === 'menu') return;
+  const logo = obtientLogo(banniere.logoId);
+  if (!logo) return;
+  const age = banniere.max - banniere.vie;
+  const opacite = Math.min(1, banniere.vie * 2.5, age * 8);
+
+  g.globalAlpha = opacite * 0.45;
+  g.fillStyle = '#070914';
+  g.fillRect(0, 0, W, H);
+
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  const tt = Math.min(1, age / 0.45);
+  const rebond = 1 + c3 * Math.pow(tt - 1, 3) + c1 * Math.pow(tt - 1, 2);
+  const respiration = 1 + Math.sin(temps * 6) * 0.02 * tt;
+  const taille = Math.round(H * 0.9 * Math.max(0, rebond) * respiration);
+  g.globalAlpha = opacite;
+  g.imageSmoothingEnabled = true;
+  g.drawImage(logo, Math.round(W / 2 - taille / 2), Math.round(rink.cy - taille / 2), taille, taille);
+  g.imageSmoothingEnabled = false;
+  g.globalAlpha = 1;
 }
 
 export function dessinePortrait(g: CanvasRenderingContext2D, W: number, H: number, temps: number): void {

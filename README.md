@@ -122,8 +122,13 @@ globale, 65 à 99). Le choix se fait en deux écrans pensés « manette »
    l'autre, pour vérifier au coup d'œil que les couleurs des deux équipes ne
    se confondent pas avant de lancer le match.
 
-Les écussons sources sont détourés automatiquement (fond retiré par
-propagation depuis le bord de l'image, qu'il soit uni ou en damier) et les 24
+Les écussons sources (`assets/logos-src/*.jpg`) sont détourés
+automatiquement par `scripts/logo-cutout.mjs` : fond uni retiré depuis le
+bord ; fond en damier « transparent » incrusté dans le JPEG retiré en
+reconstruisant la grille du damier (pas et décalage mesurés sur le
+pourtour), ce qui élimine aussi les poches de damier enfermées dans le dessin
+et les jointures floutées par la compression. Les écussons sont ensuite
+recadrés sur leur partie opaque, en 256×256. Les 24
 feuilles de sprites (6 équipes × domicile/extérieur × patineur/gardien)
 générées par le même script que les sprites — voir
 [Sprites](#sprites-pixel-art).
@@ -150,7 +155,11 @@ qu'une fois le jeu ajouté à l'écran d'accueil, il s'ouvre **sans aucune barre
 de navigateur**, sur toutes les plateformes. L'appel à l'API Fullscreen est
 conservé en complément (`src/app/pwa.ts`) pour le cas où le jeu est ouvert
 dans un onglet classique sur un navigateur qui la supporte (Chrome/Edge
-Android).
+Android) : il est tenté **dès le premier geste** sur l'app (premier toucher,
+clic ou touche sur le menu), pas au lancement du match. Les navigateurs
+interdisent le plein écran sans geste de l'utilisateur, on ne peut donc pas
+le déclencher au simple chargement de la page ; si le joueur le quitte
+ensuite, il n'est réimposé qu'au lancement d'un match.
 
 ### 3. La probabilité de but augmente avec la puissance et le placement du tir
 
@@ -194,9 +203,10 @@ ne connaît que ce contrat, jamais le contenu artistique. Même logique pour les
 
 ### 5. Célébration de but avec l'écusson de l'équipe
 
-Le bandeau de but (`render/screens.ts::dessineBanniere`) affiche désormais
-l'écusson de l'équipe qui vient de marquer, avec une petite animation de
-rebond (« easeOutBack ») à l'entrée. Le cœur du jeu (`physics.ts::marque`)
+Lors d'un but, l'écusson de l'équipe qui marque s'affiche en très grand
+(`render/screens.ts::dessineLogoBut`, rebond « easeOutBack » à l'entrée puis
+fondu). Ordre d'empilement : la patinoire et les joueurs (assombris), puis
+l'écusson géant, puis le tableau et le bandeau « BUT ! » avec le score. Le cœur du jeu (`physics.ts::marque`)
 ne connaît toujours aucune couleur ni logo : il émet juste l'équipe (`eq`)
 qui a marqué, et c'est `SystemeEffets` côté rendu qui résout la couleur du
 bandeau et l'écusson à afficher — cohérent avec le reste de l'architecture

@@ -30,8 +30,19 @@ export interface Banniere {
   c: string;
   vie: number;
   max: number;
-  /** Id de l'écusson à animer à côté du texte (but marqué par cette équipe). */
+  /** Id de l'écusson géant affiché derrière le bandeau (but marqué par cette équipe). */
   logoId?: string;
+}
+
+function luminosite(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+}
+
+/** Couleur la plus lisible de l'équipe sur le bandeau sombre (un maillot noir,
+ * comme celui de Nice, disparaîtrait). */
+function couleurVive(eq: EquipeVisuelle): string {
+  return luminosite(eq.clair) > luminosite(eq.maillot) ? eq.clair : eq.maillot;
 }
 
 /**
@@ -127,7 +138,7 @@ export class SystemeEffets {
           this.annonce(
             ev.txt,
             ev.sous,
-            ev.eq !== undefined ? this.equipes[ev.eq].maillot : ev.c,
+            ev.eq !== undefined ? couleurVive(this.equipes[ev.eq]) : ev.c,
             ev.duree,
             ev.eq !== undefined ? this.equipes[ev.eq].teamId : undefined,
           );

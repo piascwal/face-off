@@ -12,6 +12,7 @@ import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { detoure } from './logo-cutout.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_SPRITES = path.join(__dirname, '..', 'public', 'sprites');
@@ -45,7 +46,11 @@ function palette(base, variante) {
   return { maillot: base.clair, fonce: base.fonce, clair: base.maillot, casque: base.casque };
 }
 const EQUIPES = INTERIEURS.flatMap((base) =>
-  VARIANTES.map((variante) => ({ ...palette(base, variante), id: `${base.id}-${variante}`, numero: base.numero })),
+  VARIANTES.map((variante) => ({
+    ...palette(base, variante),
+    id: `${base.id}-${variante}`,
+    numero: base.numero,
+  })),
 );
 const EQUIPES_LOGO = INTERIEURS; // un seul écusson par équipe, indépendant du maillot
 const CONTOUR = '#0b0e1d';
@@ -201,7 +206,11 @@ function ajouteContour(ctx, w, h, couleur) {
     if (x < 0 || y < 0 || x >= w || y >= h) return false;
     return src[(y * w + x) * 4 + 3] > 10;
   };
-  const [cr, cg, cb] = [parseInt(couleur.slice(1, 3), 16), parseInt(couleur.slice(3, 5), 16), parseInt(couleur.slice(5, 7), 16)];
+  const [cr, cg, cb] = [
+    parseInt(couleur.slice(1, 3), 16),
+    parseInt(couleur.slice(3, 5), 16),
+    parseInt(couleur.slice(5, 7), 16),
+  ];
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (opaque(x, y)) continue;
@@ -259,115 +268,65 @@ for (const eq of EQUIPES) {
 writeFileSync(
   path.join(OUT_SPRITES, 'meta.json'),
   JSON.stringify(
-    { tileW: TILE_W, tileH: TILE_H, skaterFrames: SKATER_FRAMES, teamIds: EQUIPES_LOGO.map((e) => e.id), variants: VARIANTES },
+    {
+      tileW: TILE_W,
+      tileH: TILE_H,
+      skaterFrames: SKATER_FRAMES,
+      teamIds: EQUIPES_LOGO.map((e) => e.id),
+      variants: VARIANTES,
+    },
     null,
     2,
   ),
 );
 
 // --- Écussons des équipes : fond retiré (damier « transparent » ou couleur
-// pleine selon la source), recadrés en carré sur un fond PNG transparent. --
+// pleine selon la source, voir logo-cutout.mjs), recadrés en carré sur un
+// fond PNG transparent. ------------------------------------------------------
 
-function distanceCouleur(r1, g1, b1, r2, g2, b2) {
-  const dr = r1 - r2;
-  const dg = g1 - g2;
-  const db = b1 - b2;
-  return Math.sqrt(dr * dr + dg * dg + db * db);
-}
-
-/** Échantillonne le pourtour de l'image pour deviner la ou les couleurs de fond
- * (une seule couleur pleine, ou deux qui alternent en damier). */
-function detecteCouleursFond(data, w, h) {
-  const echantillons = [];
-  const pas = 3;
-  for (let x = 0; x < w; x += pas) {
-    echantillons.push([x, 0]);
-    echantillons.push([x, h - 1]);
+function boiteOpaque({ data, width, height }) {
+  let x0 = width;
+  let y0 = height;
+  let x1 = -1;
+  let y1 = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] < 16) continue;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
   }
-  for (let y = 0; y < h; y += pas) {
-    echantillons.push([0, y]);
-    echantillons.push([w - 1, y]);
-  }
-  const couleurs = [];
-  for (const [x, y] of echantillons) {
-    const i = (y * w + x) * 4;
-    const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
-    const trouve = couleurs.find((c) => distanceCouleur(r, g, b, c.r, c.g, c.b) < 30);
-    if (trouve) trouve.n++;
-    else couleurs.push({ r, g, b, n: 1 });
-  }
-  couleurs.sort((a, b) => b.n - a.n);
-  // les couleurs de fond (damier ou pleine) dominent largement le pourtour ;
-  // on ignore les échantillons isolés qui tombent sur le contour du dessin.
-  return couleurs.filter((c) => c.n >= echantillons.length * 0.03).slice(0, 2);
-}
-
-/**
- * Retire le fond par propagation (flood fill) depuis le pourtour de l'image :
- * tout pixel connecté au bord et proche d'une des couleurs de fond devient
- * transparent. Les traits de contour du dessin (toujours plus sombres/saturés
- * que le fond) bloquent la propagation, donc l'intérieur du dessin — même
- * clair — n'est jamais mangé.
- */
-function retireArrierePlan(imgData, w, h) {
-  const data = imgData.data;
-  const fonds = detecteCouleursFond(data, w, h);
-  const SEUIL = 34;
-  const estFond = (i) => fonds.some((c) => distanceCouleur(data[i], data[i + 1], data[i + 2], c.r, c.g, c.b) < SEUIL);
-
-  const visite = new Uint8Array(w * h);
-  const file = new Int32Array(w * h);
-  let n = 0;
-  const empile = (x, y) => {
-    if (x < 0 || y < 0 || x >= w || y >= h) return;
-    const idx = y * w + x;
-    if (visite[idx]) return;
-    if (!estFond(idx * 4)) return;
-    visite[idx] = 1;
-    file[n++] = idx;
-  };
-  for (let x = 0; x < w; x++) {
-    empile(x, 0);
-    empile(x, h - 1);
-  }
-  for (let y = 0; y < h; y++) {
-    empile(0, y);
-    empile(w - 1, y);
-  }
-  let tete = 0;
-  while (tete < n) {
-    const idx = file[tete++];
-    const x = idx % w;
-    const y = (idx / w) | 0;
-    empile(x - 1, y);
-    empile(x + 1, y);
-    empile(x, y - 1);
-    empile(x, y + 1);
-  }
-  for (let idx = 0; idx < w * h; idx++) {
-    if (visite[idx]) data[idx * 4 + 3] = 0;
-  }
+  return x1 < 0 ? { x0: 0, y0: 0, x1: width - 1, y1: height - 1 } : { x0, y0, x1, y1 };
 }
 
 async function traiteLogos() {
-  const TAILLE = 160;
+  // assez grand pour l'animation de but, où l'écusson occupe presque tout l'écran
+  const TAILLE = 256;
   for (const eq of EQUIPES_LOGO) {
     const img = await loadImage(path.join(SRC_LOGOS, `${eq.id}.jpg`));
     const brut = createCanvas(img.width, img.height);
     const bctx = brut.getContext('2d');
     bctx.drawImage(img, 0, 0);
     const imgData = bctx.getImageData(0, 0, img.width, img.height);
-    retireArrierePlan(imgData, img.width, img.height);
+    detoure(imgData);
     bctx.putImageData(imgData, 0, 0);
+
+    // recadre sur la partie opaque : certaines sources ont une large marge de
+    // fond qui, une fois transparente, rapetisserait l'écusson à l'écran
+    const { x0, y0, x1, y1 } = boiteOpaque(imgData);
+    const bw = x1 - x0 + 1;
+    const bh = y1 - y0 + 1;
 
     const canvas = createCanvas(TAILLE, TAILLE);
     const ctx = canvas.getContext('2d');
-    const marge = TAILLE * 0.04;
+    const marge = TAILLE * 0.03;
     const dispo = TAILLE - marge * 2;
-    const echelle = Math.min(dispo / img.width, dispo / img.height);
-    const w = img.width * echelle;
-    const h = img.height * echelle;
-    ctx.drawImage(brut, (TAILLE - w) / 2, (TAILLE - h) / 2, w, h);
+    const echelle = Math.min(dispo / bw, dispo / bh);
+    const w = bw * echelle;
+    const h = bh * echelle;
+    ctx.drawImage(brut, x0, y0, bw, bh, (TAILLE - w) / 2, (TAILLE - h) / 2, w, h);
     writeFileSync(path.join(OUT_LOGOS, `${eq.id}.png`), canvas.toBuffer('image/png'));
   }
 }
