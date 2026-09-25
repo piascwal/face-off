@@ -29,7 +29,7 @@ export class BanqueSprites {
   private goalie: [HTMLImageElement, HTMLImageElement] | null = null;
   pret = false;
 
-  async charge(base = '/sprites'): Promise<void> {
+  async charge(base = `${import.meta.env.BASE_URL}sprites`): Promise<void> {
     const chargeImage = (src: string) =>
       new Promise<HTMLImageElement>((resolve, reject) => {
         const img = new Image();
