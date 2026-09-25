@@ -72,6 +72,8 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     excite: 0,
     marqueur: null,
     buteur: null,
+    combo: [0, 0],
+    tirSpecialPret: [false, false],
     evenements: [],
   };
 
@@ -100,6 +102,8 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
   p.passe = null;
   p.qualite = 0;
   p.trace.length = 0;
+  state.combo = [0, 0];
+  state.tirSpecialPret = [false, false];
   const oy = Math.round(rink.h * 0.27);
   for (const s of state.patineurs) {
     const cote = s.eq === 0 ? -1 : 1;

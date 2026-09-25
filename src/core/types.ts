@@ -172,6 +172,10 @@ export interface MatchState {
   excite: number;
   marqueur: TeamId | null;
   buteur: Porteur | null;
+  /** Passes réussies d'affilée par équipe depuis la dernière perte de palet ou le dernier tir. */
+  combo: [number, number];
+  /** Le prochain tir de cette équipe est-il chargé en tir spécial (voir COMBO_SEUIL) ? */
+  tirSpecialPret: [boolean, boolean];
   /** Évènements à effet de bord produits pendant le dernier pas de simulation. */
   evenements: GameEvent[];
 }

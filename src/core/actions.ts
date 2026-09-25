@@ -1,3 +1,4 @@
+import { COMBO_SEUIL } from './constants';
 import { qualiteDuTir } from './shooting';
 import { equipe } from './state-helpers';
 import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types';
@@ -28,14 +29,33 @@ export function controle(state: MatchState, s: Skater): void {
 
 export function prendPalet(state: MatchState, qui: Porteur): void {
   const p = state.palet;
+  const passeReussie = estPatineur(qui) && p.passe?.vers === qui;
+  const equipePrecedente = p.dernier?.eq;
   p.porteur = qui;
   p.dernier = qui;
   p.passe = null;
   p.qualite = 0;
+  // le palet change de camp : la séquence de passes de l'équipe qui le perd s'arrête là
+  if (equipePrecedente !== undefined && equipePrecedente !== qui.eq) {
+    state.combo[equipePrecedente] = 0;
+    state.tirSpecialPret[equipePrecedente] = false;
+  }
   if (estPatineur(qui)) {
     qui.tient = true;
     state.evenements.push({ type: 'touche' });
     controle(state, qui);
+    if (passeReussie) {
+      const n = ++state.combo[qui.eq];
+      if (n >= COMBO_SEUIL) {
+        if (!state.tirSpecialPret[qui.eq]) {
+          state.evenements.push({ type: 'bulle', txt: 'TIR SPECIAL !', x: qui.x, y: qui.y - 20, c: '#ff8a3d' });
+          state.evenements.push({ type: 'clic' });
+        }
+        state.tirSpecialPret[qui.eq] = true;
+      } else if (n >= 2) {
+        state.evenements.push({ type: 'bulle', txt: `COMBO x${n}`, x: qui.x, y: qui.y - 16, c: '#ffd35c' });
+      }
+    }
   }
 }
 
@@ -50,7 +70,11 @@ export function lachePalet(state: MatchState, s: Skater, cd: number): void {
 
 export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puissance: number): void {
   const p = state.palet;
-  const v = 150 + 290 * puissance;
+  // un tir consomme la combo de passes en cours, qu'il soit spécial ou non
+  const special = state.tirSpecialPret[s.eq];
+  state.combo[s.eq] = 0;
+  state.tirSpecialPret[s.eq] = false;
+  const v = (150 + 290 * puissance) * (special ? 1.25 : 1);
   lachePalet(state, s, 0.3);
   const sp = pointCrosse(s);
   p.x = sp.x;
@@ -61,9 +85,11 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   p.dernier = s;
   p.passe = null;
   p.qualite = qualiteDuTir(rink, s.eq, sp.x, sp.y, ang, puissance, state.gardiens[1 - s.eq] as Goalie);
+  if (special) p.qualite = Math.min(0.97, p.qualite + 0.2);
   state.evenements.push({ type: 'frappe', puissance });
-  state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 3 + Math.round(puissance * 8) });
-  if (puissance > 0.7) state.evenements.push({ type: 'secousse', force: 1.5 });
+  state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 3 + Math.round(puissance * 8), c: special ? '#ff8a3d' : undefined });
+  if (puissance > 0.7 || special) state.evenements.push({ type: 'secousse', force: special ? 2.5 : 1.5 });
+  if (special) state.evenements.push({ type: 'bulle', txt: 'SUPER TIR !', x: sp.x, y: sp.y - 14, c: '#ff8a3d' });
 }
 
 /** Une ligne de passe est libre si aucun adversaire ne traîne dessus. */

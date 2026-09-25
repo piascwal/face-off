@@ -68,7 +68,10 @@ export function dessineScene(
   for (const gk of state.gardiens) ellipseOmbre(g, gk.x, gk.y + 3, 6, 1, 0.28);
 
   const liste: { y: number; f: () => void }[] = [
-    ...state.patineurs.map((s) => ({ y: s.y, f: () => dessinePatineur(g, sprites, s, state.temps, s === state.controle, equipes) })),
+    ...state.patineurs.map((s) => ({
+      y: s.y,
+      f: () => dessinePatineur(g, sprites, s, state.temps, s === state.controle, equipes, state.tirSpecialPret[s.eq]),
+    })),
     ...state.gardiens.map((gk) => ({ y: gk.y, f: () => dessineGardien(g, sprites, gk, state.temps, equipes) })),
     { y: p.y - 2, f: () => dessinePalet(g, p) },
   ];

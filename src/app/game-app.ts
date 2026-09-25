@@ -13,6 +13,7 @@ import {
   construitFoule,
   construitGlace,
   dessineBanniere,
+  dessineChoixMaillots,
   dessineCommandes,
   dessineFin,
   dessineMenu,
@@ -21,16 +22,21 @@ import {
   dessineScene,
   dessineSelectionEquipe,
   dessineTableau,
-  EQUIPES_VISUELLES,
+  EQUIPES_JOUABLES,
+  resoutEquipe,
   SystemeEffets,
   TracesGlace,
-  trouveEquipeVisuelle,
+  trouveTeamDef,
   type CarteEquipe,
+  type CoteMaillot,
   type DecorPatinoire,
   type EquipeVisuelle,
+  type EtatChoixMaillots,
   type EtatFin,
   type EtatMenu,
   type EtatSelectionEquipe,
+  type TeamDef,
+  type Variante,
   type ZoneBouton,
 } from '@render/index';
 import { chargePreferences, sauvePreferences, type Preferences } from './preferences';
@@ -38,11 +44,11 @@ import { demandePleinEcranPaysage } from './pwa';
 
 const PAS_FIXE = 1 / 120;
 
-type EcranUI = 'menu' | 'equipes' | 'jeu' | 'pause' | 'fin';
+type EcranUI = 'menu' | 'equipes' | 'maillots' | 'jeu' | 'pause' | 'fin';
 
 /** Adversaire suggéré par défaut au démarrage / en démo, avant tout choix réel. */
-function equipeAdverseParDefaut(idJoueur: string): EquipeVisuelle {
-  return trouveEquipeVisuelle(idJoueur === 'montpellier' ? 'toulouse' : 'montpellier');
+function equipeAdverseParDefaut(idJoueur: string): TeamDef {
+  return trouveTeamDef(idJoueur === 'montpellier' ? 'toulouse' : 'montpellier');
 }
 
 export class GameApp {
@@ -66,11 +72,13 @@ export class GameApp {
 
   /** Les deux équipes actuellement affichées (match en cours, ou paire par défaut en démo/menu). */
   private equipesActuelles: [EquipeVisuelle, EquipeVisuelle] = [
-    trouveEquipeVisuelle(this.pref.equipeJoueur),
-    equipeAdverseParDefaut(this.pref.equipeJoueur),
+    resoutEquipe(trouveTeamDef(this.pref.equipeJoueur), 'interieur'),
+    resoutEquipe(equipeAdverseParDefaut(this.pref.equipeJoueur), 'interieur'),
   ];
-  private etapeSelection: 'joueur' | 'adversaire' = 'joueur';
-  private equipeJoueurChoisie: EquipeVisuelle | null = null;
+  private indexSelectionJoueur = 0;
+  private indexSelectionAdversaire = 0;
+  private varianteJoueur: Variante = 'interieur';
+  private varianteAdversaire: Variante = 'interieur';
 
   private state: MatchState | null = null;
   private ecranUI: EcranUI = 'menu';
@@ -90,7 +98,7 @@ export class GameApp {
     // Les sprites sont chargés en parallèle du premier rendu ; tant qu'ils ne
     // sont pas prêts, dessinePatineur/dessineGardien sautent juste le
     // drawImage (aucune erreur), donc on ne bloque pas l'affichage dessus.
-    void this.sprites.charge().then(() => this.prechargeEquipes());
+    void this.sprites.charge().then(() => this.prechargeTouteLaSelection());
     this.effets.definitEquipes(this.equipesActuelles);
 
     this.attacheEvenements();
@@ -152,8 +160,13 @@ export class GameApp {
     };
   }
 
-  private prechargeEquipes(): void {
-    for (const eq of this.equipesActuelles) void this.sprites.precharge(eq.id);
+  /** Précharge les 12 combinaisons équipe×maillot d'un coup (fichiers minuscules, autant
+   * les avoir toutes prêtes avant que le joueur n'atteigne l'écran des maillots). */
+  private prechargeTouteLaSelection(): void {
+    for (const def of EQUIPES_JOUABLES) {
+      void this.sprites.precharge(`${def.id}-interieur`);
+      void this.sprites.precharge(`${def.id}-exterieur`);
+    }
   }
 
   // ---------------------------------------------------------------- parties
@@ -164,29 +177,54 @@ export class GameApp {
 
   private ouvreSelectionEquipe(): void {
     this.audio.init();
-    this.etapeSelection = 'joueur';
-    this.equipeJoueurChoisie = null;
+    this.indexSelectionJoueur = Math.max(0, EQUIPES_JOUABLES.findIndex((e) => e.id === this.pref.equipeJoueur));
+    this.indexSelectionAdversaire = Math.max(0, EQUIPES_JOUABLES.findIndex((e) => e.id === this.equipesActuelles[1].teamId));
     this.ecranUI = 'equipes';
   }
 
-  private choisitEquipeJoueur(id: string): void {
+  private tourneJoueur(sens: 1 | -1): void {
     this.audio.clic();
-    this.pref.equipeJoueur = id;
+    const n = EQUIPES_JOUABLES.length;
+    this.indexSelectionJoueur = (this.indexSelectionJoueur + sens + n) % n;
+  }
+
+  private tourneAdversaire(sens: 1 | -1): void {
+    this.audio.clic();
+    const n = EQUIPES_JOUABLES.length;
+    this.indexSelectionAdversaire = (this.indexSelectionAdversaire + sens + n) % n;
+  }
+
+  /** Étape 1 validée : les équipes sont fixées, on passe au choix des maillots. */
+  private confirmeSelection(): void {
+    this.audio.clic();
+    const def = EQUIPES_JOUABLES[this.indexSelectionJoueur]!;
+    this.pref.equipeJoueur = def.id;
     sauvePreferences(this.pref);
-    this.equipeJoueurChoisie = trouveEquipeVisuelle(id);
-    this.etapeSelection = 'adversaire';
+    this.varianteJoueur = 'interieur';
+    this.varianteAdversaire = 'interieur';
+    this.ecranUI = 'maillots';
   }
 
-  private choisitEquipeAdversaire(id: string): void {
-    if (!this.equipeJoueurChoisie) return;
+  private toggleVarianteJoueur(): void {
     this.audio.clic();
-    this.lanceMatch(this.equipeJoueurChoisie, trouveEquipeVisuelle(id));
+    this.varianteJoueur = this.varianteJoueur === 'interieur' ? 'exterieur' : 'interieur';
   }
 
-  private retourChoixJoueur(): void {
+  private toggleVarianteAdversaire(): void {
     this.audio.clic();
-    this.etapeSelection = 'joueur';
-    this.equipeJoueurChoisie = null;
+    this.varianteAdversaire = this.varianteAdversaire === 'interieur' ? 'exterieur' : 'interieur';
+  }
+
+  private retourChoixEquipes(): void {
+    this.audio.clic();
+    this.ecranUI = 'equipes';
+  }
+
+  /** Étape 2 validée : les maillots sont fixés, on lance le match. */
+  private confirmeMaillots(): void {
+    const defJoueur = EQUIPES_JOUABLES[this.indexSelectionJoueur]!;
+    const defAdverse = EQUIPES_JOUABLES[this.indexSelectionAdversaire]!;
+    this.lanceMatch(resoutEquipe(defJoueur, this.varianteJoueur), resoutEquipe(defAdverse, this.varianteAdversaire));
   }
 
   private lanceMatch(equipeJoueur: EquipeVisuelle, equipeAdverse: EquipeVisuelle): void {
@@ -194,15 +232,14 @@ export class GameApp {
     demandePleinEcranPaysage();
     this.equipesActuelles = [equipeJoueur, equipeAdverse];
     this.effets.definitEquipes(this.equipesActuelles);
-    this.prechargeEquipes();
     this.construitDecor();
     this.state = creePartie(this.rink!, {
       mode: 'match',
       niveauIdx: this.pref.niveau,
       dureeIdx: this.pref.duree,
       effectifIdx: this.pref.effectif,
-      equipeJoueur: trouveEquipe(equipeJoueur.id),
-      equipeAdverse: trouveEquipe(equipeAdverse.id),
+      equipeJoueur: trouveEquipe(equipeJoueur.teamId),
+      equipeAdverse: trouveEquipe(equipeAdverse.teamId),
     });
     this.effets.reinitialise();
     this.ecranUI = 'jeu';
@@ -210,7 +247,7 @@ export class GameApp {
     this.effets.annonce('PRETS ?', NIVEAUX[this.pref.niveau]!.nom, C.blanc, 1.5);
   }
 
-  /** Rejoue immédiatement avec les deux mêmes équipes (pas de repassage par la sélection). */
+  /** Rejoue immédiatement avec les deux mêmes équipes et maillots (pas de repassage par la sélection). */
   private rejoue(): void {
     this.lanceMatch(this.equipesActuelles[0], this.equipesActuelles[1]);
   }
@@ -292,8 +329,22 @@ export class GameApp {
       }
       if (e.code === 'Enter') {
         if (this.ecranUI === 'menu') this.ouvreSelectionEquipe();
+        else if (this.ecranUI === 'equipes') this.confirmeSelection();
+        else if (this.ecranUI === 'maillots') this.confirmeMaillots();
         else if (this.ecranUI === 'fin') this.rejoue();
         else if (this.enPause) this.pause(false);
+      }
+      if (e.code === 'Escape' && this.ecranUI === 'maillots') this.retourChoixEquipes();
+      if (this.ecranUI === 'equipes' && !e.repeat) {
+        // pensé « manette » : gauche/droite pour votre équipe, haut/bas pour l'adversaire
+        if (e.code === 'ArrowLeft') this.tourneJoueur(-1);
+        else if (e.code === 'ArrowRight') this.tourneJoueur(1);
+        else if (e.code === 'ArrowUp') this.tourneAdversaire(-1);
+        else if (e.code === 'ArrowDown') this.tourneAdversaire(1);
+      }
+      if (this.ecranUI === 'maillots' && !e.repeat) {
+        if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') this.toggleVarianteJoueur();
+        else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') this.toggleVarianteAdversaire();
       }
       if (e.code.startsWith('Arrow')) e.preventDefault();
     });
@@ -355,7 +406,9 @@ export class GameApp {
       g.setTransform(1, 0, 0, 1, sx, sy);
       dessineScene(g, this.rink, state, this.decor, this.sprites, this.effets, this.ecranUI, this.equipesActuelles);
       g.setTransform(1, 0, 0, 1, 0, 0);
-      if (this.ecranUI !== 'menu' && this.ecranUI !== 'equipes') dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
+      if (this.ecranUI !== 'menu' && this.ecranUI !== 'equipes' && this.ecranUI !== 'maillots') {
+        dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
+      }
       dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
       if (this.ecranUI === 'jeu') {
         dessineCommandes(g, this.W, this.H, state.temps, state.controle, this.entrees.instantaneUI());
@@ -363,6 +416,8 @@ export class GameApp {
         dessineMenu(g, this.boutons, this.W, this.H, tempsUI, this.menuProps());
       } else if (this.ecranUI === 'equipes') {
         dessineSelectionEquipe(g, this.boutons, this.W, this.H, this.selectionProps());
+      } else if (this.ecranUI === 'maillots') {
+        dessineChoixMaillots(g, this.boutons, this.sprites, this.W, this.H, this.maillotsProps());
       } else if (this.ecranUI === 'pause') {
         dessinePause(g, this.boutons, this.W, this.H, () => this.pause(false), () => this.retourMenu());
       } else if (this.ecranUI === 'fin') {
@@ -408,17 +463,32 @@ export class GameApp {
     };
   }
 
+  private carte(index: number): CarteEquipe {
+    const def = EQUIPES_JOUABLES[index]!;
+    return { def, profil: trouveEquipe(def.id) };
+  }
+
   private selectionProps(): EtatSelectionEquipe {
-    const cartes: CarteEquipe[] = EQUIPES_VISUELLES.map((visuel) => ({ visuel, profil: trouveEquipe(visuel.id) }));
     return {
-      etape: this.etapeSelection,
-      cartes,
-      equipeJoueur: this.equipeJoueurChoisie,
-      onChoisir: (id) => {
-        if (this.etapeSelection === 'joueur') this.choisitEquipeJoueur(id);
-        else this.choisitEquipeAdversaire(id);
-      },
-      onRetour: () => this.retourChoixJoueur(),
+      joueur: this.carte(this.indexSelectionJoueur),
+      adversaire: this.carte(this.indexSelectionAdversaire),
+      onPrecedentJoueur: () => this.tourneJoueur(-1),
+      onSuivantJoueur: () => this.tourneJoueur(1),
+      onPrecedentAdversaire: () => this.tourneAdversaire(-1),
+      onSuivantAdversaire: () => this.tourneAdversaire(1),
+      onConfirmer: () => this.confirmeSelection(),
+    };
+  }
+
+  private maillotsProps(): EtatChoixMaillots {
+    const cote = (index: number, variante: Variante): CoteMaillot => ({ def: EQUIPES_JOUABLES[index]!, variante });
+    return {
+      joueur: cote(this.indexSelectionJoueur, this.varianteJoueur),
+      adversaire: cote(this.indexSelectionAdversaire, this.varianteAdversaire),
+      onToggleJoueur: () => this.toggleVarianteJoueur(),
+      onToggleAdversaire: () => this.toggleVarianteAdversaire(),
+      onRetour: () => this.retourChoixEquipes(),
+      onConfirmer: () => this.confirmeMaillots(),
     };
   }
 

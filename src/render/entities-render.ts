@@ -36,6 +36,7 @@ export function dessinePatineur(
   temps: number,
   estControle: boolean,
   equipes: [EquipeVisuelle, EquipeVisuelle],
+  specialPret: boolean,
 ): void {
   const gauche = Math.cos(s.face) < 0;
   const v = Math.hypot(s.vx, s.vy);
@@ -67,6 +68,15 @@ export function dessinePatineur(
   if (s.tient) {
     haloSol(g, s.x, s.y + 4, 6, C.or, 0.75 + 0.2 * Math.sin(temps * 8));
     badgePalet(g, Math.round(s.x), by - 2, temps);
+  }
+  // tir spécial chargé (combo de passes) : petite flamme pulsante au-dessus du porteur
+  if (s.tient && specialPret) {
+    const rebond = Math.abs(Math.sin(temps * 9)) * 2;
+    const fx = Math.round(s.x);
+    const fy = by - 8 - rebond;
+    px(g, fx - 2, fy - 2, 5, 5, C.contour);
+    px(g, fx - 1, fy - 1, 3, 3, '#ff8a3d');
+    px(g, fx, fy - 2, 1, 1, '#ffd35c');
   }
 
   if (sp.y < s.y) crosse();

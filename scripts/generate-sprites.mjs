@@ -28,8 +28,10 @@ const SKATER_FRAMES = 3;
 
 // Couleurs de maillot dérivées des écussons dans assets/logos-src/ — tenues
 // synchronisées à la main avec src/render/team-visuals.ts (ce script tourne
-// en Node pur, sans les alias TS du reste du projet).
-const EQUIPES = [
+// en Node pur, sans les alias TS du reste du projet). Chaque équipe a un
+// maillot domicile et un maillot extérieur (corps/bande inversés) pour que
+// le joueur puisse éviter un choc de couleurs avec l'adversaire.
+const INTERIEURS = [
   { id: 'toulouse', numero: 1, maillot: '#d81f26', fonce: '#141414', clair: '#ffffff', casque: '#141414' },
   { id: 'nice', numero: 2, maillot: '#17181a', fonce: '#7a1017', clair: '#e8b73a', casque: '#17181a' },
   { id: 'vaujany', numero: 3, maillot: '#9c2b1f', fonce: '#5c3a1e', clair: '#dba24a', casque: '#5c3a1e' },
@@ -37,6 +39,15 @@ const EQUIPES = [
   { id: 'grenoble', numero: 5, maillot: '#2f6fd0', fonce: '#0c1830', clair: '#f2661c', casque: '#0c1830' },
   { id: 'montpellier', numero: 6, maillot: '#0d1e4a', fonce: '#071230', clair: '#e8611c', casque: '#0d1e4a' },
 ];
+const VARIANTES = ['interieur', 'exterieur'];
+function palette(base, variante) {
+  if (variante === 'interieur') return base;
+  return { maillot: base.clair, fonce: base.fonce, clair: base.maillot, casque: base.casque };
+}
+const EQUIPES = INTERIEURS.flatMap((base) =>
+  VARIANTES.map((variante) => ({ ...palette(base, variante), id: `${base.id}-${variante}`, numero: base.numero })),
+);
+const EQUIPES_LOGO = INTERIEURS; // un seul écusson par équipe, indépendant du maillot
 const CONTOUR = '#0b0e1d';
 const PEAU = '#f1c7a0';
 const VISIERE = '#12213a';
@@ -247,7 +258,11 @@ for (const eq of EQUIPES) {
 
 writeFileSync(
   path.join(OUT_SPRITES, 'meta.json'),
-  JSON.stringify({ tileW: TILE_W, tileH: TILE_H, skaterFrames: SKATER_FRAMES, teamIds: EQUIPES.map((e) => e.id) }, null, 2),
+  JSON.stringify(
+    { tileW: TILE_W, tileH: TILE_H, skaterFrames: SKATER_FRAMES, teamIds: EQUIPES_LOGO.map((e) => e.id), variants: VARIANTES },
+    null,
+    2,
+  ),
 );
 
 // --- Écussons des équipes : fond retiré (damier « transparent » ou couleur
@@ -336,7 +351,7 @@ function retireArrierePlan(imgData, w, h) {
 
 async function traiteLogos() {
   const TAILLE = 160;
-  for (const eq of EQUIPES) {
+  for (const eq of EQUIPES_LOGO) {
     const img = await loadImage(path.join(SRC_LOGOS, `${eq.id}.jpg`));
     const brut = createCanvas(img.width, img.height);
     const bctx = brut.getContext('2d');

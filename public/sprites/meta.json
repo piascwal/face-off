@@ -9,5 +9,9 @@
     "nimes",
     "grenoble",
     "montpellier"
+  ],
+  "variants": [
+    "interieur",
+    "exterieur"
   ]
 }

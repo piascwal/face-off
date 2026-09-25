@@ -19,3 +19,6 @@ export const NIVEAUX: LevelConfig[] = [
 
 export const DUREES = [120, 180, 300];
 export const EFFECTIFS = [2, 3];
+
+/** Nombre de passes réussies d'affilée pour débloquer un tir spécial. */
+export const COMBO_SEUIL = 3;

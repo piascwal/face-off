@@ -1,6 +1,7 @@
 import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
 import type { Rink } from '@core/types';
 import type { Banniere } from './effects';
+import { obtientLogo } from './logos';
 import { largeurTexte, texte } from './pixel-font';
 import { bouton, panneau, type ZoneBouton } from './widgets';
 import { C, MARQUE } from './theme';
@@ -135,6 +136,23 @@ export function dessineBanniere(g: CanvasRenderingContext2D, W: number, rink: Ri
   texte(g, b.txt, cx - dx, cy, b.c, e, 'c');
   if (b.sous) texte(g, b.sous, cx + dx, cy + 7 * e + 4, C.blanc, 1, 'c');
   g.globalAlpha = 1;
+
+  if (b.logoId) {
+    const logo = obtientLogo(b.logoId);
+    if (logo) {
+      // rebond « easeOutBack » à l'entrée, léger fondu à la sortie
+      const c1 = 1.70158;
+      const c3 = c1 + 1;
+      const tt = Math.min(1, age / 0.35);
+      const echelle = tt <= 0 ? 0 : 1 + c3 * Math.pow(tt - 1, 3) + c1 * Math.pow(tt - 1, 2);
+      const taille = 30 * Math.max(0, echelle);
+      g.globalAlpha = Math.min(1, b.vie * 3);
+      g.imageSmoothingEnabled = true;
+      g.drawImage(logo, cx - taille / 2, cy - 14 - taille, taille, taille);
+      g.imageSmoothingEnabled = false;
+      g.globalAlpha = 1;
+    }
+  }
 }
 
 export function dessinePortrait(g: CanvasRenderingContext2D, W: number, H: number, temps: number): void {

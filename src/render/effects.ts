@@ -1,7 +1,7 @@
 import type { GameEvent, TeamId } from '@core/types';
 import { alea } from '@core/utils';
 import { C } from './theme';
-import { EQUIPES_VISUELLES, type EquipeVisuelle } from './team-visuals';
+import { EQUIPES_JOUABLES, resoutEquipe, type EquipeVisuelle } from './team-visuals';
 
 export interface Particule {
   x: number;
@@ -30,6 +30,8 @@ export interface Banniere {
   c: string;
   vie: number;
   max: number;
+  /** Id de l'écusson à animer à côté du texte (but marqué par cette équipe). */
+  logoId?: string;
 }
 
 /**
@@ -45,7 +47,10 @@ export class SystemeEffets {
   flash = 0;
   banniere: Banniere | null = null;
   /** Les deux équipes du match en cours — pour teinter confettis et bandeau de but. */
-  equipes: [EquipeVisuelle, EquipeVisuelle] = [EQUIPES_VISUELLES[0]!, EQUIPES_VISUELLES[1]!];
+  equipes: [EquipeVisuelle, EquipeVisuelle] = [
+    resoutEquipe(EQUIPES_JOUABLES[0]!, 'interieur'),
+    resoutEquipe(EQUIPES_JOUABLES[1]!, 'interieur'),
+  ];
 
   definitEquipes(equipes: [EquipeVisuelle, EquipeVisuelle]): void {
     this.equipes = equipes;
@@ -98,8 +103,8 @@ export class SystemeEffets {
     this.bulles.push({ txt, x, y, c, vie: 1.1 });
   }
 
-  annonce(txt: string, sous: string, c: string, duree = 1.6): void {
-    this.banniere = { txt, sous, c, vie: duree, max: duree };
+  annonce(txt: string, sous: string, c: string, duree = 1.6, logoId?: string): void {
+    this.banniere = { txt, sous, c, vie: duree, max: duree, logoId };
   }
 
   /** Consomme les évènements de gameplay produits par un pas de simulation. */
@@ -119,7 +124,13 @@ export class SystemeEffets {
           this.bulle(ev.txt, ev.x, ev.y, ev.c);
           break;
         case 'annonce':
-          this.annonce(ev.txt, ev.sous, ev.eq !== undefined ? this.equipes[ev.eq].maillot : ev.c, ev.duree);
+          this.annonce(
+            ev.txt,
+            ev.sous,
+            ev.eq !== undefined ? this.equipes[ev.eq].maillot : ev.c,
+            ev.duree,
+            ev.eq !== undefined ? this.equipes[ev.eq].teamId : undefined,
+          );
           break;
         case 'secousse':
           this.secousse = Math.max(this.secousse, ev.force);

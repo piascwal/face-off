@@ -106,14 +106,26 @@ sprites, HUD, menus, effets).
 ### Sélection d'équipe
 
 Six vraies équipes jouables (Toulouse, Nice, Vaujany, Nîmes, Grenoble,
-Montpellier), chacune avec son maillot (couleurs tirées de son écusson — voir
-`assets/logos-src/`) et un profil de stats (`core/teams.ts` : vitesse, tir,
+Montpellier), chacune avec un profil de stats (`core/teams.ts` : vitesse, tir,
 défense, gardien — des multiplicateurs qui modulent réellement la simulation,
-pas juste de la couleur). Écran de sélection façon jeu de sport : on choisit
-d'abord sa propre équipe, puis l'adversaire (`render/team-select.ts`,
-`app/game-app.ts`). Les écussons sources sont détourés automatiquement (fond
-retiré par propagation depuis le bord de l'image) et les feuilles de sprites
-par équipe générées par le même script que les sprites — voir
+pas juste de la couleur) affiché en notes façon jeu de sport (ATT/DEF/note
+globale, 65 à 99). Le choix se fait en deux écrans pensés « manette »
+(flèches cliquables plutôt qu'une grille, `render/team-select.ts` +
+`app/game-app.ts`) :
+
+1. **Les équipes** — écran scindé en deux (vous à gauche, l'adversaire à
+   droite), chaque camp se fait défiler indépendamment avec ses propres
+   flèches (clavier : gauche/droite pour vous, haut/bas pour l'adversaire).
+2. **Les maillots** — chaque équipe a un maillot domicile et un extérieur
+   (corps et bande inversés, voir `team-visuals.ts`) ; l'écran affiche un
+   vrai patineur portant le maillot choisi pour chaque camp, l'un en face de
+   l'autre, pour vérifier au coup d'œil que les couleurs des deux équipes ne
+   se confondent pas avant de lancer le match.
+
+Les écussons sources sont détourés automatiquement (fond retiré par
+propagation depuis le bord de l'image, qu'il soit uni ou en damier) et les 24
+feuilles de sprites (6 équipes × domicile/extérieur × patineur/gardien)
+générées par le même script que les sprites — voir
 [Sprites](#sprites-pixel-art).
 
 ## Nouveautés par rapport au POC
@@ -169,16 +181,39 @@ un outil de génération d'images ; les PNG actuels sont donc *procéduraux*
 format est volontairement simple pour qu'une infographiste puisse les
 remplacer sans toucher au moteur :
 
-- `public/sprites/skater-<id>.png` (un par équipe jouable, voir `teamIds` dans
-  `meta.json`) : grille de `skaterFrames` colonnes × 2 lignes (ligne 0 =
-  orienté droite, ligne 1 = orienté gauche), taille de case dans
-  `public/sprites/meta.json`.
-- `public/sprites/goalie-<id>.png` : 1 colonne × 2 lignes, même convention.
+- `public/sprites/skater-<id>-<variante>.png` (un par équipe × maillot
+  domicile/extérieur, voir `teamIds`/`variants` dans `meta.json`) : grille de
+  `skaterFrames` colonnes × 2 lignes (ligne 0 = orienté droite, ligne 1 =
+  orienté gauche), taille de case dans `public/sprites/meta.json`.
+- `public/sprites/goalie-<id>-<variante>.png` : 1 colonne × 2 lignes, même convention.
 
 Il suffit de déposer de nouveaux PNG au même chemin avec la même grille (et
 de mettre à jour `meta.json` si la taille de case change) — `src/render/sprites.ts`
 ne connaît que ce contrat, jamais le contenu artistique. Même logique pour les
 écussons (`public/logos/<id>.png`, fond déjà transparent).
+
+### 5. Célébration de but avec l'écusson de l'équipe
+
+Le bandeau de but (`render/screens.ts::dessineBanniere`) affiche désormais
+l'écusson de l'équipe qui vient de marquer, avec une petite animation de
+rebond (« easeOutBack ») à l'entrée. Le cœur du jeu (`physics.ts::marque`)
+ne connaît toujours aucune couleur ni logo : il émet juste l'équipe (`eq`)
+qui a marqué, et c'est `SystemeEffets` côté rendu qui résout la couleur du
+bandeau et l'écusson à afficher — cohérent avec le reste de l'architecture
+(voir plus haut) où le cœur du jeu ne connaît jamais l'identité visuelle des
+équipes.
+
+### 6. Combo de passes → tir spécial
+
+Enchaîner des passes réussies (3 par défaut, `COMBO_SEUIL` dans
+`core/constants.ts`) sans perdre le palet charge un tir spécial pour
+l'équipe : le tir suivant part ~25 % plus vite et voit sa « qualité »
+(voir le point 3) augmentée d'un bonus, avec un effet visuel et sonore
+distinct. La combo se réinitialise dès que le palet change de camp, ou
+qu'un tir est tenté (spécial ou non) — logique dans `core/actions.ts`
+(`prendPalet`/`tir`), testée dans `tests/combo.test.ts`. Ça s'applique aussi
+bien à l'IA qu'au joueur humain, puisque les deux passent par les mêmes
+fonctions.
 
 ## Roadmap : joueur contre joueur en ligne
 
