@@ -393,8 +393,14 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
   state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 20, c: '#ffd35c' });
   state.evenements.push({ type: 'secousse', force: 5 });
   state.evenements.push({ type: 'flash', force: 0.7 });
-  const txt = state.mode === 'match' ? (eq === 0 ? 'BUT !' : 'BUT CPU') : 'BUT !';
-  state.evenements.push({ type: 'annonce', txt, sous: `${state.score[0]} - ${state.score[1]}`, c: eq === 0 ? '#2ec8f5' : '#f5415e', duree: 2.4 });
+  state.evenements.push({
+    type: 'annonce',
+    txt: 'BUT !',
+    sous: `${state.score[0]} - ${state.score[1]}`,
+    c: '#ffd35c',
+    duree: 2.4,
+    eq,
+  });
   state.evenements.push({ type: 'klaxon' });
   state.evenements.push({ type: 'ovation', niveau: 1 });
   if (state.mode === 'match') state.evenements.push({ type: 'vibre', ms: eq === 0 ? [60, 40, 120] : 80 });
@@ -446,7 +452,7 @@ export function recuperations(state: MatchState, dt: number): void {
         p.qualite = 0;
         o.recupCd = 0.06;
         state.evenements.push({ type: 'frappe', puissance: 0.1 });
-        state.evenements.push({ type: 'bulle', txt: 'VOLE!', x: p.x, y: p.y - 14, c: o.eq === 0 ? '#b6f0ff' : '#ffc2cc' });
+        state.evenements.push({ type: 'bulle', txt: 'VOLE!', x: p.x, y: p.y - 14, c: '#ffd35c' });
         break;
       }
     }

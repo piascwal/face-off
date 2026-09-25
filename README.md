@@ -103,6 +103,19 @@ police bitmap maison, puis agrandi sur le vrai canvas avec
 c'est le même procédé, juste réparti en modules (police, patinoire/foule,
 sprites, HUD, menus, effets).
 
+### Sélection d'équipe
+
+Six vraies équipes jouables (Toulouse, Nice, Vaujany, Nîmes, Grenoble,
+Montpellier), chacune avec son maillot (couleurs tirées de son écusson — voir
+`assets/logos-src/`) et un profil de stats (`core/teams.ts` : vitesse, tir,
+défense, gardien — des multiplicateurs qui modulent réellement la simulation,
+pas juste de la couleur). Écran de sélection façon jeu de sport : on choisit
+d'abord sa propre équipe, puis l'adversaire (`render/team-select.ts`,
+`app/game-app.ts`). Les écussons sources sont détourés automatiquement (fond
+retiré par propagation depuis le bord de l'image) et les feuilles de sprites
+par équipe générées par le même script que les sprites — voir
+[Sprites](#sprites-pixel-art).
+
 ## Nouveautés par rapport au POC
 
 ### 1. On voit enfin qui a le palet, et qui on pilote
@@ -156,14 +169,16 @@ un outil de génération d'images ; les PNG actuels sont donc *procéduraux*
 format est volontairement simple pour qu'une infographiste puisse les
 remplacer sans toucher au moteur :
 
-- `public/sprites/skater-{0,1}.png` : grille de `skaterFrames` colonnes ×
-  2 lignes (ligne 0 = orienté droite, ligne 1 = orienté gauche), taille de
-  case dans `public/sprites/meta.json`.
-- `public/sprites/goalie-{0,1}.png` : 1 colonne × 2 lignes, même convention.
+- `public/sprites/skater-<id>.png` (un par équipe jouable, voir `teamIds` dans
+  `meta.json`) : grille de `skaterFrames` colonnes × 2 lignes (ligne 0 =
+  orienté droite, ligne 1 = orienté gauche), taille de case dans
+  `public/sprites/meta.json`.
+- `public/sprites/goalie-<id>.png` : 1 colonne × 2 lignes, même convention.
 
 Il suffit de déposer de nouveaux PNG au même chemin avec la même grille (et
 de mettre à jour `meta.json` si la taille de case change) — `src/render/sprites.ts`
-ne connaît que ce contrat, jamais le contenu artistique.
+ne connaît que ce contrat, jamais le contenu artistique. Même logique pour les
+écussons (`public/logos/<id>.png`, fond déjà transparent).
 
 ## Roadmap : joueur contre joueur en ligne
 

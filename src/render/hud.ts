@@ -2,14 +2,21 @@ import type { GamePhase, MatchState } from '@core/types';
 import { zonePause } from './hud-zones';
 import { texte } from './pixel-font';
 import { px } from './primitives';
-import { C, EQUIPES } from './theme';
+import { C } from './theme';
+import type { EquipeVisuelle } from './team-visuals';
 
 const format = (t: number): string => {
   const tc = Math.ceil(t);
   return `${Math.floor(tc / 60)}:${String(tc % 60).padStart(2, '0')}`;
 };
 
-export function dessineTableau(g: CanvasRenderingContext2D, W: number, state: MatchState, ecranUI: string): void {
+export function dessineTableau(
+  g: CanvasRenderingContext2D,
+  W: number,
+  state: MatchState,
+  ecranUI: string,
+  equipes: [EquipeVisuelle, EquipeVisuelle],
+): void {
   const cx = Math.round(W / 2);
   const lw = 150;
   const x = cx - lw / 2;
@@ -18,12 +25,10 @@ export function dessineTableau(g: CanvasRenderingContext2D, W: number, state: Ma
   px(g, x, y, lw, 19, '#161b36');
   px(g, x, y, lw, 1, '#2a3160');
   px(g, x, y + 18, lw, 1, '#0f1328');
-  const e0 = state.mode === 'match' ? 'VOUS' : 'BLEUS';
-  const e1 = state.mode === 'match' ? 'CPU' : 'ROUGES';
-  px(g, x + 3, y + 3, 3, 13, EQUIPES[0].maillot);
-  px(g, x + lw - 6, y + 3, 3, 13, EQUIPES[1].maillot);
-  texte(g, e0, x + 9, y + 6, EQUIPES[0].clair, 1, 'g');
-  texte(g, e1, x + lw - 9, y + 6, EQUIPES[1].clair, 1, 'd');
+  px(g, x + 3, y + 3, 3, 13, equipes[0].maillot);
+  px(g, x + lw - 6, y + 3, 3, 13, equipes[1].maillot);
+  texte(g, equipes[0].code, x + 9, y + 6, equipes[0].clair, 1, 'g');
+  texte(g, equipes[1].code, x + lw - 9, y + 6, equipes[1].clair, 1, 'd');
   texte(g, state.score[0], cx - 22, y + 3, C.blanc, 2, 'c');
   texte(g, state.score[1], cx + 22, y + 3, C.blanc, 2, 'c');
 

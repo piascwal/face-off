@@ -122,7 +122,10 @@ export type GameEvent =
   | { type: 'flash'; force: number }
   | { type: 'vibre'; ms: number | number[] }
   | { type: 'bulle'; txt: string; x: number; y: number; c: string }
-  | { type: 'annonce'; txt: string; sous: string; c: string; duree: number };
+  // `c` est une couleur neutre de repli ; quand `eq` est fourni, le rendu
+  // préfère la couleur de maillot de cette équipe (core ne connaît pas les
+  // couleurs de maillot — voir render/team-visuals.ts).
+  | { type: 'annonce'; txt: string; sous: string; c: string; duree: number; eq?: TeamId };
 
 /** Entrée d'un joueur humain pour une image de simulation. */
 export interface InputIntent {

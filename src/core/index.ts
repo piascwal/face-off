@@ -8,5 +8,6 @@ export * from './rules';
 export * from './shooting';
 export * from './simulation';
 export * from './state-helpers';
+export * from './teams';
 export * from './types';
 export * from './utils';

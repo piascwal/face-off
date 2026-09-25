@@ -7,9 +7,19 @@ export interface Preferences {
   son: boolean;
   victoires: number[];
   matchs: number[];
+  /** Dernière équipe pilotée par le joueur, pré-sélectionnée à la prochaine partie. */
+  equipeJoueur: string;
 }
 
-const DEFAUT: Preferences = { niveau: 1, duree: 1, effectif: 1, son: true, victoires: [0, 0, 0], matchs: [0, 0, 0] };
+const DEFAUT: Preferences = {
+  niveau: 1,
+  duree: 1,
+  effectif: 1,
+  son: true,
+  victoires: [0, 0, 0],
+  matchs: [0, 0, 0],
+  equipeJoueur: 'toulouse',
+};
 
 export function chargePreferences(): Preferences {
   const pref = { ...DEFAUT };

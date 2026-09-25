@@ -8,7 +8,7 @@
 // surtout des assets qu'une infographiste peut ouvrir dans un éditeur pixel
 // art et remplacer directement, sans toucher au code du jeu (voir
 // public/sprites/meta.json pour la grille attendue).
-import { createCanvas } from '@napi-rs/canvas';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,16 +16,26 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_SPRITES = path.join(__dirname, '..', 'public', 'sprites');
 const OUT_ICONS = path.join(__dirname, '..', 'public', 'icons');
+const OUT_LOGOS = path.join(__dirname, '..', 'public', 'logos');
+const SRC_LOGOS = path.join(__dirname, '..', 'assets', 'logos-src');
 mkdirSync(OUT_SPRITES, { recursive: true });
 mkdirSync(OUT_ICONS, { recursive: true });
+mkdirSync(OUT_LOGOS, { recursive: true });
 
 const TILE_W = 24;
 const TILE_H = 32;
 const SKATER_FRAMES = 3;
 
+// Couleurs de maillot dérivées des écussons dans assets/logos-src/ — tenues
+// synchronisées à la main avec src/render/team-visuals.ts (ce script tourne
+// en Node pur, sans les alias TS du reste du projet).
 const EQUIPES = [
-  { maillot: '#2ec8f5', fonce: '#155f9e', clair: '#b6f0ff', casque: '#155f9e' },
-  { maillot: '#f5415e', fonce: '#8c1b3a', clair: '#ffc2cc', casque: '#8c1b3a' },
+  { id: 'toulouse', numero: 1, maillot: '#d81f26', fonce: '#141414', clair: '#ffffff', casque: '#141414' },
+  { id: 'nice', numero: 2, maillot: '#17181a', fonce: '#7a1017', clair: '#e8b73a', casque: '#17181a' },
+  { id: 'vaujany', numero: 3, maillot: '#9c2b1f', fonce: '#5c3a1e', clair: '#dba24a', casque: '#5c3a1e' },
+  { id: 'nimes', numero: 4, maillot: '#2f7d3a', fonce: '#163a1b', clair: '#d8b23a', casque: '#163a1b' },
+  { id: 'grenoble', numero: 5, maillot: '#2f6fd0', fonce: '#0c1830', clair: '#f2661c', casque: '#0c1830' },
+  { id: 'montpellier', numero: 6, maillot: '#0d1e4a', fonce: '#071230', clair: '#e8611c', casque: '#0d1e4a' },
 ];
 const CONTOUR = '#0b0e1d';
 const PEAU = '#f1c7a0';
@@ -45,6 +55,9 @@ const CHIFFRES = {
   1: ['010', '110', '010', '010', '111'],
   2: ['111', '001', '111', '100', '111'],
   3: ['111', '001', '111', '001', '111'],
+  4: ['101', '101', '111', '001', '001'],
+  5: ['111', '100', '111', '001', '111'],
+  6: ['011', '100', '111', '101', '111'],
 };
 
 function dessineChiffre(ctx, n, ox, oy, color) {
@@ -225,17 +238,126 @@ function creeFeuilleGardien(eq) {
   return canvas;
 }
 
-for (let eq = 0; eq < 2; eq++) {
-  const feuille = creeFeuilleJoueur(EQUIPES[eq], eq === 0 ? 9 : 7);
-  writeFileSync(path.join(OUT_SPRITES, `skater-${eq}.png`), feuille.toBuffer('image/png'));
-  const gk = creeFeuilleGardien(EQUIPES[eq]);
-  writeFileSync(path.join(OUT_SPRITES, `goalie-${eq}.png`), gk.toBuffer('image/png'));
+for (const eq of EQUIPES) {
+  const feuille = creeFeuilleJoueur(eq, eq.numero);
+  writeFileSync(path.join(OUT_SPRITES, `skater-${eq.id}.png`), feuille.toBuffer('image/png'));
+  const gk = creeFeuilleGardien(eq);
+  writeFileSync(path.join(OUT_SPRITES, `goalie-${eq.id}.png`), gk.toBuffer('image/png'));
 }
 
 writeFileSync(
   path.join(OUT_SPRITES, 'meta.json'),
-  JSON.stringify({ tileW: TILE_W, tileH: TILE_H, skaterFrames: SKATER_FRAMES }, null, 2),
+  JSON.stringify({ tileW: TILE_W, tileH: TILE_H, skaterFrames: SKATER_FRAMES, teamIds: EQUIPES.map((e) => e.id) }, null, 2),
 );
+
+// --- Écussons des équipes : fond retiré (damier « transparent » ou couleur
+// pleine selon la source), recadrés en carré sur un fond PNG transparent. --
+
+function distanceCouleur(r1, g1, b1, r2, g2, b2) {
+  const dr = r1 - r2;
+  const dg = g1 - g2;
+  const db = b1 - b2;
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+
+/** Échantillonne le pourtour de l'image pour deviner la ou les couleurs de fond
+ * (une seule couleur pleine, ou deux qui alternent en damier). */
+function detecteCouleursFond(data, w, h) {
+  const echantillons = [];
+  const pas = 3;
+  for (let x = 0; x < w; x += pas) {
+    echantillons.push([x, 0]);
+    echantillons.push([x, h - 1]);
+  }
+  for (let y = 0; y < h; y += pas) {
+    echantillons.push([0, y]);
+    echantillons.push([w - 1, y]);
+  }
+  const couleurs = [];
+  for (const [x, y] of echantillons) {
+    const i = (y * w + x) * 4;
+    const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
+    const trouve = couleurs.find((c) => distanceCouleur(r, g, b, c.r, c.g, c.b) < 30);
+    if (trouve) trouve.n++;
+    else couleurs.push({ r, g, b, n: 1 });
+  }
+  couleurs.sort((a, b) => b.n - a.n);
+  // les couleurs de fond (damier ou pleine) dominent largement le pourtour ;
+  // on ignore les échantillons isolés qui tombent sur le contour du dessin.
+  return couleurs.filter((c) => c.n >= echantillons.length * 0.03).slice(0, 2);
+}
+
+/**
+ * Retire le fond par propagation (flood fill) depuis le pourtour de l'image :
+ * tout pixel connecté au bord et proche d'une des couleurs de fond devient
+ * transparent. Les traits de contour du dessin (toujours plus sombres/saturés
+ * que le fond) bloquent la propagation, donc l'intérieur du dessin — même
+ * clair — n'est jamais mangé.
+ */
+function retireArrierePlan(imgData, w, h) {
+  const data = imgData.data;
+  const fonds = detecteCouleursFond(data, w, h);
+  const SEUIL = 34;
+  const estFond = (i) => fonds.some((c) => distanceCouleur(data[i], data[i + 1], data[i + 2], c.r, c.g, c.b) < SEUIL);
+
+  const visite = new Uint8Array(w * h);
+  const file = new Int32Array(w * h);
+  let n = 0;
+  const empile = (x, y) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    const idx = y * w + x;
+    if (visite[idx]) return;
+    if (!estFond(idx * 4)) return;
+    visite[idx] = 1;
+    file[n++] = idx;
+  };
+  for (let x = 0; x < w; x++) {
+    empile(x, 0);
+    empile(x, h - 1);
+  }
+  for (let y = 0; y < h; y++) {
+    empile(0, y);
+    empile(w - 1, y);
+  }
+  let tete = 0;
+  while (tete < n) {
+    const idx = file[tete++];
+    const x = idx % w;
+    const y = (idx / w) | 0;
+    empile(x - 1, y);
+    empile(x + 1, y);
+    empile(x, y - 1);
+    empile(x, y + 1);
+  }
+  for (let idx = 0; idx < w * h; idx++) {
+    if (visite[idx]) data[idx * 4 + 3] = 0;
+  }
+}
+
+async function traiteLogos() {
+  const TAILLE = 160;
+  for (const eq of EQUIPES) {
+    const img = await loadImage(path.join(SRC_LOGOS, `${eq.id}.jpg`));
+    const brut = createCanvas(img.width, img.height);
+    const bctx = brut.getContext('2d');
+    bctx.drawImage(img, 0, 0);
+    const imgData = bctx.getImageData(0, 0, img.width, img.height);
+    retireArrierePlan(imgData, img.width, img.height);
+    bctx.putImageData(imgData, 0, 0);
+
+    const canvas = createCanvas(TAILLE, TAILLE);
+    const ctx = canvas.getContext('2d');
+    const marge = TAILLE * 0.04;
+    const dispo = TAILLE - marge * 2;
+    const echelle = Math.min(dispo / img.width, dispo / img.height);
+    const w = img.width * echelle;
+    const h = img.height * echelle;
+    ctx.drawImage(brut, (TAILLE - w) / 2, (TAILLE - h) / 2, w, h);
+    writeFileSync(path.join(OUT_LOGOS, `${eq.id}.png`), canvas.toBuffer('image/png'));
+  }
+}
+
+await traiteLogos();
 
 // --- Icônes PWA : un petit palet pixel art sur fond nuit ------------------
 

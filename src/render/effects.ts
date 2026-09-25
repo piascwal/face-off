@@ -1,6 +1,7 @@
 import type { GameEvent, TeamId } from '@core/types';
 import { alea } from '@core/utils';
-import { EQUIPES, C } from './theme';
+import { C } from './theme';
+import { EQUIPES_VISUELLES, type EquipeVisuelle } from './team-visuals';
 
 export interface Particule {
   x: number;
@@ -43,6 +44,12 @@ export class SystemeEffets {
   secousse = 0;
   flash = 0;
   banniere: Banniere | null = null;
+  /** Les deux équipes du match en cours — pour teinter confettis et bandeau de but. */
+  equipes: [EquipeVisuelle, EquipeVisuelle] = [EQUIPES_VISUELLES[0]!, EQUIPES_VISUELLES[1]!];
+
+  definitEquipes(equipes: [EquipeVisuelle, EquipeVisuelle]): void {
+    this.equipes = equipes;
+  }
 
   neige(x: number, y: number, n: number, vx = 0, vy = 0): void {
     for (let i = 0; i < n; i++) {
@@ -68,7 +75,7 @@ export class SystemeEffets {
   }
 
   confettis(x: number, y: number, eq: TeamId): void {
-    const cs = [EQUIPES[eq].maillot, EQUIPES[eq].clair, C.or, C.blanc];
+    const cs = [this.equipes[eq].maillot, this.equipes[eq].clair, C.or, C.blanc];
     for (let i = 0; i < 90; i++) {
       const a = Math.random() * Math.PI * 2;
       const v = alea(30, 190);
@@ -112,7 +119,7 @@ export class SystemeEffets {
           this.bulle(ev.txt, ev.x, ev.y, ev.c);
           break;
         case 'annonce':
-          this.annonce(ev.txt, ev.sous, ev.c, ev.duree);
+          this.annonce(ev.txt, ev.sous, ev.eq !== undefined ? this.equipes[ev.eq].maillot : ev.c, ev.duree);
           break;
         case 'secousse':
           this.secousse = Math.max(this.secousse, ev.force);

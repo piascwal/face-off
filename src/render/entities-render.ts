@@ -2,7 +2,8 @@ import { pointCrosse } from '@core/actions';
 import type { Goalie, Puck, Skater } from '@core/types';
 import { ligne, px } from './primitives';
 import type { BanqueSprites } from './sprites';
-import { C, EQUIPES } from './theme';
+import { C } from './theme';
+import type { EquipeVisuelle } from './team-visuals';
 
 const CYCLE = [0, 1, 0, 2];
 
@@ -34,11 +35,12 @@ export function dessinePatineur(
   s: Skater,
   temps: number,
   estControle: boolean,
+  equipes: [EquipeVisuelle, EquipeVisuelle],
 ): void {
   const gauche = Math.cos(s.face) < 0;
   const v = Math.hypot(s.vx, s.vy);
   const frame = v < 14 ? 0 : CYCLE[Math.floor(s.anim / 8) % 4]!;
-  const sprite = sprites.spriteJoueur(s.eq, frame, gauche);
+  const sprite = sprites.spriteJoueur(equipes[s.eq].id, frame, gauche);
   const { w: tw, h: th } = sprites.tailleJoueur;
   let bx = Math.round(s.x) - tw / 2;
   let by = Math.round(s.y) + 3 - th + 4;
@@ -58,7 +60,7 @@ export function dessinePatineur(
   // indicateur « sélectionné » : visible même sans le palet, pour ne jamais perdre
   // de vue le patineur qu'on pilote.
   if (estControle && !s.tient) {
-    haloSol(g, s.x, s.y + 4, 7, EQUIPES[0].clair, 0.55 + 0.25 * Math.sin(temps * 6));
+    haloSol(g, s.x, s.y + 4, 7, equipes[0].clair, 0.55 + 0.25 * Math.sin(temps * 6));
   }
   // indicateur « porte le palet » : anneau doré au sol + palet qui rebondit au-dessus
   // de la tête, visible pour les deux équipes (utile en défense comme en attaque).
@@ -88,7 +90,7 @@ export function dessinePatineur(
     g.fillStyle = C.contour;
     g.fillRect(Math.round(s.x) - 3, fy - 1, 7, 1);
     g.fillRect(Math.round(s.x) - 2, fy + 2, 5, 1);
-    g.fillStyle = EQUIPES[0].clair;
+    g.fillStyle = equipes[0].clair;
     g.fillRect(Math.round(s.x) - 2, fy, 5, 1);
     g.fillRect(Math.round(s.x) - 1, fy + 1, 3, 1);
     g.fillRect(Math.round(s.x), fy + 2, 1, 1);
@@ -119,9 +121,15 @@ export function dessinePatineur(
   }
 }
 
-export function dessineGardien(g: CanvasRenderingContext2D, sprites: BanqueSprites, gk: Goalie, temps: number): void {
+export function dessineGardien(
+  g: CanvasRenderingContext2D,
+  sprites: BanqueSprites,
+  gk: Goalie,
+  temps: number,
+  equipes: [EquipeVisuelle, EquipeVisuelle],
+): void {
   const gauche = gk.eq === 1;
-  const sprite = sprites.spriteGardien(gk.eq, gauche);
+  const sprite = sprites.spriteGardien(equipes[gk.eq].id, gauche);
   const { w: tw, h: th } = sprites.tailleJoueur;
   const bx = Math.round(gk.x) - tw / 2 + Math.round(Math.sin(temps * 60) * gk.secoue);
   const by = Math.round(gk.y) + 3 - th + 4;

@@ -1,5 +1,13 @@
 {
   "tileW": 24,
   "tileH": 32,
-  "skaterFrames": 3
+  "skaterFrames": 3,
+  "teamIds": [
+    "toulouse",
+    "nice",
+    "vaujany",
+    "nimes",
+    "grenoble",
+    "montpellier"
+  ]
 }

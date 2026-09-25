@@ -2,7 +2,8 @@ import { BUT_DEMI, BUT_PROF } from '@core/constants';
 import { distBande } from '@core/rink';
 import type { Rink, TeamId } from '@core/types';
 import { disque } from './primitives';
-import { C, EQUIPES } from './theme';
+import { C } from './theme';
+import type { EquipeVisuelle } from './team-visuals';
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const hex = (h: string): [number, number, number] => [
@@ -115,8 +116,13 @@ export function construitGlace(rink: Rink, W: number, H: number): HTMLCanvasElem
 }
 
 /** Les tribunes : deux images légèrement différentes, alternées quand la foule saute. */
-export function construitFoule(rink: Rink, W: number, H: number): [HTMLCanvasElement, HTMLCanvasElement] {
-  const couleurs = [EQUIPES[0].maillot, EQUIPES[0].fonce, EQUIPES[1].maillot, EQUIPES[1].fonce, '#e8e8f0', '#f2c14e', '#5b6b8c', '#3b3f5c'];
+export function construitFoule(
+  rink: Rink,
+  W: number,
+  H: number,
+  equipes: [EquipeVisuelle, EquipeVisuelle],
+): [HTMLCanvasElement, HTMLCanvasElement] {
+  const couleurs = [equipes[0].maillot, equipes[0].fonce, equipes[1].maillot, equipes[1].fonce, '#e8e8f0', '#f2c14e', '#5b6b8c', '#3b3f5c'];
   const peaux = ['#f1c7a0', '#d9a07a', '#a86b4a', '#7a4a33', '#f6d7bd'];
   const gens: { x: number; y: number; c: string; p: string; s: number }[] = [];
   for (let y = 1; y < H; y += 5) {

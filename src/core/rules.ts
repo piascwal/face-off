@@ -1,27 +1,59 @@
 import { controle } from './actions';
 import { DUREES, EFFECTIFS, NIVEAUX } from './constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from './entities';
-import type { GameMode, MatchState, Rink, TeamId } from './types';
+import { PROFIL_NEUTRE, type TeamProfile } from './teams';
+import type { GameMode, LevelConfig, MatchState, Rink, TeamId } from './types';
+import { clamp } from './utils';
 
 export interface OptionsPartie {
   mode: GameMode;
-  /** Index dans NIVEAUX ; ignoré en mode démo (utilise toujours NORMAL). */
+  /** Index dans NIVEAUX ; ignoré en mode démo (utilise toujours NORMAL). Règle le CPU. */
   niveauIdx: number;
   /** Index dans DUREES ; ignoré en mode démo. */
   dureeIdx: number;
   /** Index dans EFFECTIFS ; ignoré en mode démo (toujours 3 contre 3). */
   effectifIdx: number;
+  /** Équipe pilotée par l'humain — ignorée en mode démo (profil neutre). */
+  equipeJoueur?: TeamProfile;
+  /** Équipe adverse — ignorée en mode démo (profil neutre). */
+  equipeAdverse?: TeamProfile;
+}
+
+/**
+ * Un profil d'équipe (vitesse/tir/défense/gardien) module le niveau de
+ * difficulté choisi : la vitesse de patinage vient directement de l'équipe,
+ * les autres axes (précision, agressivité défensive, réflexes du gardien)
+ * scalent la valeur de base de la difficulté. Un profil neutre (1 partout)
+ * redonne exactement le niveau de difficulté d'origine — c'est ce qu'utilise
+ * le mode démo, qui ne connaît pas d'équipes jouables.
+ */
+function combineProfil(niveau: LevelConfig, equipe: TeamProfile): LevelConfig {
+  return {
+    nom: niveau.nom,
+    vit: equipe.vit,
+    reac: niveau.reac,
+    err: clamp(niveau.err * (2 - equipe.tir), 0.01, 1),
+    poke: niveau.poke * equipe.defense,
+    check: niveau.check * equipe.defense,
+    gk: niveau.gk * equipe.gardien,
+    antic: Math.min(1, niveau.antic * equipe.gardien),
+    portee: niveau.portee * equipe.tir,
+  };
 }
 
 export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
-  const niv = opts.mode === 'demo' ? NIVEAUX[1]! : NIVEAUX[opts.niveauIdx]!;
+  const niveauAdverse = opts.mode === 'demo' ? NIVEAUX[1]! : NIVEAUX[opts.niveauIdx]!;
   const nb = opts.mode === 'demo' ? 3 : EFFECTIFS[opts.effectifIdx]!;
-  // vos coéquipiers jouent toujours au niveau normal ; le niveau choisi règle le CPU
-  const nivEq: [typeof niv, typeof niv] = [opts.mode === 'match' ? NIVEAUX[1]! : niv, niv];
+  const profilJoueur = opts.equipeJoueur ?? PROFIL_NEUTRE;
+  const profilAdverse = opts.equipeAdverse ?? PROFIL_NEUTRE;
+  // vos coéquipiers jouent toujours calés sur le niveau normal ; le niveau
+  // choisi dans le menu ne règle que le CPU. Les deux sont ensuite modulés
+  // par le profil de l'équipe choisie.
+  const nivEq: [LevelConfig, LevelConfig] = [combineProfil(NIVEAUX[1]!, profilJoueur), combineProfil(niveauAdverse, profilAdverse)];
 
   const state: MatchState = {
     mode: opts.mode,
-    niv,
+    niv: niveauAdverse,
     nivEq,
     nb,
     patineurs: [],
@@ -46,14 +78,14 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
   for (const eq of [0, 1] as TeamId[]) {
     for (let i = 0; i < nb; i++) {
       const s = nouveauPatineur(eq, i);
-      s.vit = opts.mode === 'match' && eq === 0 ? 1 : nivEq[eq].vit;
+      s.vit = nivEq[eq].vit;
       state.patineurs.push(s);
     }
   }
-  state.gardiens[0].vit = opts.mode === 'match' ? 2.0 : niv.gk;
-  state.gardiens[0].antic = opts.mode === 'match' ? 0.3 : niv.antic;
-  state.gardiens[1].vit = niv.gk;
-  state.gardiens[1].antic = niv.antic;
+  state.gardiens[0].vit = nivEq[0].gk;
+  state.gardiens[0].antic = nivEq[0].antic;
+  state.gardiens[1].vit = nivEq[1].gk;
+  state.gardiens[1].antic = nivEq[1].antic;
 
   engagement(rink, state, 1.6);
   return state;

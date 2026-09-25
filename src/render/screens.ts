@@ -3,7 +3,8 @@ import type { Rink } from '@core/types';
 import type { Banniere } from './effects';
 import { largeurTexte, texte } from './pixel-font';
 import { bouton, panneau, type ZoneBouton } from './widgets';
-import { C, EQUIPES } from './theme';
+import { C, MARQUE } from './theme';
+import type { EquipeVisuelle } from './team-visuals';
 
 export interface EtatMenu {
   niveauIdx: number;
@@ -32,7 +33,7 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
   const ty = Math.max(6, Math.round(H * 0.05));
   for (let i = 0; i < titre.length; i++) {
     const dy = Math.round(Math.sin(t * 3 + i * 0.6) * 1.5);
-    const col = i < 4 ? EQUIPES[0].maillot : i === 4 ? C.blanc : EQUIPES[1].maillot;
+    const col = i < 4 ? MARQUE.bleu : i === 4 ? C.blanc : MARQUE.rouge;
     texte(g, titre[i]!, ox + i * 6 * e + 2.5 * e, ty + dy, col, e, 'c');
   }
   texte(g, 'HOCKEY ARCADE', cx, ty + 7 * e + 5, C.or, 1, 'c');
@@ -92,6 +93,7 @@ export interface EtatFin {
   niveauNom: string;
   victoires: number;
   matchs: number;
+  equipes: [EquipeVisuelle, EquipeVisuelle];
   onRejouer: () => void;
   onMenu: () => void;
 }
@@ -104,7 +106,7 @@ export function dessineFin(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
   const gagne = fin.score[0] > fin.score[1];
   const t = temps;
   const titre = gagne ? 'VICTOIRE !' : 'DEFAITE';
-  texte(g, titre, cx, cy - 58 + Math.round(Math.sin(t * 4) * 1.5), gagne ? C.or : EQUIPES[1].maillot, 3, 'c');
+  texte(g, titre, cx, cy - 58 + Math.round(Math.sin(t * 4) * 1.5), gagne ? C.or : fin.equipes[1].maillot, 3, 'c');
   texte(g, `${fin.score[0]} - ${fin.score[1]}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 28, C.blanc, 2, 'c');
   texte(g, `TIRS CADRES  ${fin.tirs[0]} - ${fin.tirs[1]}`, cx, cy - 8, C.gris, 1, 'c');
   bouton(g, boutons, 'REJOUER', cx - 108, cy + 10, 100, 20, fin.onRejouer, { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' });

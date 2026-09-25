@@ -7,7 +7,8 @@ import { ellipseOmbre, px } from './primitives';
 import { dessineCage, dessineLampe } from './rink-render';
 import type { BanqueSprites } from './sprites';
 import { texte } from './pixel-font';
-import { C, EQUIPES } from './theme';
+import { C } from './theme';
+import type { EquipeVisuelle } from './team-visuals';
 
 export interface DecorPatinoire {
   glace: HTMLCanvasElement;
@@ -23,6 +24,7 @@ export function dessineScene(
   sprites: BanqueSprites,
   effets: SystemeEffets,
   ecranUI: string,
+  equipes: [EquipeVisuelle, EquipeVisuelle],
 ): void {
   const p = state.palet;
   p.trace.push({ x: p.x, y: p.y });
@@ -58,7 +60,7 @@ export function dessineScene(
           if (k % 2 === 0) px(g, s.x + Math.cos(a) * 8, s.y + 3 + Math.sin(a) * 3, 1, 1, cl);
         }
       } else if (!s.tient) {
-        px(g, s.x - 1, s.y + 5, 3, 1, EQUIPES[0].maillot);
+        px(g, s.x - 1, s.y + 5, 3, 1, equipes[0].maillot);
       }
     }
   }
@@ -66,8 +68,8 @@ export function dessineScene(
   for (const gk of state.gardiens) ellipseOmbre(g, gk.x, gk.y + 3, 6, 1, 0.28);
 
   const liste: { y: number; f: () => void }[] = [
-    ...state.patineurs.map((s) => ({ y: s.y, f: () => dessinePatineur(g, sprites, s, state.temps, s === state.controle) })),
-    ...state.gardiens.map((gk) => ({ y: gk.y, f: () => dessineGardien(g, sprites, gk, state.temps) })),
+    ...state.patineurs.map((s) => ({ y: s.y, f: () => dessinePatineur(g, sprites, s, state.temps, s === state.controle, equipes) })),
+    ...state.gardiens.map((gk) => ({ y: gk.y, f: () => dessineGardien(g, sprites, gk, state.temps, equipes) })),
     { y: p.y - 2, f: () => dessinePalet(g, p) },
   ];
   liste.sort((a, b) => a.y - b.y);
