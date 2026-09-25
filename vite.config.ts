@@ -1,7 +1,14 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Déployé sur GitHub Pages en tant que site de projet
+// (https://piascwal.github.io/face-off/) : tout doit être résolu sous ce
+// sous-chemin, pas à la racine du domaine. En dev, on reste à la racine pour
+// que `npm run dev` reste simple.
+const BASE = process.env.NODE_ENV === 'production' ? '/face-off/' : '/';
+
 export default defineConfig({
+  base: BASE,
   resolve: {
     alias: {
       '@core': '/src/core',
@@ -16,7 +23,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png', 'sprites/*.png', 'sprites/*.json'],
       manifest: {
-        id: '/',
+        id: BASE,
         name: 'Face-Off — Hockey Arcade',
         short_name: 'Face-Off',
         description: 'Hockey arcade en pixel art, jouable en mode paysage.',
@@ -25,8 +32,8 @@ export default defineConfig({
         display: 'fullscreen',
         display_override: ['fullscreen', 'standalone'],
         orientation: 'landscape',
-        start_url: '/',
-        scope: '/',
+        start_url: BASE,
+        scope: BASE,
         background_color: '#070914',
         theme_color: '#070914',
         icons: [
