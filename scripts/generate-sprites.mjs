@@ -110,11 +110,19 @@ await traiteLogos();
 
 /**
  * Taille d'un pixel de sprite, en pixels logiques du jeu : le patineur fait
- * environ 36 px de haut en jeu, le gardien (accroupi) un peu moins, pour ne
- * pas masquer toute la cage.
+ * environ 28 px de haut en jeu (plus grand, les mêlées devenaient illisibles),
+ * le gardien environ 23, pour laisser voir la cage derrière lui.
  */
-const ECHELLE_JOUEUR = 0.36;
-const ECHELLE_GARDIEN = 0.28;
+const ECHELLE_JOUEUR = 0.28;
+const ECHELLE_GARDIEN = 0.2;
+/**
+ * Décalage de dessin (px de sprite) par rapport au point d'ancrage : le
+ * patineur est dessiné un peu en arrière pour que la palette de sa crosse
+ * tombe sur le palet qu'il porte ; le gardien, en avant, pour se tenir
+ * devant sa cage plutôt que dessus.
+ */
+const DECALAGE_JOUEUR = 10;
+const DECALAGE_GARDIEN = -41;
 const sources = await chargeSources(path.join(__dirname, '..', 'assets', 'sprites-src'));
 
 for (const eq of EQUIPES) {
@@ -129,8 +137,8 @@ writeFileSync(
   path.join(OUT_SPRITES, 'meta.json'),
   JSON.stringify(
     {
-      joueur: { ...joueur, echelle: ECHELLE_JOUEUR },
-      gardien: { ...gardien, echelle: ECHELLE_GARDIEN },
+      joueur: { ...joueur, echelle: ECHELLE_JOUEUR, decalage: DECALAGE_JOUEUR },
+      gardien: { ...gardien, echelle: ECHELLE_GARDIEN, decalage: DECALAGE_GARDIEN },
       visages: VISAGES.length,
       teamIds: EQUIPES_LOGO.map((e) => e.id),
       variants: VARIANTES,

@@ -38,34 +38,6 @@ function lueurSol(g: CanvasRenderingContext2D, x: number, y: number, r: number, 
 }
 
 /**
- * Palet vu de trois quarts (dessus clair, tranche noire) qui rebondit au-dessus
- * de la tête de celui qui l'a en sa possession (bas du palet en `y`).
- */
-function badgePalet(g: CanvasRenderingContext2D, x: number, y: number, temps: number): void {
-  const by = Math.round(y - Math.abs(Math.sin(temps * 5)) * 2);
-  // [décalage y, largeur, couleur] ligne par ligne, contour compris
-  const lignes: [number, number, string][] = [
-    [-8, 7, C.contour],
-    [-7, 11, C.contour],
-    [-6, 13, C.contour],
-    [-5, 13, C.contour],
-    [-4, 13, C.contour],
-    [-3, 13, C.contour],
-    [-2, 11, C.contour],
-    [-1, 7, C.contour],
-  ];
-  for (const [dy, w, c] of lignes) px(g, x - (w - 1) / 2, by + dy, w, 1, c);
-  // dessus du palet : ellipse gris-bleu avec un reflet, puis la tranche noire
-  px(g, x - 2, by - 7, 5, 1, '#5b6488');
-  px(g, x - 4, by - 6, 9, 1, '#6e78a0');
-  px(g, x - 4, by - 5, 9, 1, '#4a5274');
-  px(g, x - 2, by - 7, 2, 1, '#c9d2e3');
-  px(g, x - 3, by - 6, 1, 1, '#aab4cf');
-  px(g, x - 5, by - 4, 11, 2, '#0c0e16');
-  px(g, x - 3, by - 2, 7, 1, '#0c0e16');
-}
-
-/**
  * Flèche pointée vers le joueur qu'on pilote (bas de la pointe en `y`) :
  * se repère d'un coup d'œil, même dans une mêlée. `simple` : version plus
  * petite, pour le joueur de l'autre humain en Wi-Fi.
@@ -107,7 +79,8 @@ export function dessinePatineur(
   const tw = M.tileW * e;
   const th = M.tileH * e;
   // le tronc du joueur sur sa position (4 px sous son centre : là où il touche la glace)
-  const piedX = gauche ? M.tileW - M.pied.x : M.pied.x;
+  const ancre = M.pied.x + M.decalage;
+  const piedX = gauche ? M.tileW - ancre : ancre;
   let bx = s.x - piedX * e;
   const by = s.y + 4 - M.pied.y * e;
   if (s.sonne > 0) bx += Math.sin(temps * 40);
@@ -124,9 +97,9 @@ export function dessinePatineur(
   if (estControle) {
     haloSol(g, s.x, s.y + 4, 8 * rs, COULEUR_CONTROLE, 0.5 + 0.25 * Math.sin(temps * 6));
   }
-  // indicateur « porte le palet » : flaque de lumière douce + anneau net au sol,
-  // plus le palet qui rebondit au-dessus de la tête — la flaque se repère de loin,
-  // même à moitié cachée derrière d'autres joueurs dans une mêlée.
+  // indicateur « porte le palet » : flaque de lumière dorée + double anneau au
+  // sol — la flaque se repère de loin, même à moitié cachée derrière d'autres
+  // joueurs dans une mêlée.
   if (s.tient) {
     lueurSol(g, s.x, s.y + 4, 12 * rs, C.or, 0.5 + 0.15 * Math.sin(temps * 8));
     haloSol(g, s.x, s.y + 4, 9 * rs, C.or, 1, 2);
@@ -136,7 +109,7 @@ export function dessinePatineur(
   if (s.tient && specialPret) {
     const rebond = Math.abs(Math.sin(temps * 9)) * 2;
     const fx = Math.round(s.x);
-    const fy = teteY - (estControle ? 23 : 15) - rebond;
+    const fy = teteY - (estControle ? 13 : 5) - rebond;
     px(g, fx - 2, fy - 2, 5, 5, C.contour);
     px(g, fx - 1, fy - 1, 3, 3, '#ff8a3d');
     px(g, fx, fy - 2, 1, 1, '#ffd35c');
@@ -155,17 +128,13 @@ export function dessinePatineur(
     corps(-s.vx * 0.04, -s.vy * 0.04);
     g.globalAlpha = 1;
   }
-  // au-dessus de la tête : la flèche du joueur piloté, et le palet de celui qui le porte (au-dessus de la flèche)
-  let hautRepere = teteY - 2;
+  // au-dessus de la tête : la flèche du joueur piloté
   if (estControle) {
-    flecheControle(g, Math.round(s.x), hautRepere + Math.round(Math.sin(temps * 6)));
-    hautRepere -= 8;
+    flecheControle(g, Math.round(s.x), teteY - 2 + Math.round(Math.sin(temps * 6)));
   } else if (s.humain) {
     // l'adversaire humain d'une partie en réseau : petite flèche à ses couleurs
-    flecheControle(g, Math.round(s.x), hautRepere, equipes[s.eq].clair, true);
-    hautRepere -= 6;
+    flecheControle(g, Math.round(s.x), teteY - 2, equipes[s.eq].clair, true);
   }
-  if (s.tient) badgePalet(g, Math.round(s.x), hautRepere, temps);
   if (estControle && s.arme && s.vise !== null) {
     // flèche de visée pointillée, qui s'allonge avec la puissance
     const L = 12 + 26 * s.charge;
@@ -194,7 +163,8 @@ export function dessineGardien(
   const e = M.echelle;
   const gauche = gk.eq === 1;
   const sprite = sprites.spriteGardien(equipes[gk.eq].id, gauche);
-  const piedX = gauche ? M.tileW - M.pied.x : M.pied.x;
+  const ancre = M.pied.x + M.decalage;
+  const piedX = gauche ? M.tileW - ancre : ancre;
   const bx = gk.x - piedX * e + Math.sin(temps * 60) * gk.secoue;
   const by = gk.y + 4 - M.pied.y * e;
   if (sprite) g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, bx, by, M.tileW * e, M.tileH * e);

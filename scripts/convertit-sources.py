@@ -192,20 +192,18 @@ def haut(a):
 
 
 def role_couleur(h, s, v, dans_casque):
-    rouge = ((h >= 330 or h <= 12) and s > 0.45) or (12 < h < 26 and s > 0.68 and v > 0.45)
-    dore = 26 <= h <= 50 and s > 0.68 and v > 0.55
+    rouge = ((h >= 330 or h <= 12) and s > 0.45) or (12 < h < 26 and s > 0.5 and v > 0.45)
+    dore = 26 <= h <= 50 and s > 0.55 and v > 0.5
     if v < 0.24 or (250 < h < 330 and s > 0.5 and v < 0.3):
         return R['contour']
     if dans_casque and (rouge or dore):
         return R['casque'] if rouge else R['casque-bande']
     if rouge:
         return R['maillot']
-    if 270 <= h <= 325 and s < 0.5:
-        return R['blanc']  # ombres violacées des empiècements clairs
     if dore:
         return R['bande']
-    if s < 0.3 and v > 0.6:
-        return R['blanc']
+    if s < 0.3 and v > 0.42:
+        return R['blanc']  # empiècements clairs et leurs ombres (grises ou violacées)
     return R['garde']
 
 
@@ -227,6 +225,45 @@ def zone_ecusson(a, lab, top, cx, y_min, y_max):
         for x in range(x0, x1 + 1):
             if a[y, x, 3] and lab[y, x] != R['contour']:
                 lab[y, x] = R['ecusson']
+    # les ornements gris de l'emblème d'origine (haches) autour de la boîte
+    for y in range(max(0, y0 - 4), min(H, y1 + 5)):
+        for x in range(max(0, x0 - 5), min(W, x1 + 6)):
+            if a[y, x, 3] and lab[y, x] not in (R['contour'], R['ecusson']):
+                h, s, v = hsv(a[y, x, :3])
+                if s < 0.25 and 0.35 < v < 0.9:
+                    lab[y, x] = R['ecusson']
+
+
+# Rôles qu'un pixel isolé peut échanger avec ses voisins (pas la peau, la barbe,
+# l'écusson ni le contour, dessinés à part ou déjà précis).
+ECHANGEABLES = ('maillot', 'bande', 'blanc', 'casque', 'casque-bande', 'gants', 'garde')
+
+
+def nettoie(lab, passes=2):
+    """
+    Pixels isolés : un pixel dont presque aucun voisin ne partage le rôle prend
+    celui qui domine autour de lui. Sans ça, quelques pixels d'ombre mal classés
+    gardent la couleur d'origine (rouge, or) au milieu d'un maillot repeint.
+    """
+    ok = {R[n] for n in ECHANGEABLES}
+    H, W = lab.shape
+    for _ in range(passes):
+        nouv = lab.copy()
+        for y in range(H):
+            for x in range(W):
+                r = int(lab[y, x])
+                if r not in ok:
+                    continue
+                vois = [int(lab[yy, xx]) for yy in range(max(0, y - 1), min(H, y + 2))
+                        for xx in range(max(0, x - 1), min(W, x + 2)) if (yy, xx) != (y, x)]
+                if sum(v == r for v in vois) > 1:
+                    continue
+                autres = [v for v in vois if v in ok and v != r]
+                if autres:
+                    q = max(set(autres), key=autres.count)
+                    if autres.count(q) >= 4:
+                        nouv[y, x] = q
+        lab[:] = nouv
 
 
 def roles_joueur(a, k):
@@ -248,7 +285,9 @@ def roles_joueur(a, k):
             elif top + 9 < y <= top + 31 and cx - 10 <= x <= cx + 13 and r not in (R['casque'], R['casque-bande']):
                 # visage : peau et barbe (variantes par joueur), le reste tel quel
                 chaud = h <= 40 or h >= 330
-                if chaud and 0.2 <= v < 0.5 and s >= 0.3:
+                if (h >= 345 or h <= 8) and s > 0.8 and v > 0.35:
+                    r = R['maillot']  # col du maillot, sous la barbe
+                elif chaud and 0.2 <= v < 0.5 and s >= 0.3:
                     r = R['barbe']
                 elif chaud and v >= 0.4 and s >= 0.12:
                     r = R['peau']
@@ -261,10 +300,11 @@ def roles_joueur(a, k):
             elif any(b[0] <= x <= b[2] and b[1] <= y <= b[3] for b in c['gants']) and 8 <= h <= 35 and v < 0.72 \
                     and r != R['bande']:
                 r = R['gants']
-            elif r == R['blanc'] and y >= H - 10:
-                r = R['garde']  # lames des patins
+            elif y >= H - 12 and r in (R['blanc'], R['maillot'], R['bande']):
+                r = R['garde']  # patins : lames, lacets et surpiqûres gardent leurs couleurs
             lab[y, x] = r
     zone_ecusson(a, lab, top, cx, 30, 62)
+    nettoie(lab)
     return lab
 
 
@@ -312,6 +352,7 @@ def gardien():
             roles[y, x] = rr
     top, cx = haut(a)
     zone_ecusson(a, roles, top, cx, 35, 70)
+    nettoie(roles)
     return a, roles
 
 

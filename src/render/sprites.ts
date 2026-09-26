@@ -21,17 +21,19 @@ export interface MetaSprites {
    * `echelle` : taille d'un pixel de sprite en pixels logiques du jeu (< 1 :
    * le dessin est plus fin que la grille du jeu). `pied` : point de la case
    * posé sur la position du joueur. `tete` : haut du casque dans la case.
+   * `decalage` : en jeu, le dessin est reculé (> 0) ou avancé (< 0) d'autant
+   * de pixels de sprite par rapport à `pied`, dans le sens où regarde le joueur.
    */
-  joueur: { tileW: number; tileH: number; images: number; arret: number; pied: Point; tete: number; echelle: number };
-  gardien: { tileW: number; tileH: number; pied: Point; echelle: number };
+  joueur: { tileW: number; tileH: number; images: number; arret: number; pied: Point; tete: number; echelle: number; decalage: number };
+  gardien: { tileW: number; tileH: number; pied: Point; echelle: number; decalage: number };
   /** Nombre de variantes de visage dans visages.png. */
   visages: number;
   teamIds: string[];
 }
 
 const META_DEFAUT: MetaSprites = {
-  joueur: { tileW: 133, tileH: 105, images: 4, arret: 0, pied: { x: 52, y: 101 }, tete: 0, echelle: 0.36 },
-  gardien: { tileW: 132, tileH: 115, pied: { x: 71, y: 113 }, echelle: 0.28 },
+  joueur: { tileW: 133, tileH: 105, images: 4, arret: 0, pied: { x: 52, y: 101 }, tete: 0, echelle: 0.28, decalage: 10 },
+  gardien: { tileW: 132, tileH: 115, pied: { x: 71, y: 113 }, echelle: 0.2, decalage: -41 },
   visages: 1,
   teamIds: [],
 };

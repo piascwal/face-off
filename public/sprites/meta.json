@@ -5,20 +5,22 @@
     "images": 4,
     "arret": 0,
     "pied": {
-      "x": 52.2,
+      "x": 52.5,
       "y": 101
     },
     "tete": 0,
-    "echelle": 0.36
+    "echelle": 0.28,
+    "decalage": 10
   },
   "gardien": {
     "tileW": 132,
     "tileH": 115,
     "pied": {
-      "x": 71.4,
+      "x": 71.3,
       "y": 113
     },
-    "echelle": 0.28
+    "echelle": 0.2,
+    "decalage": -41
   },
   "visages": 6,
   "teamIds": [

@@ -214,6 +214,8 @@ adoucir le rebond ; la première sert aussi de pose à l'arrêt.
 **2. Déclinaison (Node)** — `scripts/generate-sprites.mjs` +
 `scripts/sprites-illustres.mjs` :
 
+- les pixels isolés prennent le rôle de leurs voisins (sinon quelques
+  ombres mal classées gardaient le rouge ou l'or d'origine) ;
 - chaque rôle est repeint aux couleurs de l'équipe × maillot
   domicile/extérieur en gardant les ombres et les reflets du dessin (même
   rapport de luminosité à la couleur d'origine) ;
@@ -232,8 +234,12 @@ Format des feuilles (`public/sprites/meta.json` : cases, ancrages, échelle) :
   gauche).
 
 Le jeu dessine directement à la résolution de l'écran : un pixel de sprite
-fait 0,36 px logique pour un patineur (≈ 36 px de haut) et 0,28 pour le
-gardien, un peu plus petit pour ne pas masquer toute la cage.
+fait 0,28 px logique pour un patineur (≈ 28 px de haut) et 0,2 pour le
+gardien (≈ 23 px). Plus grands, les joueurs se chevauchaient dans les
+mêlées et le gardien cachait sa cage. Le dessin est aussi décalé
+(`decalage` dans meta.json) : le patineur un peu en arrière, pour que la
+palette de sa crosse tombe sur le palet qu'il porte, et le gardien en avant,
+devant sa cage plutôt que dessus.
 `src/render/sprites.ts` ne connaît que ce contrat, jamais le contenu
 artistique. Même logique pour les écussons (`public/logos/<id>.png`, fond
 déjà transparent).
