@@ -2,7 +2,7 @@
   "name": "face-off",
   "version": "0.1.0",
   "private": true,
-  "description": "Face-Off — hockey arcade en pixel art (humain vs CPU pour l'instant, en ligne joueur contre joueur plus tard).",
+  "description": "Face-Off — hockey arcade en pixel art (humain vs CPU, ou à deux sur le même Wi-Fi).",
   "type": "module",
   "license": "Apache-2.0",
   "scripts": {

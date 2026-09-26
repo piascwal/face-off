@@ -15,7 +15,8 @@ function etatVide(): MatchState {
     ],
     nb: 3,
     patineurs: [],
-    controle: null,
+    humains: [true, false],
+    controles: [null, null],
     gardiens: [nouveauGardien(0), nouveauGardien(1)],
     palet: nouveauPalet(),
     score: [0, 0],
@@ -61,7 +62,7 @@ describe('combo de passes -> tir spécial', () => {
     expect(state.combo[0]).toBe(COMBO_SEUIL);
     expect(state.tirSpecialPret[0]).toBe(true);
 
-    const tireur = state.controle!;
+    const tireur = state.controles[0]!;
     tir(state, rink, tireur, Math.atan2(rink.cy - tireur.y, rink.butD - tireur.x), 0.5);
 
     // un tir consomme toujours la combo et le bonus, spécial ou non

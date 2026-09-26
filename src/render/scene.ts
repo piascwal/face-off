@@ -1,6 +1,6 @@
 import { meilleurReceveur } from '@core/actions';
 import { equipe } from '@core/state-helpers';
-import type { MatchState, Rink } from '@core/types';
+import type { MatchState, Rink, TeamId } from '@core/types';
 import { dessineGardien, dessinePalet, dessineParticules, dessinePatineur, TracesGlace } from './entities-render';
 import type { SystemeEffets } from './effects';
 import { ellipseOmbre, px } from './primitives';
@@ -25,6 +25,8 @@ export function dessineScene(
   effets: SystemeEffets,
   ecranUI: string,
   equipes: [EquipeVisuelle, EquipeVisuelle],
+  /** Équipe pilotée sur cet écran (1 pour le client d'une partie en réseau local). */
+  eqLocal: TeamId = 0,
 ): void {
   const p = state.palet;
   p.trace.push({ x: p.x, y: p.y });
@@ -44,14 +46,16 @@ export function dessineScene(
 
   // en match, on repère ses coéquipiers et le receveur que viserait une passe
   if (state.mode === 'match' && ecranUI === 'jeu') {
-    const c = state.controle;
+    const c = state.controles[eqLocal];
     let rec = null;
     if (c && c.tient && state.phase === 'jeu') {
       const m = Math.hypot(c.ex, c.ey);
-      const r = meilleurReceveur(state, c, 0, c.x, c.y, m > 0.3 ? Math.atan2(c.ey, c.ex) : null) ?? meilleurReceveur(state, c, 0, c.x, c.y, null);
+      const r =
+        meilleurReceveur(state, c, eqLocal, c.x, c.y, m > 0.3 ? Math.atan2(c.ey, c.ex) : null) ??
+        meilleurReceveur(state, c, eqLocal, c.x, c.y, null);
       rec = r?.m ?? null;
     }
-    for (const s of equipe(state, 0)) {
+    for (const s of equipe(state, eqLocal)) {
       if (s === c) continue;
       if (s === rec) {
         const cl = Math.floor(state.temps * 6) & 1 ? C.or : C.blanc;
@@ -60,7 +64,7 @@ export function dessineScene(
           if (k % 2 === 0) px(g, s.x + Math.cos(a) * 8, s.y + 3 + Math.sin(a) * 3, 1, 1, cl);
         }
       } else if (!s.tient) {
-        px(g, s.x - 1, s.y + 5, 3, 1, equipes[0].maillot);
+        px(g, s.x - 1, s.y + 5, 3, 1, equipes[eqLocal].maillot);
       }
     }
   }
@@ -70,7 +74,7 @@ export function dessineScene(
   const liste: { y: number; f: () => void }[] = [
     ...state.patineurs.map((s) => ({
       y: s.y,
-      f: () => dessinePatineur(g, sprites, s, state.temps, s === state.controle, equipes, state.tirSpecialPret[s.eq]),
+      f: () => dessinePatineur(g, sprites, s, state.temps, s === state.controles[eqLocal], equipes, state.tirSpecialPret[s.eq]),
     })),
     ...state.gardiens.map((gk) => ({ y: gk.y, f: () => dessineGardien(g, sprites, gk, state.temps, equipes) })),
     { y: p.y - 2, f: () => dessinePalet(g, p) },

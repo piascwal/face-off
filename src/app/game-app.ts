@@ -3,7 +3,11 @@ import { calculeRink, reprojette } from '@core/rink';
 import { creePartie } from '@core/rules';
 import { pas } from '@core/simulation';
 import { trouveEquipe } from '@core/teams';
-import type { MatchState, Rink } from '@core/types';
+import { INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from '@core/types';
+import type { AnnoncePartie } from '@net/annuaire';
+import { angleVersHote, decodeInstantane, directionVersHote, encodeInstantane, evenementsPourEnvoi, type MsgCtrl, type VarianteMaillot } from '@net/protocole';
+import { SessionClient, SessionHote, type RaisonFin } from '@net/session';
+import { SynchroClient } from '@net/synchro';
 import { joueEvenements, MoteurAudio } from '@audio/sound';
 import { GestionnaireEntreesJeu, type PointLogique } from '@input/game-input';
 import {
@@ -17,6 +21,8 @@ import {
   dessineAvance,
   dessineChoixMaillots,
   dessineCommandes,
+  dessineLan,
+  dessineSalon,
   dessineFin,
   dessineMenu,
   dessinePause,
@@ -36,8 +42,12 @@ import {
   type EtatAvance,
   type EtatChoixMaillots,
   type EtatFin,
+  type EtatLan,
+  type EtatSalon,
+  type StatutLan,
   type EtatMenu,
   type EtatSelectionEquipe,
+  texte,
   type TeamDef,
   type Variante,
   type ZoneBouton,
@@ -47,7 +57,33 @@ import { demandePleinEcranPaysage, PleinEcranAuPremierGeste } from './pwa';
 
 const PAS_FIXE = 1 / 120;
 
-type EcranUI = 'menu' | 'avance' | 'equipes' | 'maillots' | 'jeu' | 'pause' | 'fin';
+type EcranUI = 'menu' | 'avance' | 'equipes' | 'maillots' | 'lan' | 'salon' | 'jeu' | 'pause' | 'fin';
+
+/** Écrans de menu plein cadre : ni tableau d'affichage ni bandeau par-dessus. */
+const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'equipes', 'maillots', 'lan', 'salon'];
+
+/** Match en réseau local : l'hôte simule (équipe 0), le client affiche et envoie ses entrées (équipe 1). */
+type JeuReseau = { role: 'hote'; eqLocal: 0; dernierEnvoi: number } | { role: 'client'; eqLocal: 1; synchro: SynchroClient };
+
+function messageErreurReseau(e: unknown): string {
+  const m = e instanceof Error ? e.message : '';
+  if (m === 'reseau') return 'WIFI NON DETECTE - VERIFIEZ LA CONNEXION';
+  if (m.startsWith('aucun serveur')) return 'DECOUVERTE INDISPONIBLE - REESSAYEZ';
+  if (m === 'complet') return 'CETTE PARTIE EST DEJA COMPLETE';
+  if (m === 'version') return "VERSIONS DIFFERENTES : METTEZ LE JEU A JOUR";
+  if (m === 'injoignable') return "L'HOTE NE REPOND PAS";
+  if (m === 'connexion impossible') return 'CONNEXION DIRECTE IMPOSSIBLE SUR CE WIFI';
+  return 'ERREUR RESEAU - REESSAYEZ';
+}
+
+const MESSAGES_FIN_CLIENT: Record<RaisonFin, string> = {
+  quitte: "L'HOTE A FERME LA PARTIE",
+  exclu: "L'HOTE VOUS A EXCLU DE LA PARTIE",
+  perdu: "CONNEXION PERDUE AVEC L'HOTE",
+  complet: 'CETTE PARTIE EST DEJA COMPLETE',
+  version: 'VERSIONS DIFFERENTES : METTEZ LE JEU A JOUR',
+  injoignable: "L'HOTE NE REPOND PAS",
+};
 
 /** Adversaire suggéré par défaut au démarrage / en démo, avant tout choix réel. */
 function equipeAdverseParDefaut(idJoueur: string): TeamDef {
@@ -91,6 +127,17 @@ export class GameApp {
 
   private cumul = 0;
   private dernier = 0;
+
+  // ------------------------------------------------ multijoueur Wi-Fi
+  private hote: SessionHote | null = null;
+  private client: SessionClient | null = null;
+  private jeuReseau: JeuReseau | null = null;
+  private lanStatut: StatutLan = 'recherche';
+  private lanMessage: string | null = null;
+  private salonMessage: { txt: string; jusqua: number } | null = null;
+  /** Invalide les réponses asynchrones d'un écran réseau qu'on a déjà quitté. */
+  private lanGeneration = 0;
+  private seqInstantane = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.ecran = canvas;
@@ -277,6 +324,320 @@ export class GameApp {
     this.effets.reinitialise();
   }
 
+  // --------------------------------------------------- multijoueur Wi-Fi
+
+  private get eqLocal(): TeamId {
+    return this.jeuReseau?.eqLocal ?? 0;
+  }
+
+  /** Ferme toute session réseau en cours (annonce retirée, l'autre joueur est prévenu). */
+  private fermeReseau(): void {
+    this.lanGeneration++;
+    this.hote?.ferme();
+    this.hote = null;
+    this.client?.ferme();
+    this.client = null;
+    this.jeuReseau = null;
+  }
+
+  /** Écran de la liste des parties : détecte le réseau et écoute les annonces. */
+  private ouvreLan(message: string | null = null): void {
+    this.audio.init();
+    this.fermeReseau();
+    this.creeDemo();
+    this.effets.reinitialise();
+    this.ecranUI = 'lan';
+    this.enPause = false;
+    this.lanStatut = 'recherche';
+    this.lanMessage = message;
+    const gen = this.lanGeneration;
+    SessionClient.cree().then(
+      (c) => {
+        if (gen !== this.lanGeneration) return c.ferme();
+        this.client = c;
+        this.lanStatut = 'pret';
+        c.onCtrl = (m) => this.surCtrlClient(m);
+        c.onJeu = (buf) => {
+          const j = this.jeuReseau;
+          const inst = j?.role === 'client' ? decodeInstantane(buf) : null;
+          if (j?.role === 'client' && inst) j.synchro.recoit(inst, performance.now() / 1000);
+        };
+        c.onFin = (raison) => this.ouvreLan(MESSAGES_FIN_CLIENT[raison]);
+      },
+      (e: unknown) => {
+        if (gen !== this.lanGeneration) return;
+        this.lanStatut = 'erreur';
+        this.lanMessage = messageErreurReseau(e);
+      },
+    );
+  }
+
+  private quitteLan(): void {
+    this.fermeReseau();
+    this.retourMenu();
+  }
+
+  /** Bouton ACTUALISER : redemande les annonces (ou relance la détection après une erreur). */
+  private actualiseLan(): void {
+    if (this.lanStatut === 'connexion' || this.lanStatut === 'creation') return;
+    if (!this.client) {
+      this.ouvreLan();
+      return;
+    }
+    this.lanMessage = null;
+    this.client.actualise();
+  }
+
+  private creePartieLan(): void {
+    this.fermeReseau();
+    this.lanStatut = 'creation';
+    this.lanMessage = null;
+    const gen = this.lanGeneration;
+    SessionHote.cree({ nom: this.pref.pseudo, equipe: this.pref.equipeJoueur, effectif: this.pref.effectif, duree: this.pref.duree }).then(
+      (h) => {
+        if (gen !== this.lanGeneration) return h.ferme();
+        this.hote = h;
+        h.onInviteParti = (raison, nom) => {
+          if (this.ecranUI !== 'salon') this.retourSalonHote(false);
+          this.salonMessage = {
+            txt: raison === 'quitte' ? `${nom} A QUITTE LA PARTIE` : `CONNEXION PERDUE AVEC ${nom}`,
+            jusqua: performance.now() / 1000 + 6,
+          };
+        };
+        this.salonMessage = null;
+        this.ecranUI = 'salon';
+      },
+      (e: unknown) => {
+        if (gen !== this.lanGeneration) return;
+        this.lanStatut = 'erreur';
+        this.lanMessage = messageErreurReseau(e);
+      },
+    );
+  }
+
+  private rejoinsLan(p: AnnoncePartie): void {
+    const c = this.client;
+    if (!c || this.lanStatut !== 'pret') return;
+    this.lanStatut = 'connexion';
+    this.lanMessage = `CONNEXION A ${p.nom}`;
+    const gen = this.lanGeneration;
+    c.rejoins(p, this.pref.pseudo, this.pref.equipeJoueur).then(
+      () => {
+        if (gen !== this.lanGeneration) return;
+        this.lanStatut = 'pret';
+        this.lanMessage = null;
+        this.ecranUI = 'salon';
+      },
+      (e: unknown) => {
+        if (gen !== this.lanGeneration) return;
+        this.lanStatut = 'pret';
+        this.lanMessage = messageErreurReseau(e);
+      },
+    );
+  }
+
+  /** Change sa propre équipe dans la salle d'attente ; l'autre appareil la voit aussitôt. */
+  private tourneEquipeSalon(sens: 1 | -1): void {
+    this.audio.clic();
+    const n = EQUIPES_JOUABLES.length;
+    const i = Math.max(0, EQUIPES_JOUABLES.findIndex((e) => e.id === this.pref.equipeJoueur));
+    this.pref.equipeJoueur = EQUIPES_JOUABLES[(i + sens + n) % n]!.id;
+    sauvePreferences(this.pref);
+    this.hote?.majInfos({ equipe: this.pref.equipeJoueur });
+    this.client?.changeEquipe(this.pref.equipeJoueur);
+  }
+
+  /** Hôte : lance (ou relance) le match avec l'invité présent dans le salon. */
+  private lanceMatchHote(): void {
+    const h = this.hote;
+    if (!h?.invite) return;
+    const infos = h.infosHote;
+    const idHote = trouveTeamDef(infos.equipe).id;
+    const idInvite = trouveTeamDef(h.invite.equipe).id;
+    // même équipe des deux côtés : l'invité joue en maillot extérieur
+    const variantes: [VarianteMaillot, VarianteMaillot] = ['interieur', idInvite === idHote ? 'exterieur' : 'interieur'];
+    const debut: Extract<MsgCtrl, { t: 'debut' }> = {
+      t: 'debut',
+      s0: this.seqInstantane + 1,
+      effectif: infos.effectif,
+      duree: infos.duree,
+      equipes: [idHote, idInvite],
+      variantes,
+      assistTir: this.pref.assistTir,
+      assistPasse: this.pref.assistPasse,
+      changementAuto: this.pref.changementAuto,
+    };
+    h.envoieCtrl(debut);
+    this.demarreMatchReseau(debut, { role: 'hote', eqLocal: 0, dernierEnvoi: 0 });
+  }
+
+  private demarreMatchReseau(m: Extract<MsgCtrl, { t: 'debut' }>, jeu: JeuReseau): void {
+    this.audio.init();
+    void demandePleinEcranPaysage();
+    const eqs: [EquipeVisuelle, EquipeVisuelle] = [
+      resoutEquipe(trouveTeamDef(m.equipes[0]), m.variantes[0]),
+      resoutEquipe(trouveTeamDef(m.equipes[1]), m.variantes[1]),
+    ];
+    this.equipesActuelles = eqs;
+    this.effets.definitEquipes(eqs);
+    this.construitDecor();
+    this.state = creePartie(this.rink!, {
+      mode: 'match',
+      // coéquipiers CPU au même niveau des deux côtés : seul le talent des humains départage
+      niveauIdx: 1,
+      dureeIdx: Math.min(m.duree, DUREES.length - 1),
+      effectifIdx: Math.min(m.effectif, EFFECTIFS.length - 1),
+      equipeJoueur: trouveEquipe(eqs[0].teamId),
+      equipeAdverse: trouveEquipe(eqs[1].teamId),
+      assistTir: m.assistTir,
+      assistPasse: m.assistPasse,
+      changementAuto: m.changementAuto,
+      humains: [true, true],
+    });
+    this.jeuReseau = jeu;
+    this.effets.reinitialise();
+    this.entrees.reinitialise();
+    this.ecranUI = 'jeu';
+    this.enPause = false;
+    this.effets.annonce('PRETS ?', 'MATCH EN RESEAU', C.blanc, 1.5);
+  }
+
+  private surCtrlClient(m: MsgCtrl): void {
+    if (m.t === 'debut') {
+      this.demarreMatchReseau(m, { role: 'client', eqLocal: 1, synchro: new SynchroClient(m.s0) });
+    } else if (m.t === 'ev') {
+      if (this.jeuReseau?.role === 'client') this.jeuReseau.synchro.recoitEvenements(m.k, m.l);
+    } else if (m.t === 'salonRetour') {
+      this.jeuReseau = null;
+      this.creeDemo();
+      this.effets.reinitialise();
+      this.ecranUI = 'salon';
+      this.enPause = false;
+    }
+  }
+
+  /** Hôte : fin de match ou départ de l'invité — tout le monde revient dans la salle d'attente. */
+  private retourSalonHote(prevenir = true): void {
+    if (prevenir) this.hote?.retourSalon();
+    this.jeuReseau = null;
+    this.creeDemo();
+    this.effets.reinitialise();
+    this.ecranUI = 'salon';
+    this.enPause = false;
+  }
+
+  /** Client : envoie ses entrées, puis affiche l'état interpolé reçu de l'hôte. */
+  private boucleClient(synchro: SynchroClient, dt: number): void {
+    const state = this.state;
+    const rink = this.rink;
+    const c = this.client;
+    if (!state || !rink || !c) return;
+    const maintenant = performance.now() / 1000;
+    let intent = this.ecranUI === 'jeu' ? this.entrees.consomme() : INTENT_VIDE;
+    const r = synchro.rinkHote;
+    if (r) {
+      const kx = r.w / rink.w;
+      const ky = r.h / rink.h;
+      const [ix, iy] = directionVersHote(intent.ix, intent.iy, kx, ky);
+      const visee = intent.viseeManuelle === null ? null : angleVersHote(intent.viseeManuelle, kx, ky);
+      intent = { ...intent, ix, iy, viseeManuelle: visee };
+    }
+    c.envoieEntree(intent);
+    const evs = synchro.avance(state, rink, dt, maintenant);
+    if (evs.length) {
+      joueEvenements(this.audio, evs);
+      this.effets.traite(evs);
+    }
+    this.effets.maj(dt);
+    if (state.phase === 'fin' && (this.ecranUI === 'jeu' || this.ecranUI === 'pause')) {
+      this.ecranUI = 'fin';
+      this.enPause = false;
+      this.entrees.reinitialise();
+    }
+  }
+
+  /** Latence Wi-Fi en coin d'écran, et alerte si l'hôte ne donne plus signe de vie. */
+  private dessineEtatReseau(g: CanvasRenderingContext2D, temps: number): void {
+    const j = this.jeuReseau;
+    const ms = (j?.role === 'hote' ? this.hote?.latenceMs : this.client?.latenceMs) ?? null;
+    if (ms !== null) texte(g, `WIFI ${Math.max(1, Math.round(ms))} MS`, 4, 4, ms < 60 ? '#6f7aa6' : '#ff9a5c', 1, 'g');
+    if (j?.role === 'client' && j.synchro.silence(performance.now() / 1000) > 1) {
+      const cy = Math.round(this.H / 2);
+      g.fillStyle = 'rgba(7,9,20,0.6)';
+      g.fillRect(0, cy - 12, this.W, 22);
+      g.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(temps * 3));
+      texte(g, "EN ATTENTE DE L'HOTE...", Math.round(this.W / 2), cy - 4, C.or, 1, 'c');
+      g.globalAlpha = 1;
+    }
+  }
+
+  private carteDe(id: string): CarteEquipe {
+    const def = trouveTeamDef(id);
+    return { def, profil: trouveEquipe(def.id) };
+  }
+
+  private lanProps(): EtatLan {
+    return {
+      statut: this.lanStatut,
+      message: this.lanMessage,
+      parties: (this.client?.parties ?? []).map((p) => ({
+        nom: p.nom,
+        equipe: trouveTeamDef(p.equipe),
+        effectifIdx: p.effectif,
+        dureeIdx: p.duree,
+        onRejoindre: () => this.rejoinsLan(p),
+      })),
+      pseudo: this.pref.pseudo,
+      onRetour: () => this.quitteLan(),
+      onActualiser: () => this.actualiseLan(),
+      onCreer: () => this.creePartieLan(),
+    };
+  }
+
+  private salonProps(): EtatSalon {
+    const maintenant = performance.now() / 1000;
+    const message = this.salonMessage && this.salonMessage.jusqua > maintenant ? this.salonMessage.txt : null;
+    const commun = {
+      message,
+      onPrecedent: () => this.tourneEquipeSalon(-1),
+      onSuivant: () => this.tourneEquipeSalon(1),
+      onLancer: () => this.lanceMatchHote(),
+      onExclure: () => this.hote?.exclut(),
+      onQuitter: () => this.ouvreLan(),
+    };
+    const h = this.hote;
+    if (h) {
+      return {
+        ...commun,
+        role: 'hote',
+        hote: { nom: h.infosHote.nom, carte: this.carteDe(h.infosHote.equipe) },
+        invite: h.invite ? { nom: h.invite.nom, carte: this.carteDe(h.invite.equipe) } : null,
+        connexionEnCours: h.connexionEnCours,
+        effectifIdx: h.infosHote.effectif,
+        dureeIdx: h.infosHote.duree,
+        code: h.code,
+        latenceMs: h.latenceMs,
+      };
+    }
+    const c = this.client;
+    const salon = c?.salon;
+    const rejointe = c?.rejointe;
+    return {
+      ...commun,
+      role: 'client',
+      hote: {
+        nom: salon?.hote.nom ?? rejointe?.nom ?? '...',
+        carte: this.carteDe(salon?.hote.equipe ?? rejointe?.equipe ?? ''),
+      },
+      invite: { nom: this.pref.pseudo, carte: this.carteDe(this.pref.equipeJoueur) },
+      connexionEnCours: false,
+      effectifIdx: salon?.effectif ?? rejointe?.effectif ?? this.pref.effectif,
+      dureeIdx: salon?.duree ?? rejointe?.duree ?? this.pref.duree,
+      code: c?.code ?? null,
+      latenceMs: c?.latenceMs ?? null,
+    };
+  }
+
   private pause(oui: boolean): void {
     if (this.ecranUI !== 'jeu' && this.ecranUI !== 'pause') return;
     this.enPause = oui;
@@ -353,6 +714,11 @@ export class GameApp {
       }
       if (e.code === 'Enter') {
         if (this.ecranUI === 'menu') this.ouvreSelectionEquipe();
+        else if (this.ecranUI === 'lan') this.actualiseLan();
+        else if (this.ecranUI === 'salon') this.lanceMatchHote();
+        else if (this.ecranUI === 'fin' && this.jeuReseau) {
+          if (this.jeuReseau.role === 'hote') this.lanceMatchHote();
+        }
         else if (this.ecranUI === 'equipes') this.confirmeSelection();
         else if (this.ecranUI === 'maillots') this.confirmeMaillots();
         else if (this.ecranUI === 'fin') this.rejoue();
@@ -361,6 +727,12 @@ export class GameApp {
       }
       if (e.code === 'Escape' && this.ecranUI === 'maillots') this.retourChoixEquipes();
       if (e.code === 'Escape' && this.ecranUI === 'avance') this.fermeAvance();
+      if (e.code === 'Escape' && this.ecranUI === 'lan') this.quitteLan();
+      else if (e.code === 'Escape' && this.ecranUI === 'salon') this.ouvreLan();
+      if (this.ecranUI === 'salon' && !e.repeat) {
+        if (e.code === 'ArrowLeft') this.tourneEquipeSalon(-1);
+        else if (e.code === 'ArrowRight') this.tourneEquipeSalon(1);
+      }
       if (this.ecranUI === 'equipes' && !e.repeat) {
         // pensé « manette » : gauche/droite pour votre équipe, haut/bas pour l'adversaire
         if (e.code === 'ArrowLeft') this.tourneJoueur(-1);
@@ -379,8 +751,10 @@ export class GameApp {
     window.addEventListener('resize', () => this.dispose());
     window.addEventListener('orientationchange', () => setTimeout(() => this.dispose(), 120));
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden && this.ecranUI === 'jeu') this.pause(true);
+      if (document.hidden && this.ecranUI === 'jeu' && !this.jeuReseau) this.pause(true);
     });
+    // onglet fermé : on retire l'annonce et on prévient l'autre joueur tout de suite
+    window.addEventListener('pagehide', () => this.fermeReseau());
   }
 
   // ------------------------------------------------------------------ boucle
@@ -389,23 +763,36 @@ export class GameApp {
     const dt = Math.min(0.05, (t - this.dernier) / 1000);
     this.dernier = t;
     const state = this.state;
-    if (!this.portrait && !this.enPause && state && this.rink) {
+    const reseau = this.jeuReseau;
+    if (reseau?.role === 'client') {
+      this.boucleClient(reseau.synchro, dt);
+    } else if ((!this.portrait || reseau) && (!this.enPause || reseau) && state && this.rink) {
+      // en réseau, l'hôte ne met jamais la simulation en pause : l'autre joueur continue
+      const hote = reseau ? this.hote : null;
+      const maintenant = performance.now() / 1000;
+      const entree = (eq: TeamId): InputIntent =>
+        eq === 0 ? this.entrees.consomme() : hote ? hote.entreeInvite(maintenant) : INTENT_VIDE;
       this.cumul += dt;
       while (this.cumul >= PAS_FIXE) {
-        pas(this.rink, state, PAS_FIXE, () => this.entrees.consomme());
+        pas(this.rink, state, PAS_FIXE, entree);
         this.cumul -= PAS_FIXE;
       }
       if (state.evenements.length) {
+        hote?.envoieCtrl({ t: 'ev', k: state.temps, l: evenementsPourEnvoi(state.evenements) });
         joueEvenements(this.audio, state.evenements);
         this.effets.traite(state.evenements);
         state.evenements.length = 0;
       }
+      if (hote && reseau?.role === 'hote' && t - reseau.dernierEnvoi >= 12) {
+        hote.envoieJeu(encodeInstantane(state, this.rink, ++this.seqInstantane));
+        reseau.dernierEnvoi = t;
+      }
       this.effets.maj(dt);
-      if (state.phase === 'fin' && this.ecranUI !== 'fin') {
+      if (state.phase === 'fin' && state.mode === 'match' && this.ecranUI !== 'fin') {
         this.ecranUI = 'fin';
         this.enPause = false;
         this.entrees.reinitialise();
-        this.persisteFinMatch(state.score[0] > state.score[1]);
+        if (!reseau) this.persisteFinMatch(state.score[0] > state.score[1]);
       }
     }
     this.rendu();
@@ -430,18 +817,23 @@ export class GameApp {
       const sx = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
       const sy = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
       g.setTransform(1, 0, 0, 1, sx, sy);
-      dessineScene(g, this.rink, state, this.decor, this.sprites, this.effets, this.ecranUI, this.equipesActuelles);
+      dessineScene(g, this.rink, state, this.decor, this.sprites, this.effets, this.ecranUI, this.equipesActuelles, this.eqLocal);
       g.setTransform(1, 0, 0, 1, 0, 0);
       // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
-      if (this.ecranUI !== 'menu' && this.ecranUI !== 'avance' && this.ecranUI !== 'equipes' && this.ecranUI !== 'maillots') {
+      if (!ECRANS_MENU.includes(this.ecranUI)) {
         dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, tempsUI);
         dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
       }
-      if (this.ecranUI !== 'avance' && this.ecranUI !== 'equipes' && this.ecranUI !== 'maillots') {
+      if (this.ecranUI === 'menu' || !ECRANS_MENU.includes(this.ecranUI)) {
         dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
       }
+      if (this.jeuReseau && !ECRANS_MENU.includes(this.ecranUI)) this.dessineEtatReseau(g, tempsUI);
       if (this.ecranUI === 'jeu') {
-        dessineCommandes(g, this.W, this.H, state.temps, state.controle, this.entrees.instantaneUI());
+        dessineCommandes(g, this.W, this.H, state.temps, state.controles[this.eqLocal], this.entrees.instantaneUI());
+      } else if (this.ecranUI === 'lan') {
+        dessineLan(g, this.boutons, this.W, this.H, tempsUI, this.lanProps());
+      } else if (this.ecranUI === 'salon') {
+        dessineSalon(g, this.boutons, this.W, this.H, tempsUI, this.salonProps());
       } else if (this.ecranUI === 'menu') {
         dessineMenu(g, this.boutons, this.W, this.H, tempsUI, this.menuProps());
       } else if (this.ecranUI === 'avance') {
@@ -451,7 +843,7 @@ export class GameApp {
       } else if (this.ecranUI === 'maillots') {
         dessineChoixMaillots(g, this.boutons, this.sprites, this.W, this.H, this.maillotsProps());
       } else if (this.ecranUI === 'pause') {
-        dessinePause(g, this.boutons, this.W, this.H, () => this.pause(false), () => this.retourMenu());
+        dessinePause(g, this.boutons, this.W, this.H, () => this.pause(false), () => (this.jeuReseau ? this.ouvreLan() : this.retourMenu()), !!this.jeuReseau);
       } else if (this.ecranUI === 'fin') {
         dessineFin(g, this.boutons, this.W, this.H, tempsUI, this.finProps(state));
       }
@@ -492,6 +884,7 @@ export class GameApp {
         sauvePreferences(this.pref);
       },
       onJouer: () => this.ouvreSelectionEquipe(),
+      onReseau: () => this.ouvreLan(),
       onAvance: () => this.ouvreAvance(),
     };
   }
@@ -561,8 +954,10 @@ export class GameApp {
       victoires: this.pref.victoires[this.pref.niveau] ?? 0,
       matchs: this.pref.matchs[this.pref.niveau] ?? 0,
       equipes: this.equipesActuelles,
-      onRejouer: () => this.rejoue(),
-      onMenu: () => this.retourMenu(),
+      eqLocal: this.eqLocal,
+      reseau: this.jeuReseau?.role,
+      onRejouer: () => (this.jeuReseau ? this.lanceMatchHote() : this.rejoue()),
+      onMenu: () => (this.jeuReseau?.role === 'hote' ? this.retourSalonHote() : this.jeuReseau ? this.ouvreLan() : this.retourMenu()),
     };
   }
 }

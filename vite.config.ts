@@ -16,6 +16,7 @@ export default defineConfig({
       '@audio': '/src/audio',
       '@input': '/src/input',
       '@app': '/src/app',
+      '@net': '/src/net',
     },
   },
   plugins: [

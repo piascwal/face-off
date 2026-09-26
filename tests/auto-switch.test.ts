@@ -14,7 +14,8 @@ function etatVide(): MatchState {
     ],
     nb: 3,
     patineurs: [],
-    controle: null,
+    humains: [true, false],
+    controles: [null, null],
     gardiens: [nouveauGardien(0), nouveauGardien(1)],
     palet: nouveauPalet(),
     score: [0, 0],
@@ -54,7 +55,7 @@ describe('changement automatique de joueur (palet libre, loin du joueur contrôl
 
     changeAutoSiLoin(state);
 
-    expect(state.controle).toBe(pres);
+    expect(state.controles[0]).toBe(pres);
   });
 
   it("ne change rien si le palet est déjà assez proche du joueur contrôlé", () => {
@@ -72,7 +73,7 @@ describe('changement automatique de joueur (palet libre, loin du joueur contrôl
 
     changeAutoSiLoin(state);
 
-    expect(state.controle).toBe(controlé);
+    expect(state.controles[0]).toBe(controlé);
   });
 
   it("ne change rien si l'écart entre les deux distances est trop faible (pas de va-et-vient)", () => {
@@ -91,7 +92,7 @@ describe('changement automatique de joueur (palet libre, loin du joueur contrôl
 
     changeAutoSiLoin(state);
 
-    expect(state.controle).toBe(controlé);
+    expect(state.controles[0]).toBe(controlé);
   });
 
   it('ne change rien tant que quelqu\'un tient le palet', () => {
@@ -110,6 +111,6 @@ describe('changement automatique de joueur (palet libre, loin du joueur contrôl
 
     changeAutoSiLoin(state);
 
-    expect(state.controle).toBe(controlé);
+    expect(state.controles[0]).toBe(controlé);
   });
 });

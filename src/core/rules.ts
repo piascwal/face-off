@@ -21,6 +21,8 @@ export interface OptionsPartie {
   assistTir?: boolean;
   assistPasse?: boolean;
   changementAuto?: boolean;
+  /** Équipes pilotées par un humain ; par défaut seule l'équipe 0 (solo contre le CPU). */
+  humains?: [boolean, boolean];
 }
 
 /**
@@ -61,7 +63,8 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     nivEq,
     nb,
     patineurs: [],
-    controle: null,
+    humains: opts.mode === 'demo' ? [false, false] : (opts.humains ?? [true, false]),
+    controles: [null, null],
     gardiens: [nouveauGardien(0), nouveauGardien(1)],
     palet: nouveauPalet(),
     score: [0, 0],
@@ -138,7 +141,12 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
     gk.tient = 0;
     gk.cd = 0;
   }
-  if (state.mode === 'match') controle(state, state.patineurs[0]!);
+  if (state.mode === 'match') {
+    for (const eq of [0, 1] as TeamId[]) {
+      const premier = state.patineurs.find((s) => s.eq === eq && s.rang === 0);
+      if (state.humains[eq] && premier) controle(state, premier);
+    }
+  }
   state.phase = 'engagement';
   state.phaseT = duree;
 }
@@ -153,13 +161,13 @@ export function finTempsReglementaire(state: MatchState): 'prolongation' | 'fin'
   return 'fin';
 }
 
-/** Termine le match ; renvoie si l'équipe du joueur (0) l'a emporté. */
+/** Termine le match ; renvoie si l'équipe 0 l'a emporté. Les confettis saluent un vainqueur humain. */
 export function finMatch(rink: Rink, state: MatchState): boolean {
   state.phase = 'fin';
-  const gagne = state.score[0] > state.score[1];
-  if (gagne) {
+  const gagnant: TeamId = state.score[0] > state.score[1] ? 0 : 1;
+  if (state.score[0] !== state.score[1] && state.humains[gagnant]) {
     state.evenements.push({ type: 'ovation', niveau: 1 });
-    state.evenements.push({ type: 'confettis', x: rink.cx, y: rink.cy - 20, eq: 0 });
+    state.evenements.push({ type: 'confettis', x: rink.cx, y: rink.cy - 20, eq: gagnant });
   }
-  return gagne;
+  return gagnant === 0 && state.score[0] !== state.score[1];
 }

@@ -10,11 +10,11 @@ export const pointCrosse = (s: Skater): { x: number; y: number } => ({
   y: s.y + Math.sin(s.face) * 8 + 1,
 });
 
-/** Le joueur humain ne pilote qu'un seul patineur à la fois. */
+/** Chaque humain ne pilote qu'un seul patineur de son équipe à la fois. */
 export function controle(state: MatchState, s: Skater): void {
-  if (state.mode !== 'match' || s.eq !== 0 || state.controle === s) return;
-  if (state.controle) {
-    const a = state.controle;
+  if (state.mode !== 'match' || !state.humains[s.eq] || state.controles[s.eq] === s) return;
+  const a = state.controles[s.eq];
+  if (a) {
     a.humain = false;
     a.arme = false;
     a.charge = 0;
@@ -24,7 +24,7 @@ export function controle(state: MatchState, s: Skater): void {
   s.humain = true;
   s.arme = false;
   s.charge = 0;
-  state.controle = s;
+  state.controles[s.eq] = s;
 }
 
 export function prendPalet(state: MatchState, qui: Porteur): void {
@@ -186,12 +186,12 @@ export function passeJoueur(state: MatchState, s: Skater, ix: number, iy: number
 }
 
 /** Sans le palet, le bouton passe donne la main au coéquipier le plus proche du palet. */
-export function changeJoueur(state: MatchState): void {
+export function changeJoueur(state: MatchState, eq: TeamId): void {
   const p = state.palet;
   let best: Skater | null = null;
   let dmin = 1e9;
-  for (const m of equipe(state, 0)) {
-    if (m === state.controle) continue;
+  for (const m of equipe(state, eq)) {
+    if (m === state.controles[eq]) continue;
     const d = Math.hypot(m.x - p.x, m.y - p.y);
     if (d < dmin) {
       dmin = d;
@@ -214,15 +214,18 @@ export function changeJoueur(state: MatchState): void {
  * joueurs sont à peu près à égale distance.
  */
 export function changeAutoSiLoin(state: MatchState): void {
-  const c = state.controle;
-  if (!c) return;
   const p = state.palet;
   if (p.porteur || p.passe) return;
+  for (const c of state.controles) if (c) changeAutoEquipe(state, c);
+}
+
+function changeAutoEquipe(state: MatchState, c: Skater): void {
+  const p = state.palet;
   const dControle = Math.hypot(c.x - p.x, c.y - p.y);
   if (dControle < CHANGEMENT_AUTO_SEUIL) return;
   let best: Skater | null = null;
   let dmin = 1e9;
-  for (const m of equipe(state, 0)) {
+  for (const m of equipe(state, c.eq)) {
     if (m === c || m.sonne > 0) continue;
     const d = Math.hypot(m.x - p.x, m.y - p.y);
     if (d < dmin) {

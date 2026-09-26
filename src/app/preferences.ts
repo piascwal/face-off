@@ -14,6 +14,8 @@ export interface Preferences {
   assistPasse: boolean;
   changementAuto: boolean;
   secoussesReduites: boolean;
+  /** Surnom affiché aux autres joueurs du Wi-Fi (généré une fois, pas de saisie au clavier). */
+  pseudo: string;
 }
 
 const DEFAUT: Preferences = {
@@ -28,7 +30,15 @@ const DEFAUT: Preferences = {
   assistPasse: true,
   changementAuto: true,
   secoussesReduites: false,
+  pseudo: '',
 };
+
+const SURNOMS = ['LYNX', 'ORQUE', 'AIGLE', 'LOUP', 'OURS', 'PUMA', 'FAUCON', 'BISON', 'RENARD', 'TIGRE', 'COBRA', 'HIBOU', 'REQUIN', 'ZEBRE'];
+
+export function generePseudo(): string {
+  const n = SURNOMS[Math.floor(Math.random() * SURNOMS.length)]!;
+  return `${n} ${10 + Math.floor(Math.random() * 90)}`;
+}
 
 export function chargePreferences(): Preferences {
   const pref = { ...DEFAUT };
@@ -36,6 +46,10 @@ export function chargePreferences(): Preferences {
     Object.assign(pref, JSON.parse(localStorage.getItem(CLE) ?? '{}'));
   } catch {
     /* stockage indisponible */
+  }
+  if (typeof pref.pseudo !== 'string' || !/^[A-Z0-9 ]{1,14}$/.test(pref.pseudo)) {
+    pref.pseudo = generePseudo();
+    sauvePreferences(pref);
   }
   return pref;
 }

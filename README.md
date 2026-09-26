@@ -1,8 +1,8 @@
 # Face-Off — Hockey Arcade
 
-Hockey arcade en pixel art, jouable en mode paysage. Pour l'instant : **humain
-contre CPU**. L'architecture est pensée dès maintenant pour ajouter, plus
-tard, le **joueur contre joueur en ligne** sans réécrire le moteur de jeu.
+Hockey arcade en pixel art, jouable en mode paysage : **humain contre CPU**,
+ou **à deux sur le même Wi-Fi** (l'appareil hôte fait office de serveur, sans
+aucun backend à déployer — voir [Multijoueur Wi-Fi](#8-multijoueur-wi-fi-lhôte-est-le-serveur)).
 
 Ce dépôt reprend le POC monofichier (`hockey-arcade.html`) et le restructure
 en projet maintenable, à parité visuelle avec l'original, plus quatre
@@ -54,6 +54,7 @@ src/
   core/     — simulation pure, sans DOM ni canvas (voir plus bas)
   audio/    — synthèse Web Audio, pilotée par les évènements de game-core
   input/    — clavier + tactile → InputIntent
+  net/      — multijoueur Wi-Fi : découverte chiffrée, liaison WebRTC, protocole
   render/   — tout le dessin canvas (police pixel, patinoire, sprites, HUD, menus)
   app/      — assemble le tout : boucle de jeu, préférences, PWA/plein écran
 scripts/
@@ -68,10 +69,10 @@ vit dans `src/core/`, qui ne touche **jamais** au DOM, à `canvas`, ni à `windo
 C'est une fonction pure de `(état, entrée) → nouvel état + évènements` :
 
 ```ts
-pas(rink, state, dt, () => entreeJoueurCourant); // avance la simulation d'un pas fixe
+pas(rink, state, dt, (eq) => entreeDeLEquipe(eq)); // avance la simulation d'un pas fixe
 ```
 
-Deux conséquences directes, pensées pour le multijoueur en ligne à venir :
+Deux conséquences directes, sur lesquelles repose le multijoueur Wi-Fi :
 
 1. **`InputIntent`** (`core/types.ts`) est la forme exacte qu'un client enverrait
    à un serveur à chaque tick (déplacement, tir, passe, élan...). Le code qui
@@ -85,14 +86,12 @@ Deux conséquences directes, pensées pour le multijoueur en ligne à venir :
    ferait exactement la même chose : rejouer `pas()` et diffuser les
    évènements aux clients pour qu'ils jouent le son/les particules.
 
-Cette séparation ne fait *aucun* réseau aujourd'hui (choix assumé : on ne
-construit que l'architecture, pas le serveur, tant que le mode en ligne n'est
-pas prioritaire) — mais le jour où il faudra l'ajouter, `game-core` peut être
-publié tel quel comme dépendance d'un petit serveur Node (WebSocket), qui
-appliquerait les `InputIntent` reçus de chaque client et diffuserait l'état
-(ou les évènements) en retour. Le pas de temps fixe (`PAS = 1/120`) déjà en
-place dans le POC est exactement ce dont un netcode a besoin pour rester
-déterministe.
+`game-core` ne fait lui-même aucun réseau : en multijoueur Wi-Fi, c'est
+l'appareil hôte qui fait tourner `pas()` exactement comme en solo, avec
+l'`InputIntent` reçu du client pour l'équipe 1 (`MatchState.humains` /
+`controles` : un humain par équipe au plus), et qui diffuse l'état et les
+évènements (voir `src/net/`). Le même `game-core` pourrait demain tourner
+dans un serveur Node pour du jeu par Internet.
 
 ### Rendu
 
@@ -263,22 +262,90 @@ voir `core/rules.ts::creePartie`) :
 - **Secousses d'écran** : réduit l'intensité des tremblements et flashs
   (`render/effects.ts::SystemeEffets.intensiteEcran`) — accessibilité.
 
-## Roadmap : joueur contre joueur en ligne
+### 8. Multijoueur Wi-Fi : l'hôte est le serveur
 
-Pas de code réseau dans ce dépôt pour l'instant (choix du scope actuel), mais
-la voie est dégagée :
+Menu → **MULTI WIFI**. Un appareil (téléphone, tablette ou ordinateur) choisit
+**CRÉER UNE PARTIE** : il devient le serveur de la partie. Sur un autre
+appareil du même Wi-Fi, la partie apparaît toute seule dans la liste (bouton
+**ACTUALISER** pour relancer la recherche) — aucune adresse IP à saisir.
+Le client qui rejoint arrive dans une **salle d'attente** où chacun choisit
+son équipe (les flèches ne pilotent que sa propre équipe, l'autre écran suit
+en direct). Il y reste jusqu'à ce que l'hôte appuie sur **LANCER**. À la fin, l'hôte
+propose une revanche ou le retour au salon, et il peut exclure un joueur à
+tout moment.
 
-1. **Serveur autoritaire** (Node + WebSocket, ou un framework comme Colyseus
-   pour la gestion de salons) qui importe `game-core` tel quel, applique les
-   `InputIntent` reçus de chaque client à `pas()`, et diffuse le nouvel état
-   (ou juste les `GameEvent` + positions) à chaque tick.
-2. **Client** : remplacer `GestionnaireEntreesJeu.consomme()` local par un
-   envoi de l'`InputIntent` au serveur, et l'état affiché par l'état reçu du
-   serveur (avec, si besoin, de la prédiction côté client en rejouant
-   localement `pas()` puis en réconciliant sur la prochaine confirmation
-   serveur — le pas de temps fixe s'y prête directement).
-3. **Matchmaking** minimal (créer/rejoindre une salle par code), à héberger à
-   part du site statique (le serveur de jeu ne peut pas être un simple hébergement statique).
+**Pourquoi c'est un peu plus subtil qu'il n'y paraît.** Une page web (même
+installée en PWA) n'a pas le droit d'ouvrir un port d'écoute, de faire du
+broadcast UDP ni du mDNS : elle ne peut ni « être un serveur » au sens
+classique, ni découvrir seule les appareils voisins. D'où le montage :
+
+- **Jeu en direct sur le Wi-Fi — WebRTC** (`net/liaison.ts`). L'hôte et le
+  client ouvrent une liaison pair-à-pair avec deux canaux : un canal fiable
+  pour le salon et les évènements, et un canal sans retransmission pour les
+  instantanés et les entrées. Un paquet perdu est remplacé par le suivant au lieu
+  de bloquer les autres. Le trafic de jeu ne sort pas du réseau local, et il est
+  chiffré de bout en bout par DTLS, que WebRTC impose.
+- **Découverte sans IP — l'adresse publique comme clé de salon**
+  (`net/reseau-local.ts`). Les appareils d'un même Wi-Fi sortent sur Internet
+  par la même adresse publique (celle de la box). Le navigateur la découvre
+  tout seul par STUN, le mécanisme que WebRTC utilise de toute façon ; en IPv6,
+  c'est le préfixe /64 qui sert de clé. Cette adresse n'est jamais publiée :
+  on en dérive par SHA-256 un nom de salon, et une clé AES-GCM distincte.
+- **Boîte aux lettres — des serveurs MQTT publics** (`net/mqtt.ts`,
+  `net/annuaire.ts`). Il faut bien un endroit où l'hôte dépose son annonce et
+  le client son offre de connexion : on utilise trois serveurs MQTT publics
+  gratuits (EMQX, HiveMQ, Mosquitto) en `wss://`, **en parallèle** (la découverte
+  marche tant qu'un seul répond, messages dédoublonnés), via un client MQTT
+  3.1.1 minimal écrit pour l'occasion (~250 lignes, aucune dépendance).
+  L'annonce est un message *retenu* qui s'efface automatiquement (testament
+  MQTT) si l'hôte disparaît sans prévenir. Ces serveurs ne servent qu'à la
+  mise en relation : une fois la liaison WebRTC ouverte, le client s'en
+  déconnecte.
+
+**Sécurité.**
+
+- Tout ce qui transite par les serveurs publics est chiffré (AES-GCM, le topic
+  en donnée authentifiée) avec la clé dérivée du réseau : sans votre adresse
+  publique, on ne peut ni lire les annonces, ni injecter une offre.
+- Le jeu lui-même est chiffré par DTLS.
+- Un **code de vérification à 4 chiffres**, dérivé des empreintes des certificats
+  DTLS des deux appareils, est affiché des deux côtés. S'il diffère, quelqu'un
+  s'est interposé.
+- L'hôte est **autoritaire** : il ne reçoit du client que des intentions de
+  jeu, bornées et validées (direction ramenée à ±1, appuis comptés, rien
+  d'autre). Les deux côtés valident chaque message reçu (schéma, tailles, valeurs
+  finies — `net/protocole.ts`, testé dans `tests/net.test.ts`).
+- Une seule place par partie : l'annonce est retirée dès qu'un joueur est
+  entré, et l'hôte peut **exclure** le joueur.
+
+**Fiabilité et fluidité.**
+
+- L'hôte simule à 120 Hz et envoie ~60 instantanés binaires par seconde
+  (~600 octets chacun).
+- Le client les affiche avec un léger retard, **adaptatif** selon la
+  régularité du Wi-Fi (≈ 30 ms sur un réseau calme), en **interpolant** entre
+  deux instantanés (`net/synchro.ts`). Les sons et effets sont datés et joués
+  au moment où l'image correspondante s'affiche.
+- Les appuis (tir, passe, élan) voyagent comme des **compteurs cumulés**, pas
+  comme des booléens : même si un paquet se perd, l'appui arrive quand même,
+  et une seule fois.
+- Les deux écrans n'ont pas la même taille : positions, vitesses et directions
+  sont reprojetées d'une patinoire à l'autre.
+- Des pings permettent d'afficher la latence (en haut à gauche). Au-delà de
+  6 s de silence, la partie est considérée comme perdue et chacun est ramené
+  à l'écran adapté avec un message.
+
+En développement, `?reseau=xxx&courtier=ws://localhost:8883` (actif seulement
+avec `npm run dev`) remplace la détection du réseau et les serveurs publics
+par un broker MQTT local, pour tester à deux onglets sur une seule machine.
+
+**Limites connues.**
+
+- Les Wi-Fi « invités » qui isolent les appareils entre eux (isolation AP)
+  empêchent la liaison directe.
+- Un réseau d'entreprise qui bloque STUN empêche la détection du réseau.
+- Pour du jeu par Internet, le même protocole pourrait passer par un serveur
+  relais (TURN).
 
 ## Licence
 

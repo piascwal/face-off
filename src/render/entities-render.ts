@@ -51,15 +51,17 @@ function badgePalet(g: CanvasRenderingContext2D, x: number, y: number, temps: nu
 /** Chevron double, plus gros et plus lisible que le simple repère de départ —
  * pour ne jamais perdre de vue le patineur qu'on pilote, même dans une mêlée
  * à dix joueurs. */
-function repereControle(g: CanvasRenderingContext2D, x: number, fy: number): void {
+function repereControle(g: CanvasRenderingContext2D, x: number, fy: number, couleur = COULEUR_CONTROLE, simple = false): void {
   const y0 = fy - 3;
-  for (const [dy, large] of [
-    [0, 9],
-    [3, 6],
-  ] as const) {
+  for (const [dy, large] of simple
+    ? ([[3, 6]] as const)
+    : ([
+        [0, 9],
+        [3, 6],
+      ] as const)) {
     const w = large;
     px(g, x - w / 2 - 1, y0 + dy - 1, w + 2, 3, C.contour);
-    px(g, x - w / 2, y0 + dy, w, 1, COULEUR_CONTROLE);
+    px(g, x - w / 2, y0 + dy, w, 1, couleur);
   }
 }
 
@@ -131,12 +133,15 @@ export function dessinePatineur(
     g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, Math.round(bx - s.vx * 0.04), Math.round(by - s.vy * 0.04), tw, th);
     g.globalAlpha = 1;
   }
-  if (s.humain) {
+  if (estControle) {
     // double chevron au-dessus du joueur, pour ne jamais le perdre de vue —
     // plus gros que le halo au sol, il reste lisible même dans une mêlée.
     repereControle(g, Math.round(s.x), by - 7 + Math.round(Math.sin(temps * 6)));
+  } else if (s.humain) {
+    // l'adversaire humain d'une partie en réseau : simple chevron à ses couleurs
+    repereControle(g, Math.round(s.x), by - 7, equipes[s.eq].clair, true);
   }
-  if (s.humain && s.arme && s.vise !== null) {
+  if (estControle && s.arme && s.vise !== null) {
     // flèche de visée pointillée, qui s'allonge avec la puissance
     const L = 12 + 26 * s.charge;
     const c = s.charge > 0.85 ? '#ff5a4e' : C.or;

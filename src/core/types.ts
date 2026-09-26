@@ -157,7 +157,10 @@ export interface MatchState {
   nivEq: [LevelConfig, LevelConfig];
   nb: number;
   patineurs: Skater[];
-  controle: Skater | null;
+  /** Équipes pilotées par un humain (l'une en solo, les deux en réseau local). */
+  humains: [boolean, boolean];
+  /** Patineur actuellement piloté par l'humain de chaque équipe (null pour une équipe CPU). */
+  controles: [Skater | null, Skater | null];
   gardiens: [Goalie, Goalie];
   palet: Puck;
   score: [number, number];

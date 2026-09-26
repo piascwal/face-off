@@ -55,8 +55,8 @@ export function angleTirJoueur(
 
 /**
  * Applique l'intention d'entrée d'un pas de simulation au patineur humain.
- * Fonction pure côté simulation : le futur client multijoueur enverra ce même
- * `InputIntent` par tick, qu'un serveur autoritaire pourra appliquer ici.
+ * Fonction pure côté simulation : en réseau local, l'hôte applique ici
+ * l'`InputIntent` reçu du client pour l'équipe adverse (voir src/net).
  */
 export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, intent: InputIntent, dt: number): void {
   s.ex = intent.ix;
@@ -90,7 +90,7 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
   }
   if (intent.passeAppui && actif) {
     if (s.tient) passeJoueur(state, s, intent.ix, intent.iy, state.assistPasse);
-    else changeJoueur(state);
+    else changeJoueur(state, s.eq);
   }
   if (intent.elanAppui && actif) elan(state, s, intent.ix, intent.iy);
 }

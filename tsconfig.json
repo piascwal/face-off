@@ -20,7 +20,8 @@
       "@render/*": ["./src/render/*"],
       "@audio/*": ["./src/audio/*"],
       "@input/*": ["./src/input/*"],
-      "@app/*": ["./src/app/*"]
+      "@app/*": ["./src/app/*"],
+      "@net/*": ["./src/net/*"]
     }
   },
   "include": ["src", "tests"]

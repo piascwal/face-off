@@ -63,7 +63,14 @@ function titrePanneau(g: CanvasRenderingContext2D, titre: string, x: number, w: 
 
 // ============================================== étape 1 : les équipes ======
 
-function dessinePanneauEquipe(
+export interface OptionsPanneauEquipe {
+  /** Fraction de la hauteur d'écran occupée par le logo. */
+  echelleLogo?: number;
+  /** Position verticale des notes, en fraction de la hauteur d'écran. */
+  hauteurNotes?: number;
+}
+
+export function dessinePanneauEquipe(
   g: CanvasRenderingContext2D,
   boutons: ZoneBouton[],
   x: number,
@@ -71,20 +78,21 @@ function dessinePanneauEquipe(
   H: number,
   titre: string,
   carte: CarteEquipe,
-  onPrecedent: () => void,
-  onSuivant: () => void,
+  onPrecedent: (() => void) | null,
+  onSuivant: (() => void) | null,
+  opts: OptionsPanneauEquipe = {},
 ): void {
   const cx = x + w / 2;
   titrePanneau(g, titre, x, w);
 
   // Le logo grossit avec la hauteur dispo, pour occuper tout le panneau plutôt
   // que de rester tassé en haut — les flèches restent calées sur son centre.
-  const tailleLogo = Math.round(H * 0.5);
+  const tailleLogo = Math.round(H * (opts.echelleLogo ?? 0.5));
   const logoY = 13;
   const tailleFleche = Math.round(tailleLogo * 0.3);
   const yFleche = Math.round(logoY + (tailleLogo - tailleFleche) / 2);
-  fleche(g, boutons, x + 4, yFleche, tailleFleche, false, onPrecedent);
-  fleche(g, boutons, x + w - 4 - tailleFleche, yFleche, tailleFleche, true, onSuivant);
+  if (onPrecedent) fleche(g, boutons, x + 4, yFleche, tailleFleche, false, onPrecedent);
+  if (onSuivant) fleche(g, boutons, x + w - 4 - tailleFleche, yFleche, tailleFleche, true, onSuivant);
 
   const def = carte.def;
   const pal = def.interieur;
@@ -102,7 +110,7 @@ function dessinePanneauEquipe(
   texte(g, def.nom, cx, y, C.gris, 1, 'c');
 
   const notes = notesEquipe(carte.profil);
-  const statsY = Math.max(y + 12, Math.round(H * 0.7));
+  const statsY = Math.max(y + 12, Math.round(H * (opts.hauteurNotes ?? 0.7)));
   const cols: [string, number, string][] = [
     ['ATT', notes.attaque, '#ff8a3d'],
     ['DEF', notes.defense, '#6fd0ff'],
