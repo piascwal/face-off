@@ -1,5 +1,5 @@
-import { changeJoueur, elan, passeJoueur, surReception, tir } from './actions';
-import { BUT_DEMI, ECHEC_PORTEE, UNE_TOUCHE_CHARGE } from './constants';
+import { changeJoueur, coupDeCrosse, elan, esquive, menaceEchec, passeJoueur, surReception, tir } from './actions';
+import { BUT_DEMI, ECHEC_PORTEE, ESQUIVE_VERROU, UNE_TOUCHE_CHARGE } from './constants';
 import { angleVersCoinLoin, butAttaque, sensAttaque } from './shooting';
 import type { InputIntent, MatchState, Rink, Skater } from './types';
 import { angDiff } from './utils';
@@ -134,5 +134,19 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
     if (s.tient) passeJoueur(state, s, intent.ix, intent.iy, state.assistPasse);
     else changeJoueur(state, s.eq);
   }
-  if (intent.elanAppui && actif) elan(state, s, intent.ix, intent.iy);
+  // petit bouton : avec le palet, SPRINT — ou ESQUIVE si un défenseur arrive en
+  // mise en échec ; sans le palet, coup de CROSSE
+  if (intent.elanAppui && actif) {
+    if (s.tient) {
+      const menace = menaceEchec(state, s);
+      if (menace && s.esquiveVerrou <= 0) esquive(state, s, menace);
+      else {
+        // appui hors de la fenêtre : pas d'esquive possible pendant un instant (anti-matraquage)
+        if (!menace) s.esquiveVerrou = ESQUIVE_VERROU;
+        elan(state, s, intent.ix, intent.iy);
+      }
+    } else {
+      coupDeCrosse(state, s);
+    }
+  }
 }

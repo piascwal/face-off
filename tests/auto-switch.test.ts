@@ -7,10 +7,10 @@ import { statsVides, type MatchState } from '../src/core/types';
 function etatVide(): MatchState {
   return {
     mode: 'match',
-    niv: { nom: 'NORMAL', vit: 1, reac: 1, err: 0.05, poke: 1, check: 1, gk: 1.9, antic: 0.25, portee: 135 },
+    niv: { nom: 'NORMAL', vit: 1, reac: 1, err: 0.05, poke: 1, check: 1, gk: 1.9, antic: 0.25, portee: 135, esquive: 0.25 },
     nivEq: [
-      { nom: 'NORMAL', vit: 1, reac: 1, err: 0.05, poke: 1, check: 1, gk: 1.9, antic: 0.25, portee: 135 },
-      { nom: 'NORMAL', vit: 1, reac: 1, err: 0.05, poke: 1, check: 1, gk: 1.9, antic: 0.25, portee: 135 },
+      { nom: 'NORMAL', vit: 1, reac: 1, err: 0.05, poke: 1, check: 1, gk: 1.9, antic: 0.25, portee: 135, esquive: 0.25 },
+      { nom: 'NORMAL', vit: 1, reac: 1, err: 0.05, poke: 1, check: 1, gk: 1.9, antic: 0.25, portee: 135, esquive: 0.25 },
     ],
     nb: 3,
     patineurs: [],
@@ -33,6 +33,7 @@ function etatVide(): MatchState {
     combo: [0, 0],
     tirSpecialPret: [false, false],
     reception: null,
+    figeT: 0,
     evenements: [],
     assistTir: true,
     assistPasse: true,

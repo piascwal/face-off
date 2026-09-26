@@ -1,3 +1,4 @@
+import { menaceEchec } from '@core/actions';
 import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
 import { calculeRink, reprojette } from '@core/rink';
 import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
@@ -1111,7 +1112,7 @@ export class GameApp {
         });
       } else if (this.ecranUI === 'jeu') {
         const pilote = state.controles[this.eqLocal];
-        dessineCommandes(g, this.W, this.H, state.temps, pilote, this.entrees.instantaneUI(), this.rink);
+        dessineCommandes(g, this.W, this.H, state.temps, pilote, this.entrees.instantaneUI(), this.rink, !!pilote && menaceEchec(state, pilote) !== null);
         if (pilote?.arme) dessineJaugeTir(g, this.H, pilote.charge, state.temps);
       } else if (this.ecranUI === 'lan') {
         dessineLan(g, this.boutons, this.W, this.H, tempsUI, this.lanProps());

@@ -1,4 +1,4 @@
-import { elan, ligneLibre, meilleurReceveur, passeVers, tir } from './actions';
+import { elan, esquive, ligneLibre, menaceEchec, meilleurReceveur, passeVers, tir } from './actions';
 import { VMAX } from './constants';
 import { angleVersCoinLoin, butAttaque, butDefendu, sensAttaque } from './shooting';
 import { equipe, plusProche } from './state-helpers';
@@ -191,6 +191,13 @@ export function pilotageIA(rink: Rink, state: MatchState, s: Skater, dt: number)
   if (ia.t <= 0) {
     ia.t = state.nivEq[s.eq].reac * alea(0.7, 1.3);
     planIA(rink, state, s);
+  }
+  // porteur visé par une mise en échec : l'IA esquive parfois, selon son niveau
+  // (probabilité répartie sur la fenêtre d'esquive, ~0,15 s)
+  if (s.tient) {
+    const menace = menaceEchec(state, s);
+    const p = state.nivEq[s.eq].esquive;
+    if (menace && p > 0 && Math.random() < (-Math.log(1 - p) / 0.15) * dt) esquive(state, s, menace);
   }
   // si on perd le palet en armant, on oublie le tir
   if (s.arme && !s.tient) {

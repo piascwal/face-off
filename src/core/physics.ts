@@ -7,6 +7,7 @@ import {
   INTERCEPTION_RAYON,
   PASSE_AIMANT,
   PASSE_FACILE_MARGE,
+  POKE_RECHARGE,
   RECEPTION_RAYON,
   VMAX,
 } from './constants';
@@ -90,6 +91,9 @@ export function heurteSegment(o: Mobile, rad: number, s: SegmentCage, rest: numb
 export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: number, segsAvecFace: SegmentCage[]): void {
   s.recupCd -= dt;
   s.elanCd -= dt;
+  s.pokeT = Math.max(-POKE_RECHARGE, s.pokeT - dt);
+  s.esquiveT = Math.max(0, s.esquiveT - dt);
+  s.esquiveVerrou = Math.max(0, s.esquiveVerrou - dt);
   s.elanT -= dt;
   if (s.sonne > 0) s.sonne -= dt;
   let ix = s.ex;
@@ -187,7 +191,7 @@ export function collisionsPatineurs(state: MatchState): void {
   for (const s of L) {
     if (s.elanT <= 0) continue;
     for (const o of L) {
-      if (o.eq === s.eq || o.sonne > 0) continue;
+      if (o.eq === s.eq || o.sonne > 0 || o.esquiveT > 0) continue;
       const d = Math.hypot(o.x - s.x, o.y - s.y);
       if (d > 12) continue;
       const nx = (o.x - s.x) / (d || 1);
@@ -520,8 +524,8 @@ export function recuperations(state: MatchState, dt: number): void {
       if (o.eq === c.eq || o.sonne > 0 || o.recupCd > 0) continue;
       const sp = pointCrosse(o);
       const d = Math.hypot(p.x - sp.x, p.y - sp.y);
-      const portee = 6.5;
-      const taux = o.humain ? 0.7 : state.nivEq[o.eq].poke;
+      const portee = o.pokeT > 0 ? 10 : 6.5;
+      const taux = o.humain ? (o.pokeT > 0 ? 7 : 0.7) : state.nivEq[o.eq].poke;
       if (d < portee && Math.random() < taux * dt) {
         lachePalet(state, c, 0.4);
         const a = o.face + alea(-0.8, 0.8);
@@ -531,7 +535,7 @@ export function recuperations(state: MatchState, dt: number): void {
         p.qualite = 0;
         o.recupCd = 0.06;
         state.evenements.push({ type: 'frappe', puissance: 0.1 });
-        state.evenements.push({ type: 'bulle', txt: 'VOLE!', x: p.x, y: p.y - 14, c: '#ffd35c' });
+        state.evenements.push({ type: 'bulle', txt: 'VOLÉ !', x: p.x, y: p.y - 14, c: '#ffd35c' });
         break;
       }
     }

@@ -1,4 +1,4 @@
-import { meilleurReceveur } from '@core/actions';
+import { meilleurReceveur, menaceEchec } from '@core/actions';
 import { equipe } from '@core/state-helpers';
 import type { MatchState, Rink, TeamId } from '@core/types';
 import { dessineGardien, dessinePalet, dessineParticules, dessinePatineur, TracesGlace } from './entities-render';
@@ -74,7 +74,10 @@ export function dessineScene(
   const liste: { y: number; f: () => void }[] = [
     ...state.patineurs.map((s) => ({
       y: s.y,
-      f: () => dessinePatineur(g, sprites, s, state.temps, s === state.controles[eqLocal], equipes, state.tirSpecialPret[s.eq]),
+      f: () => {
+        const pilote = s === state.controles[eqLocal];
+        dessinePatineur(g, sprites, s, state.temps, pilote, equipes, state.tirSpecialPret[s.eq], pilote && menaceEchec(state, s) !== null);
+      },
     })),
     ...state.gardiens.map((gk) => ({ y: gk.y, f: () => dessineGardien(g, sprites, gk, state.temps, equipes) })),
     { y: p.y - 2, f: () => dessinePalet(g, p) },

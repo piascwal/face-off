@@ -36,6 +36,11 @@ export interface Skater {
   sonne: number;
   charge: number;
   arme: boolean;
+  /** Coup de crosse en cours (> 0) puis temps de recharge (< 0), en s. */
+  pokeT: number;
+  /** Esquive d'une mise en échec en cours (s) ; `esquiveVerrou` : appui raté, pas d'esquive possible (anti-matraquage). */
+  esquiveT: number;
+  esquiveVerrou: number;
   anim: number;
   humain: boolean;
   ex: number;
@@ -95,6 +100,8 @@ export interface LevelConfig {
   gk: number;
   antic: number;
   portee: number;
+  /** Probabilité qu'un porteur de l'IA esquive une mise en échec. */
+  esquive: number;
 }
 
 export type GamePhase = 'engagement' | 'jeu' | 'but' | 'fin';
@@ -201,6 +208,8 @@ export interface MatchState {
   tirSpecialPret: [boolean, boolean];
   /** Dernière passe reçue (pour le tir sur réception) : qui, et à quel instant (`temps`). */
   reception: { qui: Skater; t: number } | null;
+  /** Arrêt sur image (s) : la simulation se fige un court instant pour souligner une esquive. */
+  figeT: number;
   /** Évènements à effet de bord produits pendant le dernier pas de simulation. */
   evenements: GameEvent[];
   /** Réglages « avancés » du menu, ignorés en mode démo (toujours activés). */

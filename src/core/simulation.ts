@@ -25,6 +25,11 @@ export function pas(
   dt: number,
   entreeJoueur: (eq: TeamId) => InputIntent = () => INTENT_VIDE,
 ): void {
+  // arrêt sur image (esquive) : tout se fige un court instant
+  if (state.figeT > 0) {
+    state.figeT = Math.max(0, state.figeT - dt);
+    return;
+  }
   state.temps += dt;
   state.lampe[0] = Math.max(0, state.lampe[0] - dt / 3);
   state.lampe[1] = Math.max(0, state.lampe[1] - dt / 3);

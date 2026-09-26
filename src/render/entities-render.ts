@@ -65,6 +65,7 @@ export function dessinePatineur(
   estControle: boolean,
   equipes: [EquipeVisuelle, EquipeVisuelle],
   specialPret: boolean,
+  menace = false,
 ): void {
   const M = sprites.meta.joueur;
   const e = M.echelle;
@@ -127,6 +128,23 @@ export function dessinePatineur(
     g.globalAlpha = 0.35;
     corps(-s.vx * 0.04, -s.vy * 0.04);
     g.globalAlpha = 1;
+  }
+  if (s.esquiveT > 0) {
+    // esquive : deux images fantômes là où le joueur était
+    g.globalAlpha = 0.3;
+    corps(-s.vx * 0.05, -s.vy * 0.05);
+    g.globalAlpha = 0.18;
+    corps(-s.vx * 0.1, -s.vy * 0.1);
+    g.globalAlpha = 1;
+  }
+  // un défenseur arrive en mise en échec : « ! » clignotant, c'est le moment d'esquiver
+  if (menace) {
+    const cl = Math.floor(temps * 16) & 1 ? '#ff5a4e' : '#ffd35c';
+    const x = Math.round(s.x) + 7;
+    const y = teteY - 14;
+    px(g, x - 2, y - 1, 5, 10, C.contour);
+    px(g, x - 1, y, 3, 5, cl);
+    px(g, x - 1, y + 6, 3, 2, cl);
   }
   // au-dessus de la tête : la flèche du joueur piloté
   if (estControle) {

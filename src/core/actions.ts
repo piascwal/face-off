@@ -4,6 +4,12 @@ import {
   COMBO_BONUS,
   COMBO_SEUIL,
   ELAN_CD_PALET,
+  ESQUIVE_FIGE,
+  ESQUIVE_PORTEE,
+  ESQUIVE_SONNE,
+  ESQUIVE_T,
+  POKE_RECHARGE,
+  POKE_T,
   UNE_TOUCHE_BONUS,
   UNE_TOUCHE_S,
 } from './constants';
@@ -279,6 +285,63 @@ function changeAutoEquipe(state: MatchState, c: Skater): void {
     }
   }
   if (best && dmin < dControle - CHANGEMENT_AUTO_MARGE) controle(state, best);
+}
+
+/**
+ * Le défenseur qui arrive en mise en échec sur `s` (en élan, à portée, et
+ * lancé vers lui), s'il y en a un : c'est la fenêtre d'esquive.
+ */
+export function menaceEchec(state: MatchState, s: Skater): Skater | null {
+  if (!s.tient || s.esquiveT > 0) return null;
+  for (const o of state.patineurs) {
+    if (o.eq === s.eq || o.elanT <= 0 || o.sonne > 0) continue;
+    const dx = s.x - o.x;
+    const dy = s.y - o.y;
+    const d = Math.hypot(dx, dy);
+    const v = Math.hypot(o.vx, o.vy);
+    if (d > ESQUIVE_PORTEE || v < 1) continue;
+    if ((o.vx * dx + o.vy * dy) / (v * (d || 1)) > 0.6) return o;
+  }
+  return null;
+}
+
+/**
+ * Esquive : le porteur fait un pas de côté, à l'opposé de la trajectoire du
+ * défenseur, qui passe à côté et trébuche. Un court arrêt sur image souligne
+ * le moment.
+ */
+export function esquive(state: MatchState, s: Skater, o: Skater): void {
+  const v = Math.hypot(o.vx, o.vy) || 1;
+  const ux = o.vx / v;
+  const uy = o.vy / v;
+  // de quel côté de la trajectoire est le porteur : on s'en écarte encore
+  const cote = Math.sign((s.x - o.x) * -uy + (s.y - o.y) * ux) || 1;
+  s.vx += -uy * cote * 120;
+  s.vy += ux * cote * 120;
+  s.esquiveT = ESQUIVE_T;
+  s.esquiveVerrou = 0;
+  s.elanCd = Math.max(s.elanCd, 0.6);
+  o.elanT = 0;
+  o.sonne = ESQUIVE_SONNE;
+  o.vx *= 0.7;
+  o.vy *= 0.7;
+  state.figeT = ESQUIVE_FIGE;
+  state.evenements.push({ type: 'elan' });
+  state.evenements.push({ type: 'secousse', force: 1.5 });
+  state.evenements.push({ type: 'etincelles', x: o.x, y: o.y - 8, n: 8, c: '#ffd35c' });
+  state.evenements.push({ type: 'neige', x: s.x, y: s.y + 3, n: 6, vx: uy * cote * 80, vy: -ux * cote * 80 });
+  state.evenements.push({ type: 'bulle', txt: 'ESQUIVÉ !', x: s.x, y: s.y - 22, c: '#8fe3ff' });
+  if (s.humain || o.humain) state.evenements.push({ type: 'vibre', ms: 25 });
+}
+
+/** Coup de crosse (défense) : pendant `POKE_T`, la crosse vole le palet de plus loin et bien plus souvent. */
+export function coupDeCrosse(state: MatchState, s: Skater): void {
+  // prêt une fois la recharge écoulée (pokeT redescendu à -POKE_RECHARGE)
+  if (s.tient || s.pokeT > -POKE_RECHARGE + 1e-3 || s.sonne > 0) return;
+  s.pokeT = POKE_T;
+  const sp = pointCrosse(s);
+  state.evenements.push({ type: 'etincelles', x: sp.x, y: sp.y, n: 3, c: '#c9d2e3' });
+  state.evenements.push({ type: 'frappe', puissance: 0.05 });
 }
 
 export function elan(state: MatchState, s: Skater, dirx: number, diry: number): void {

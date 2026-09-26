@@ -12,9 +12,9 @@ export const VMAX = 100; // vitesse de patinage de base (px/s)
 export const ACCEL = 640;
 
 export const NIVEAUX: LevelConfig[] = [
-  { nom: 'FACILE', vit: 0.8, reac: 0.4, err: 0.085, poke: 0.45, check: 0.5, gk: 1.5, antic: 0.1, portee: 115 },
-  { nom: 'NORMAL', vit: 0.93, reac: 0.24, err: 0.05, poke: 0.85, check: 1.1, gk: 1.9, antic: 0.25, portee: 135 },
-  { nom: 'PRO', vit: 1.03, reac: 0.11, err: 0.028, poke: 1.35, check: 1.9, gk: 2.4, antic: 0.4, portee: 155 },
+  { nom: 'FACILE', vit: 0.8, reac: 0.4, err: 0.085, poke: 0.45, check: 0.5, gk: 1.5, antic: 0.1, portee: 115, esquive: 0.1 },
+  { nom: 'NORMAL', vit: 0.93, reac: 0.24, err: 0.05, poke: 0.85, check: 1.1, gk: 1.9, antic: 0.25, portee: 135, esquive: 0.25 },
+  { nom: 'PRO', vit: 1.03, reac: 0.11, err: 0.028, poke: 1.35, check: 1.9, gk: 2.4, antic: 0.4, portee: 155, esquive: 0.45 },
 ];
 
 export const DUREES = [120, 180, 300];
@@ -58,6 +58,23 @@ export const ELAN_CD_PALET = 1.7;
  * porteur adverse, ou l'adversaire le plus proche, s'il est à cette distance (px).
  */
 export const ECHEC_PORTEE = 55;
+
+// Esquive : le porteur appuie sur SPRINT pile quand un défenseur arrive en
+// mise en échec. Le défenseur passe à côté et reste sonné plus longtemps
+// qu'un joueur mis en échec : l'échec reste puissant, mais devient risqué.
+/** Distance (px) à laquelle un défenseur en élan vers le porteur ouvre la fenêtre d'esquive. */
+export const ESQUIVE_PORTEE = 40;
+/** Durée de l'esquive (s) : le porteur ne peut pas être mis en échec pendant ce temps. */
+export const ESQUIVE_T = 0.3;
+/** Défenseur esquivé : sonné (s). Une mise en échec réussie sonne 0,8 s. */
+export const ESQUIVE_SONNE = 1.2;
+/** Appui hors fenêtre : pas d'esquive possible pendant ce temps (s), contre le matraquage du bouton. */
+export const ESQUIVE_VERROU = 0.35;
+/** Arrêt sur image au moment de l'esquive (s). */
+export const ESQUIVE_FIGE = 0.12;
+/** Coup de crosse : durée (s), puis recharge (s) avant le suivant. */
+export const POKE_T = 0.3;
+export const POKE_RECHARGE = 0.35;
 
 // Changement automatique de joueur : quand le palet est libre (personne ne le
 // tient, pas de passe en cours) et qu'un coéquipier en est nettement plus

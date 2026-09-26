@@ -307,14 +307,31 @@ Ensuite :
 Mesure en IA contre IA (50 matchs) : en 3 contre 3, +21 % de passes pour
 le même nombre de buts (8,9 contre 8,6) ; en 2 contre 2, +11 % de passes.
 
-**Défense arcade : un seul geste, la mise en échec.** Sans le palet, le gros
-bouton devient ÉCHEC (orange, gris pendant la recharge) : l'élan vise tout
-seul le porteur adverse à moins de 55 px (`ECHEC_PORTEE`), ou à défaut
-l'adversaire le plus proche, sinon il part dans la direction du joystick.
-Le petit bouton est un simple SPRINT. Le coup de crosse (harponnage sur
-bouton) a disparu : il faisait double emploi avec l'échec. Une crosse qui
-traîne tout près du palet adverse peut toujours le chiper, sans rien avoir
-à appuyer. Au clavier : ESPACE tire ou met en échec, MAJ sprinte.
+**Mise en échec, esquive et coup de crosse.** Trois boutons, dont le rôle
+change selon qu'on a le palet ou non :
+
+| | Gros bouton | Bouton moyen | Petit bouton |
+|---|---|---|---|
+| **Avec le palet** | TIR (ou PASSE hors situation de tir) | PASSE | SPRINT / ESQUIVE |
+| **Sans le palet** | ÉCHEC | CHANGER DE JOUEUR | CROSSE |
+
+- **ÉCHEC** : l'élan vise tout seul le porteur adverse à moins de 55 px
+  (`ECHEC_PORTEE`), à défaut l'adversaire le plus proche, sinon la direction
+  du joystick. Puissant et très arcade — mais il peut être esquivé.
+- **ESQUIVE** : quand un défenseur arrive en échec sur le porteur, un « ! »
+  clignote au-dessus de lui et le petit bouton affiche ESQUIVE. Un appui dans
+  cette fenêtre très courte (défenseur à moins de 40 px, lancé vers lui) fait
+  un pas de côté : le défenseur passe à côté et reste sonné 1,2 s (contre
+  0,8 s pour un joueur mis en échec), avec image fantôme, bulle « ESQUIVÉ ! »
+  et un court arrêt sur image. Un appui hors fenêtre bloque l'esquive
+  0,35 s : matraquer le bouton ne marche pas. L'IA esquive aussi, selon son
+  niveau (10 % en Facile, 25 % en Normal, 45 % en Pro).
+- **CROSSE** : coup de crosse sûr, qui ne s'esquive pas — la crosse vole le
+  palet de plus loin et bien plus souvent pendant 0,3 s, puis se recharge.
+
+Au clavier : ESPACE tire ou met en échec, L passe, MAJ sprinte / esquive /
+donne le coup de crosse. En IA contre IA, les buts ne bougent pas et 3 à
+8 % des mises en échec sont esquivées.
 
 Passes et tirs laissent une **traînée** derrière le palet (bleue pour une
 passe, orange avec des lignes de vitesse pour un tir), sur le modèle de

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { passeVers, prendPalet, surReception, tir } from '../src/core/actions';
+import { menaceEchec, passeVers, prendPalet, surReception, tir } from '../src/core/actions';
 import { COMBO_BONUS, UNE_TOUCHE_BONUS, UNE_TOUCHE_S } from '../src/core/constants';
 import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
@@ -154,11 +154,58 @@ describe('bouton ÉCHEC', () => {
     Object.assign(p1, { x: a.x + 40, y: a.y + 6, vx: 0, vy: 0 });
     Object.assign(p2, { x: a.x - 20, y: a.y - 8, vx: 0, vy: 0 });
     prendPalet(st, p1);
+    // ce test vérifie l'échec, pas l'esquive de l'IA (aléatoire)
+    st.nivEq[1].esquive = 0;
     expect(cibleEchec(st, a)).toBe(p1);
     appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, tirAppui: true, tirTenu: true }, 1 / 60);
     expect(a.elanT).toBeGreaterThan(0);
     for (let i = 0; i < 30 && p1.tient; i++) pas(rink, st, 1 / 60);
     expect(p1.tient).toBe(false);
     expect(p1.sonne).toBeGreaterThan(0);
+  });
+});
+
+describe('esquive et coup de crosse', () => {
+  /** Le porteur `a` (humain) et un défenseur lancé en mise en échec vers lui, à 30 px. */
+  function echecEnApproche() {
+    const { st, a } = situation();
+    const d = st.patineurs.find((s) => s.eq === 1)!;
+    for (const s of st.patineurs) Object.assign(s.ia, { t: 99, tx: s.x, ty: s.y });
+    prendPalet(st, a);
+    a.humain = true;
+    Object.assign(d, { x: a.x + 30, y: a.y, vx: -220, vy: 0, elanT: 0.3, face: Math.PI });
+    return { st, a, d };
+  }
+
+  it('appuyer sur SPRINT pile quand l’échec arrive : le défenseur est esquivé et trébuche', () => {
+    const { st, a, d } = echecEnApproche();
+    expect(menaceEchec(st, a)).toBe(d);
+    appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
+    expect(a.esquiveT).toBeGreaterThan(0);
+    expect(d.sonne).toBeGreaterThan(1);
+    expect(st.figeT).toBeGreaterThan(0);
+    for (let i = 0; i < 30; i++) pas(rink, st, 1 / 60);
+    expect(a.tient).toBe(true);
+  });
+
+  it('matraquer le bouton ne marche pas : un appui hors fenêtre bloque l’esquive un instant', () => {
+    const { st, a, d } = echecEnApproche();
+    d.elanT = 0; // pas encore de menace
+    appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
+    expect(a.esquiveVerrou).toBeGreaterThan(0);
+    d.elanT = 0.3;
+    appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
+    expect(a.esquiveT).toBe(0);
+  });
+
+  it('sans le palet, le petit bouton donne un coup de crosse, avec une recharge', () => {
+    const { st, a, d } = echecEnApproche();
+    Object.assign(d, { elanT: 0, vx: 0 });
+    appliqueEntreeJoueur(rink, st, d, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
+    expect(d.pokeT).toBeGreaterThan(0);
+    const avant = d.pokeT;
+    appliqueEntreeJoueur(rink, st, d, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
+    expect(d.pokeT).toBe(avant);
+    expect(a.tient).toBe(true);
   });
 });
