@@ -193,7 +193,6 @@ function dessineMaillot(ctx, eq, numero, ox, oy) {
   rect(ctx, ox + 19, oy + 12, 1, 1, ombre);
   rect(ctx, ox + 4, oy + 13, 1, 1, eq.maillot);
   rect(ctx, ox + 5, oy + 13, 1, 1, '#ffffff');
-  dessineChiffre(ctx, numero, ox + 10, oy + 11, eq.clair);
   rect(ctx, ox + 6, oy + 13, 10, 1, eq.maillot);
   rect(ctx, ox + 16, oy + 13, 4, 1, ombre);
   rect(ctx, ox + 4, oy + 14, 12, 1, eq.maillot);
@@ -205,6 +204,9 @@ function dessineMaillot(ctx, eq, numero, ox, oy) {
   rect(ctx, ox + 5, oy + 16, 13, 1, '#ffffff');
   rect(ctx, ox + 18, oy + 16, 1, 1, ombre);
   rect(ctx, ox + 5, oy + 17, 14, 1, eq.fonce);
+  // dessiné en dernier : les remplissages ci-dessus recouvrent sinon 3 des 5
+  // lignes du chiffre (bug repéré en comparant le rendu réel au mock-up).
+  dessineChiffre(ctx, numero, ox + 10, oy + 11, eq.clair);
 }
 
 function dessineCulotte(ctx, eq, ox, oy) {
