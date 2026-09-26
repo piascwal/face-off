@@ -33,6 +33,9 @@ function etatVide(): MatchState {
     combo: [0, 0],
     tirSpecialPret: [false, false],
     evenements: [],
+    assistTir: true,
+    assistPasse: true,
+    changementAuto: true,
   };
 }
 

@@ -18,7 +18,17 @@ export const NIVEAUX: LevelConfig[] = [
 ];
 
 export const DUREES = [120, 180, 300];
-export const EFFECTIFS = [2, 3];
+export const EFFECTIFS = [2, 3, 5];
 
 /** Nombre de passes réussies d'affilée pour débloquer un tir spécial. */
 export const COMBO_SEUIL = 3;
+
+// Changement automatique de joueur : quand le palet est libre (personne ne le
+// tient, pas de passe en cours) et qu'un coéquipier en est nettement plus
+// proche que celui qu'on contrôle, la main lui est redonnée sans attendre que
+// le joueur appuie sur le bouton de passe. Deux seuils pour éviter les
+// changements intempestifs quand deux joueurs sont à peu près à la même
+// distance : le palet doit être franchement loin du joueur contrôlé, et
+// l'autre doit être nettement plus proche (pas juste d'un cheveu).
+export const CHANGEMENT_AUTO_SEUIL = 70;
+export const CHANGEMENT_AUTO_MARGE = 24;

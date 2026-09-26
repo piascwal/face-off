@@ -6,6 +6,7 @@ import { angDiff } from './utils';
 
 /** Aide à la visée : un tir à peu près vers la cage part vers un coin. */
 export function assistance(rink: Rink, state: MatchState, s: Skater, a: number, oriente: boolean, exact: boolean): number {
+  if (!state.assistTir) return a;
   const gx = butAttaque(rink, s.eq);
   const aCentre = Math.atan2(rink.cy - s.y, gx - s.x);
   const dA = angDiff(aCentre, a);
@@ -32,6 +33,7 @@ export function angleTirJoueur(
   exact: boolean,
 ): number {
   if (viseeManuelle !== null) {
+    if (!state.assistTir) return viseeManuelle;
     // visée manuelle : on respecte le geste, avec juste un léger aimant vers le coin tout proche
     const gx = butAttaque(rink, s.eq);
     let best: number | null = null;
@@ -87,7 +89,7 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
     s.vise = null;
   }
   if (intent.passeAppui && actif) {
-    if (s.tient) passeJoueur(state, s, intent.ix, intent.iy);
+    if (s.tient) passeJoueur(state, s, intent.ix, intent.iy, state.assistPasse);
     else changeJoueur(state);
   }
   if (intent.elanAppui && actif) elan(state, s, intent.ix, intent.iy);

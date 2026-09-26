@@ -3,7 +3,7 @@ import { DUREES, EFFECTIFS, NIVEAUX } from './constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from './entities';
 import { PROFIL_NEUTRE, type TeamProfile } from './teams';
 import type { GameMode, LevelConfig, MatchState, Rink, TeamId } from './types';
-import { clamp } from './utils';
+import { clamp, decalageRang } from './utils';
 
 export interface OptionsPartie {
   mode: GameMode;
@@ -17,6 +17,10 @@ export interface OptionsPartie {
   equipeJoueur?: TeamProfile;
   /** Équipe adverse — ignorée en mode démo (profil neutre). */
   equipeAdverse?: TeamProfile;
+  /** Réglages avancés (menu) ; toujours activés en mode démo. */
+  assistTir?: boolean;
+  assistPasse?: boolean;
+  changementAuto?: boolean;
 }
 
 /**
@@ -75,6 +79,9 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     combo: [0, 0],
     tirSpecialPret: [false, false],
     evenements: [],
+    assistTir: opts.mode === 'demo' ? true : (opts.assistTir ?? true),
+    assistPasse: opts.mode === 'demo' ? true : (opts.assistPasse ?? true),
+    changementAuto: opts.mode === 'demo' ? true : (opts.changementAuto ?? true),
   };
 
   for (const eq of [0, 1] as TeamId[]) {
@@ -104,7 +111,7 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
   p.trace.length = 0;
   state.combo = [0, 0];
   state.tirSpecialPret = [false, false];
-  const oy = Math.round(rink.h * 0.27);
+  const oy = Math.round(rink.h * 0.22);
   for (const s of state.patineurs) {
     const cote = s.eq === 0 ? -1 : 1;
     if (s.rang === 0) {
@@ -112,7 +119,9 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
       s.y = rink.cy + cote * -2;
     } else {
       s.x = rink.cx + cote * 44;
-      s.y = rink.cy + (s.rang === 1 ? -oy : oy);
+      // rang 1 d'un côté, rang 2 de l'autre, rang 3/4 plus loin — s'étend
+      // proprement au-delà de 3 joueurs par équipe (voir decalageRang).
+      s.y = clamp(rink.cy + decalageRang(s.rang, oy), rink.y + 12, rink.y + rink.h - 12);
     }
     s.vx = s.vy = 0;
     s.tient = false;

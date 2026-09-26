@@ -1,4 +1,4 @@
-import { COMBO_SEUIL } from './constants';
+import { CHANGEMENT_AUTO_MARGE, CHANGEMENT_AUTO_SEUIL, COMBO_SEUIL } from './constants';
 import { qualiteDuTir } from './shooting';
 import { equipe } from './state-helpers';
 import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types';
@@ -104,6 +104,13 @@ export function ligneLibre(state: MatchState, eq: TeamId, x0: number, y0: number
  * Choisit le meilleur receveur. Avec une direction préférée (le joystick), on
  * ne regarde que les coéquipiers à peu près dans cette direction.
  */
+/**
+ * Choisit le meilleur récepteur pour une passe. `assist` (réglage avancé du
+ * menu) élargit ou non le geste : avec assistance, un cône large et un score
+ * qui privilégie une ligne dégagée et la progression vers le but ; sans,
+ * seul un cône étroit aligné sur le geste compte, sans aide positionnelle —
+ * il faut viser vraiment vers le coéquipier.
+ */
 export function meilleurReceveur(
   state: MatchState,
   s: Skater | null,
@@ -111,9 +118,11 @@ export function meilleurReceveur(
   x: number,
   y: number,
   angPref: number | null,
+  assist = true,
 ): { m: Skater; sc: number } | null {
   let best: Skater | null = null;
   let bs = -1e9;
+  const coneMax = assist ? 1.1 : 0.4;
   for (const m of state.patineurs) {
     if (m.eq !== eq || m === s || m.sonne > 0) continue;
     const dx = m.x - x;
@@ -123,13 +132,15 @@ export function meilleurReceveur(
     let sc = 0;
     if (angPref !== null) {
       const e = Math.abs(angDiff(angPref, Math.atan2(dy, dx)));
-      if (e > 1.1) continue;
+      if (e > coneMax) continue;
       sc -= e * 120;
     }
-    sc += ligneLibre(state, eq, x, y, m.x, m.y) ? 40 : -40;
-    sc += (m.x - x) * (eq === 0 ? 1 : -1) * 0.3;
-    sc -= Math.abs(d - 70) * 0.2;
-    for (const o of state.patineurs) if (o.eq !== eq && Math.hypot(o.x - m.x, o.y - m.y) < 16) sc -= 25;
+    if (assist) {
+      sc += ligneLibre(state, eq, x, y, m.x, m.y) ? 40 : -40;
+      sc += (m.x - x) * (eq === 0 ? 1 : -1) * 0.3;
+      sc -= Math.abs(d - 70) * 0.2;
+      for (const o of state.patineurs) if (o.eq !== eq && Math.hypot(o.x - m.x, o.y - m.y) < 16) sc -= 25;
+    }
     if (sc > bs) {
       bs = sc;
       best = m;
@@ -165,11 +176,12 @@ export function passeVers(state: MatchState, s: Skater, m: Skater, err = 0.03): 
   lancePasse(state, sp.x, sp.y, m, err);
 }
 
-export function passeJoueur(state: MatchState, s: Skater, ix: number, iy: number): boolean {
+export function passeJoueur(state: MatchState, s: Skater, ix: number, iy: number, assist = true): boolean {
   const pref = Math.hypot(ix, iy) > 0.3 ? Math.atan2(iy, ix) : null;
-  const r = meilleurReceveur(state, s, s.eq, s.x, s.y, pref) ?? (pref !== null ? meilleurReceveur(state, s, s.eq, s.x, s.y, null) : null);
+  const r =
+    meilleurReceveur(state, s, s.eq, s.x, s.y, pref, assist) ?? (pref !== null && assist ? meilleurReceveur(state, s, s.eq, s.x, s.y, null, assist) : null);
   if (!r) return false;
-  passeVers(state, s, r.m, 0.02);
+  passeVers(state, s, r.m, assist ? 0.02 : 0.05);
   return true;
 }
 
@@ -190,6 +202,35 @@ export function changeJoueur(state: MatchState): void {
     controle(state, best);
     state.evenements.push({ type: 'clic' });
   }
+}
+
+/**
+ * Rend la main automatiquement quand le palet est libre et clairement plus
+ * proche d'un coéquipier que du joueur actuellement contrôlé — pour ne pas
+ * laisser le joueur immobile pendant qu'un palet perdu file loin de lui.
+ * N'agit jamais si quelqu'un tient déjà le palet ou qu'une passe est en
+ * vol : dans ces cas, `changeJoueur` (manuel) et le pilotage IA suffisent.
+ * Deux seuils (voir constants.ts) évitent les allers-retours quand deux
+ * joueurs sont à peu près à égale distance.
+ */
+export function changeAutoSiLoin(state: MatchState): void {
+  const c = state.controle;
+  if (!c) return;
+  const p = state.palet;
+  if (p.porteur || p.passe) return;
+  const dControle = Math.hypot(c.x - p.x, c.y - p.y);
+  if (dControle < CHANGEMENT_AUTO_SEUIL) return;
+  let best: Skater | null = null;
+  let dmin = 1e9;
+  for (const m of equipe(state, 0)) {
+    if (m === c || m.sonne > 0) continue;
+    const d = Math.hypot(m.x - p.x, m.y - p.y);
+    if (d < dmin) {
+      dmin = d;
+      best = m;
+    }
+  }
+  if (best && dmin < dControle - CHANGEMENT_AUTO_MARGE) controle(state, best);
 }
 
 export function elan(state: MatchState, s: Skater, dirx: number, diry: number): void {

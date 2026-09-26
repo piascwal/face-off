@@ -9,6 +9,11 @@ export interface Preferences {
   matchs: number[];
   /** Dernière équipe pilotée par le joueur, pré-sélectionnée à la prochaine partie. */
   equipeJoueur: string;
+  /** Réglages avancés (écran dédié depuis le menu). */
+  assistTir: boolean;
+  assistPasse: boolean;
+  changementAuto: boolean;
+  secoussesReduites: boolean;
 }
 
 const DEFAUT: Preferences = {
@@ -19,6 +24,10 @@ const DEFAUT: Preferences = {
   victoires: [0, 0, 0],
   matchs: [0, 0, 0],
   equipeJoueur: 'toulouse',
+  assistTir: true,
+  assistPasse: true,
+  changementAuto: true,
+  secoussesReduites: false,
 };
 
 export function chargePreferences(): Preferences {

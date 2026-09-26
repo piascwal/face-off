@@ -1,3 +1,4 @@
+import { changeAutoSiLoin } from './actions';
 import { pilotageIA } from './ai';
 import { appliqueEntreeJoueur } from './humanControl';
 import {
@@ -57,6 +58,7 @@ export function pas(rink: Rink, state: MatchState, dt: number, entreeJoueur: () 
   majPalet(rink, state, dt / 2, segsSansFace);
   majPalet(rink, state, dt / 2, segsSansFace);
   recuperations(state, dt);
+  if (state.changementAuto && state.phase === 'jeu') changeAutoSiLoin(state);
 
   if (state.phase === 'engagement') {
     state.phaseT -= dt;

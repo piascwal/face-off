@@ -3,7 +3,7 @@ import { VMAX } from './constants';
 import { angleVersCoinLoin, butAttaque, butDefendu, sensAttaque } from './shooting';
 import { equipe, plusProche } from './state-helpers';
 import type { MatchState, Rink, Skater } from './types';
-import { alea, angDiff, clamp, pointSegDist } from './utils';
+import { alea, angDiff, clamp, decalageRang, pointSegDist } from './utils';
 
 function planIA(rink: Rink, state: MatchState, s: Skater): void {
   const p = state.palet;
@@ -66,7 +66,7 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
   } else if (p.porteur && p.porteur.eq !== s.eq) {
     if (!('face' in p.porteur)) {
       ia.tx = def + dir * rink.w * 0.3;
-      ia.ty = cy + [0, -35, 35][s.rang]!;
+      ia.ty = cy + decalageRang(s.rang, 35);
     } else {
       const c = p.porteur;
       const actifs = nous.filter((m) => m.sonne <= 0);
@@ -109,8 +109,8 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
   } else if (p.porteur && p.porteur.eq === s.eq) {
     const c = p.porteur;
     if (!('face' in c)) {
-      ia.tx = def + dir * rink.w * [0.3, 0.42, 0.42][s.rang]!;
-      ia.ty = cy + [0, -40, 40][s.rang]!;
+      ia.tx = def + dir * rink.w * (s.rang === 0 ? 0.3 : 0.42);
+      ia.ty = cy + decalageRang(s.rang, 40);
     } else {
       // soutien : un joueur dans l'enclave, l'autre en retrait pour la remise
       const soutiens = nous.filter((m) => m !== c).sort((a, b) => Math.abs(a.x - atk) - Math.abs(b.x - atk));

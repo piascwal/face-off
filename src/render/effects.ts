@@ -56,6 +56,8 @@ export class SystemeEffets {
   bulles: Bulle[] = [];
   secousse = 0;
   flash = 0;
+  /** Multiplicateur des secousses d'écran et flashs (réglage avancé, accessibilité). */
+  intensiteEcran = 1;
   banniere: Banniere | null = null;
   /** Les deux équipes du match en cours — pour teinter confettis et bandeau de but. */
   equipes: [EquipeVisuelle, EquipeVisuelle] = [
@@ -144,10 +146,10 @@ export class SystemeEffets {
           );
           break;
         case 'secousse':
-          this.secousse = Math.max(this.secousse, ev.force);
+          this.secousse = Math.max(this.secousse, ev.force * this.intensiteEcran);
           break;
         case 'flash':
-          this.flash = Math.max(this.flash, ev.force);
+          this.flash = Math.max(this.flash, ev.force * this.intensiteEcran);
           break;
         default:
           break;

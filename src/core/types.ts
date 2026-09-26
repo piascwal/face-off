@@ -178,6 +178,10 @@ export interface MatchState {
   tirSpecialPret: [boolean, boolean];
   /** Évènements à effet de bord produits pendant le dernier pas de simulation. */
   evenements: GameEvent[];
+  /** Réglages « avancés » du menu, ignorés en mode démo (toujours activés). */
+  assistTir: boolean;
+  assistPasse: boolean;
+  changementAuto: boolean;
 }
 
 export function estPatineur(o: Porteur | null | undefined): o is Skater {

@@ -14,6 +14,7 @@ import {
   construitGlace,
   dessineBanniere,
   dessineLogoBut,
+  dessineAvance,
   dessineChoixMaillots,
   dessineCommandes,
   dessineFin,
@@ -32,6 +33,7 @@ import {
   type CoteMaillot,
   type DecorPatinoire,
   type EquipeVisuelle,
+  type EtatAvance,
   type EtatChoixMaillots,
   type EtatFin,
   type EtatMenu,
@@ -45,7 +47,7 @@ import { demandePleinEcranPaysage, PleinEcranAuPremierGeste } from './pwa';
 
 const PAS_FIXE = 1 / 120;
 
-type EcranUI = 'menu' | 'equipes' | 'maillots' | 'jeu' | 'pause' | 'fin';
+type EcranUI = 'menu' | 'avance' | 'equipes' | 'maillots' | 'jeu' | 'pause' | 'fin';
 
 /** Adversaire suggéré par défaut au démarrage / en démo, avant tout choix réel. */
 function equipeAdverseParDefaut(idJoueur: string): TeamDef {
@@ -102,6 +104,7 @@ export class GameApp {
     // drawImage (aucune erreur), donc on ne bloque pas l'affichage dessus.
     void this.sprites.charge().then(() => this.prechargeTouteLaSelection());
     this.effets.definitEquipes(this.equipesActuelles);
+    this.effets.intensiteEcran = this.pref.secoussesReduites ? 0.4 : 1;
 
     this.attacheEvenements();
     this.dispose();
@@ -184,6 +187,16 @@ export class GameApp {
     this.ecranUI = 'equipes';
   }
 
+  private ouvreAvance(): void {
+    this.audio.clic();
+    this.ecranUI = 'avance';
+  }
+
+  private fermeAvance(): void {
+    this.audio.clic();
+    this.ecranUI = 'menu';
+  }
+
   private tourneJoueur(sens: 1 | -1): void {
     this.audio.clic();
     const n = EQUIPES_JOUABLES.length;
@@ -242,6 +255,9 @@ export class GameApp {
       effectifIdx: this.pref.effectif,
       equipeJoueur: trouveEquipe(equipeJoueur.teamId),
       equipeAdverse: trouveEquipe(equipeAdverse.teamId),
+      assistTir: this.pref.assistTir,
+      assistPasse: this.pref.assistPasse,
+      changementAuto: this.pref.changementAuto,
     });
     this.effets.reinitialise();
     this.ecranUI = 'jeu';
@@ -340,9 +356,11 @@ export class GameApp {
         else if (this.ecranUI === 'equipes') this.confirmeSelection();
         else if (this.ecranUI === 'maillots') this.confirmeMaillots();
         else if (this.ecranUI === 'fin') this.rejoue();
+        else if (this.ecranUI === 'avance') this.fermeAvance();
         else if (this.enPause) this.pause(false);
       }
       if (e.code === 'Escape' && this.ecranUI === 'maillots') this.retourChoixEquipes();
+      if (e.code === 'Escape' && this.ecranUI === 'avance') this.fermeAvance();
       if (this.ecranUI === 'equipes' && !e.repeat) {
         // pensé « manette » : gauche/droite pour votre équipe, haut/bas pour l'adversaire
         if (e.code === 'ArrowLeft') this.tourneJoueur(-1);
@@ -415,17 +433,19 @@ export class GameApp {
       dessineScene(g, this.rink, state, this.decor, this.sprites, this.effets, this.ecranUI, this.equipesActuelles);
       g.setTransform(1, 0, 0, 1, 0, 0);
       // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
-      if (this.ecranUI !== 'menu' && this.ecranUI !== 'equipes' && this.ecranUI !== 'maillots') {
+      if (this.ecranUI !== 'menu' && this.ecranUI !== 'avance' && this.ecranUI !== 'equipes' && this.ecranUI !== 'maillots') {
         dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, tempsUI);
         dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
       }
-      if (this.ecranUI !== 'equipes' && this.ecranUI !== 'maillots') {
+      if (this.ecranUI !== 'avance' && this.ecranUI !== 'equipes' && this.ecranUI !== 'maillots') {
         dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
       }
       if (this.ecranUI === 'jeu') {
         dessineCommandes(g, this.W, this.H, state.temps, state.controle, this.entrees.instantaneUI());
       } else if (this.ecranUI === 'menu') {
         dessineMenu(g, this.boutons, this.W, this.H, tempsUI, this.menuProps());
+      } else if (this.ecranUI === 'avance') {
+        dessineAvance(g, this.boutons, this.W, this.H, this.avanceProps());
       } else if (this.ecranUI === 'equipes') {
         dessineSelectionEquipe(g, this.boutons, this.W, this.H, this.selectionProps());
       } else if (this.ecranUI === 'maillots') {
@@ -472,6 +492,34 @@ export class GameApp {
         sauvePreferences(this.pref);
       },
       onJouer: () => this.ouvreSelectionEquipe(),
+      onAvance: () => this.ouvreAvance(),
+    };
+  }
+
+  private avanceProps(): EtatAvance {
+    return {
+      assistTir: this.pref.assistTir,
+      assistPasse: this.pref.assistPasse,
+      changementAuto: this.pref.changementAuto,
+      secoussesReduites: this.pref.secoussesReduites,
+      onAssistTir: () => {
+        this.pref.assistTir = !this.pref.assistTir;
+        sauvePreferences(this.pref);
+      },
+      onAssistPasse: () => {
+        this.pref.assistPasse = !this.pref.assistPasse;
+        sauvePreferences(this.pref);
+      },
+      onChangementAuto: () => {
+        this.pref.changementAuto = !this.pref.changementAuto;
+        sauvePreferences(this.pref);
+      },
+      onSecousses: () => {
+        this.pref.secoussesReduites = !this.pref.secoussesReduites;
+        this.effets.intensiteEcran = this.pref.secoussesReduites ? 0.4 : 1;
+        sauvePreferences(this.pref);
+      },
+      onRetour: () => this.fermeAvance(),
     };
   }
 

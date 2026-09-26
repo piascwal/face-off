@@ -20,6 +20,7 @@ export interface EtatMenu {
   onEffectif: () => void;
   onSon: () => void;
   onJouer: () => void;
+  onAvance: () => void;
 }
 
 export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, menu: EtatMenu): void {
@@ -40,7 +41,7 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
   texte(g, 'HOCKEY ARCADE', cx, ty + 7 * e + 5, C.or, 1, 'c');
 
   const pw = 186;
-  const ph = 106;
+  const ph = 122;
   const py = ty + 7 * e + 16;
   panneau(g, cx - pw / 2, py, pw, ph);
   const lignes: [string, string, () => void][] = [
@@ -54,14 +55,15 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
     texte(g, k, cx - pw / 2 + 10, y + 4, C.gris, 1, 'g');
     bouton(g, boutons, `< ${v} >`, cx - 14, y, 98, 13, act, { couleur: '#232a58' });
   });
-  const jy = py + ph - 29;
+  const jy = py + 68;
   const pulse = Math.sin(t * 5) > 0;
-  bouton(g, boutons, 'JOUER', cx - 50, jy, 100, 24, menu.onJouer, {
+  bouton(g, boutons, 'JOUER', cx - 50, jy, 100, 22, menu.onJouer, {
     e: 2,
     couleur: pulse ? '#e63a58' : '#d12f4c',
     clair: '#ff7a90',
     fonce: '#8c1b3a',
   });
+  bouton(g, boutons, 'REGLAGES AVANCES', cx - 60, jy + 28, 120, 13, menu.onAvance, { couleur: '#232a58' });
   const bas = py + ph + 6;
   if (bas + 8 < H) texte(g, menu.matchs ? `VICTOIRES ${menu.victoires} / ${menu.matchs}` : 'PREMIER MATCH ?', cx, bas, C.gris, 1, 'c');
   if (bas + 20 < H) {
@@ -75,6 +77,48 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
       'c',
     );
   }
+}
+
+export interface EtatAvance {
+  assistTir: boolean;
+  assistPasse: boolean;
+  changementAuto: boolean;
+  secoussesReduites: boolean;
+  onAssistTir: () => void;
+  onAssistPasse: () => void;
+  onChangementAuto: () => void;
+  onSecousses: () => void;
+  onRetour: () => void;
+}
+
+/**
+ * Écran « réglages avancés » — assistance de tir/passe et changement de
+ * joueur automatique modulent la simulation pour de vrai (voir
+ * `core/humanControl.ts`, `core/actions.ts`), pas juste l'affichage.
+ */
+export function dessineAvance(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, menu: EtatAvance): void {
+  g.fillStyle = 'rgba(7,9,20,0.82)';
+  g.fillRect(0, 0, W, H);
+  const cx = Math.round(W / 2);
+  texte(g, 'REGLAGES AVANCES', cx, 4, C.blanc, 1, 'c');
+
+  const pw = 210;
+  const ph = 100;
+  const py = Math.round(H * 0.18);
+  panneau(g, cx - pw / 2, py, pw, ph);
+  const lignes: [string, string, () => void][] = [
+    ['ASSISTANCE TIR', menu.assistTir ? 'OUI' : 'NON', menu.onAssistTir],
+    ['ASSISTANCE PASSE', menu.assistPasse ? 'OUI' : 'NON', menu.onAssistPasse],
+    ['CHGT AUTO JOUEUR', menu.changementAuto ? 'OUI' : 'NON', menu.onChangementAuto],
+    ['SECOUSSES ECRAN', menu.secoussesReduites ? 'REDUITES' : 'NORMALES', menu.onSecousses],
+  ];
+  lignes.forEach(([k, v, act], i) => {
+    const y = py + 6 + i * 17;
+    texte(g, k, cx - pw / 2 + 10, y + 4, C.gris, 1, 'g');
+    bouton(g, boutons, `< ${v} >`, cx + pw / 2 - 106, y, 96, 13, act, { couleur: '#232a58' });
+  });
+  texte(g, 'CHANGE VRAIMENT LA PARTIE, PAS JUSTE L\'AFFICHAGE', cx, py + ph + 8, '#6f7aa6', 1, 'c');
+  bouton(g, boutons, '< RETOUR', cx - 45, py + ph + 20, 90, 16, menu.onRetour, { couleur: '#232a58', e: 1 });
 }
 
 export function dessinePause(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, onReprendre: () => void, onAbandonner: () => void): void {

@@ -139,14 +139,21 @@ générées par le même script que les sprites — voir
 
 ### 1. On voit enfin qui a le palet, et qui on pilote
 
-Deux indicateurs ajoutés dans `render/entities-render.ts` :
+Indicateurs dans `render/entities-render.ts` :
 
-- un halo doré pulsant au sol + un petit palet qui rebondit au-dessus de la
+- une flaque de lumière dorée (fondu additif, se voit même à moitié cachée
+  dans une mêlée) + un anneau net + un palet qui rebondit au-dessus de la
   tête pour **quiconque porte le palet**, dans les deux équipes (utile en
   défense pour repérer le porteur adverse) ;
-- un halo bleu clair pulsant au sol sous **le patineur que vous contrôlez**
-  quand il n'a pas le palet (avant, seule une flèche au-dessus de la tête
-  l'indiquait — facile à perdre de vue dans une mêlée).
+- un halo bleu clair (couleur fixe, indépendante des maillots) **toujours**
+  visible sous **le patineur que vous contrôlez**, palet ou pas, plus un
+  double chevron plus gros au-dessus de sa tête.
+
+Le palet libre change aussi automatiquement de main : si personne ne le
+tient et qu'un coéquipier en est nettement plus proche que le patineur
+contrôlé, la main lui est redonnée sans attendre le bouton de passe
+(`core/actions.ts::changeAutoSiLoin`, appelé à chaque pas de simulation —
+voir `tests/auto-switch.test.ts`). Désactivable dans les réglages avancés.
 
 ### 2. PWA + plein écran qui fonctionne vraiment en paysage
 
@@ -229,6 +236,32 @@ qu'un tir est tenté (spécial ou non) — logique dans `core/actions.ts`
 (`prendPalet`/`tir`), testée dans `tests/combo.test.ts`. Ça s'applique aussi
 bien à l'IA qu'au joueur humain, puisque les deux passent par les mêmes
 fonctions.
+
+### 7. 5 contre 5, et un écran de réglages avancés
+
+`EFFECTIFS` (`core/constants.ts`) passe de `[2, 3]` à `[2, 3, 5]`. Les
+formations à plus de 3 joueurs par équipe (mise au jeu dans `rules.ts`,
+placement défensif dans `ai.ts`) utilisaient des tableaux fixes à 3 cases
+(`[0, -35, 35][s.rang]`) qui ne couvraient pas un rang 3 ou 4 — remplacés
+par `core/utils.ts::decalageRang`, qui étale n'importe quel effectif de
+chaque côté du joueur central sans tableau à taille fixe.
+
+Le menu gagne un bouton « RÉGLAGES AVANCÉS » (`render/screens.ts::dessineAvance`)
+avec quatre bascules, persistées comme le reste dans `app/preferences.ts` et
+appliquées pour de vrai côté simulation (`MatchState.assistTir/assistPasse/changementAuto`,
+voir `core/rules.ts::creePartie`) :
+
+- **Assistance de tir** : coupe l'aimant vers le coin de la cage
+  (`core/humanControl.ts::assistance`) — sans, l'angle tiré est exactement
+  celui du geste.
+- **Assistance de passe** : sans, `meilleurReceveur` (`core/actions.ts`)
+  resserre le cône de ciblage (1,1 rad → 0,4 rad) et abandonne le score
+  positionnel (ligne dégagée, prise d'avance) — il faut vraiment viser le
+  coéquipier, pas juste appuyer dans sa direction générale.
+- **Changement de joueur automatique** : le point 1 ci-dessus,
+  désactivable pour un contrôle entièrement manuel.
+- **Secousses d'écran** : réduit l'intensité des tremblements et flashs
+  (`render/effects.ts::SystemeEffets.intensiteEcran`) — accessibilité.
 
 ## Roadmap : joueur contre joueur en ligne
 
