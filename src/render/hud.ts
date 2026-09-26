@@ -62,3 +62,21 @@ export function dessineTableau(
     px(g, zp.x + 9, zp.y + 3, 2, 8, C.blanc);
   }
 }
+
+/**
+ * Jauge de puissance du tir, en bas à gauche de l'écran : visible seulement
+ * pendant que le joueur piloté arme son tir (plutôt qu'au-dessus de sa tête,
+ * où elle se mêlait aux repères des joueurs).
+ */
+export function dessineJaugeTir(g: CanvasRenderingContext2D, H: number, charge: number, temps: number): void {
+  const x = 8;
+  const y = H - 17;
+  const w = 60;
+  px(g, x - 1, y - 1, w + 26, 13, C.contour);
+  px(g, x, y, w + 24, 11, '#161b36');
+  texte(g, 'TIR', x + 3, y + 2, C.blanc, 1, 'g');
+  const bx = x + 21;
+  px(g, bx, y + 3, w, 5, '#2a2f4a');
+  const c = charge > 0.85 ? (Math.floor(temps * 20) & 1 ? '#ffffff' : '#ff5a4e') : charge > 0.5 ? '#ffb13b' : '#ffe27a';
+  px(g, bx, y + 3, Math.max(1, Math.round(w * Math.min(1, charge))), 5, c);
+}

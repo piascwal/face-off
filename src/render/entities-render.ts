@@ -13,10 +13,10 @@ const COULEUR_CONTROLE = MARQUE.bleu;
  * Anneau pulsant au sol sous un patineur — sert de base aux indicateurs
  * visuels : qui est sélectionné, et qui porte le palet.
  */
-function haloSol(g: CanvasRenderingContext2D, x: number, y: number, r: number, col: string, alpha: number): void {
+function haloSol(g: CanvasRenderingContext2D, x: number, y: number, r: number, col: string, alpha: number, epais = 1): void {
   g.globalAlpha = alpha;
   g.strokeStyle = col;
-  g.lineWidth = 1;
+  g.lineWidth = epais;
   g.beginPath();
   g.ellipse(Math.round(x), Math.round(y), r, r * 0.42, 0, 0, Math.PI * 2);
   g.stroke();
@@ -37,30 +37,50 @@ function lueurSol(g: CanvasRenderingContext2D, x: number, y: number, r: number, 
   g.globalCompositeOperation = 'source-over';
 }
 
-/** Petit palet qui rebondit au-dessus de la tête de celui qui l'a en sa possession. */
+/**
+ * Palet vu de trois quarts (dessus clair, tranche noire) qui rebondit au-dessus
+ * de la tête de celui qui l'a en sa possession (bas du palet en `y`).
+ */
 function badgePalet(g: CanvasRenderingContext2D, x: number, y: number, temps: number): void {
-  const rebond = Math.abs(Math.sin(temps * 5)) * 2;
-  const by = y - rebond;
-  px(g, x - 3, by - 2, 6, 4, C.contour);
-  px(g, x - 2, by - 1, 4, 2, '#5a6180');
-  px(g, x - 2, by - 1, 1, 1, '#c9d2e3');
+  const by = Math.round(y - Math.abs(Math.sin(temps * 5)) * 2);
+  // [décalage y, largeur, couleur] ligne par ligne, contour compris
+  const lignes: [number, number, string][] = [
+    [-8, 7, C.contour],
+    [-7, 11, C.contour],
+    [-6, 13, C.contour],
+    [-5, 13, C.contour],
+    [-4, 13, C.contour],
+    [-3, 13, C.contour],
+    [-2, 11, C.contour],
+    [-1, 7, C.contour],
+  ];
+  for (const [dy, w, c] of lignes) px(g, x - (w - 1) / 2, by + dy, w, 1, c);
+  // dessus du palet : ellipse gris-bleu avec un reflet, puis la tranche noire
+  px(g, x - 2, by - 7, 5, 1, '#5b6488');
+  px(g, x - 4, by - 6, 9, 1, '#6e78a0');
+  px(g, x - 4, by - 5, 9, 1, '#4a5274');
+  px(g, x - 2, by - 7, 2, 1, '#c9d2e3');
+  px(g, x - 3, by - 6, 1, 1, '#aab4cf');
+  px(g, x - 5, by - 4, 11, 2, '#0c0e16');
+  px(g, x - 3, by - 2, 7, 1, '#0c0e16');
 }
 
-/** Chevron double, plus gros et plus lisible que le simple repère de départ —
- * pour ne jamais perdre de vue le patineur qu'on pilote, même dans une mêlée
- * à dix joueurs. */
-function repereControle(g: CanvasRenderingContext2D, x: number, fy: number, couleur = COULEUR_CONTROLE, simple = false): void {
-  const y0 = fy - 3;
-  for (const [dy, large] of simple
-    ? ([[3, 6]] as const)
-    : ([
-        [0, 9],
-        [3, 6],
-      ] as const)) {
-    const w = large;
-    px(g, x - w / 2 - 1, y0 + dy - 1, w + 2, 3, C.contour);
-    px(g, x - w / 2, y0 + dy, w, 1, couleur);
-  }
+/**
+ * Flèche pointée vers le joueur qu'on pilote (bas de la pointe en `y`) :
+ * se repère d'un coup d'œil, même dans une mêlée. `simple` : version plus
+ * petite, pour le joueur de l'autre humain en Wi-Fi.
+ */
+function flecheControle(g: CanvasRenderingContext2D, x: number, y: number, couleur = COULEUR_CONTROLE, simple = false): void {
+  const lignes = simple ? [5, 3, 1] : [9, 7, 5, 3, 1];
+  const y0 = y - lignes.length;
+  // contour d'un pixel autour de la pointe
+  lignes.forEach((w, i) => px(g, x - w / 2 - 1, y0 + i - 1, w + 2, 3, C.contour));
+  lignes.forEach((w, i) => px(g, x - w / 2, y0 + i, w, 1, couleur));
+  // reflet sur le bord haut
+  px(g, x - lignes[0]! / 2, y0, lignes[0]! - 1, 1, '#ffffff');
+  g.globalAlpha = 0.35;
+  px(g, x - lignes[0]! / 2, y0, lignes[0]!, 1, couleur);
+  g.globalAlpha = 1;
 }
 
 /** Pas de patinage : distance parcourue (px logiques) par image du cycle. */
@@ -76,6 +96,8 @@ export function dessinePatineur(
 ): void {
   const M = sprites.meta.joueur;
   const e = M.echelle;
+  // taille des repères au sol, proportionnelle au joueur
+  const rs = e / 0.28;
   const gauche = Math.cos(s.face) < 0;
   const v = Math.hypot(s.vx, s.vy);
   const frame = v < 14 ? M.arret : Math.floor(s.anim / PAS_ANIM) % M.images;
@@ -100,21 +122,21 @@ export function dessinePatineur(
   // couleur fixe (jamais celle d'un maillot) pour ne se confondre ni avec une
   // équipe ni avec le marquage doré du porteur du palet ci-dessous.
   if (estControle) {
-    haloSol(g, s.x, s.y + 4, 7, COULEUR_CONTROLE, 0.5 + 0.25 * Math.sin(temps * 6));
+    haloSol(g, s.x, s.y + 4, 8 * rs, COULEUR_CONTROLE, 0.5 + 0.25 * Math.sin(temps * 6));
   }
   // indicateur « porte le palet » : flaque de lumière douce + anneau net au sol,
   // plus le palet qui rebondit au-dessus de la tête — la flaque se repère de loin,
   // même à moitié cachée derrière d'autres joueurs dans une mêlée.
   if (s.tient) {
-    lueurSol(g, s.x, s.y + 4, 10, C.or, 0.45 + 0.15 * Math.sin(temps * 8));
-    haloSol(g, s.x, s.y + 4, 6, C.or, 0.85 + 0.15 * Math.sin(temps * 8));
-    badgePalet(g, Math.round(s.x), teteY - 4, temps);
+    lueurSol(g, s.x, s.y + 4, 12 * rs, C.or, 0.5 + 0.15 * Math.sin(temps * 8));
+    haloSol(g, s.x, s.y + 4, 9 * rs, C.or, 1, 2);
+    haloSol(g, s.x, s.y + 4, 11 * rs, '#fff3b0', 0.5 + 0.3 * Math.sin(temps * 8));
   }
   // tir spécial chargé (combo de passes) : petite flamme pulsante au-dessus du porteur
   if (s.tient && specialPret) {
     const rebond = Math.abs(Math.sin(temps * 9)) * 2;
     const fx = Math.round(s.x);
-    const fy = teteY - 10 - rebond;
+    const fy = teteY - (estControle ? 23 : 15) - rebond;
     px(g, fx - 2, fy - 2, 5, 5, C.contour);
     px(g, fx - 1, fy - 1, 3, 3, '#ff8a3d');
     px(g, fx, fy - 2, 1, 1, '#ffd35c');
@@ -133,14 +155,17 @@ export function dessinePatineur(
     corps(-s.vx * 0.04, -s.vy * 0.04);
     g.globalAlpha = 1;
   }
+  // au-dessus de la tête : la flèche du joueur piloté, et le palet de celui qui le porte (au-dessus de la flèche)
+  let hautRepere = teteY - 2;
   if (estControle) {
-    // double chevron au-dessus du joueur, pour ne jamais le perdre de vue —
-    // plus gros que le halo au sol, il reste lisible même dans une mêlée.
-    repereControle(g, Math.round(s.x), teteY - 9 + Math.round(Math.sin(temps * 6)));
+    flecheControle(g, Math.round(s.x), hautRepere + Math.round(Math.sin(temps * 6)));
+    hautRepere -= 8;
   } else if (s.humain) {
-    // l'adversaire humain d'une partie en réseau : simple chevron à ses couleurs
-    repereControle(g, Math.round(s.x), teteY - 9, equipes[s.eq].clair, true);
+    // l'adversaire humain d'une partie en réseau : petite flèche à ses couleurs
+    flecheControle(g, Math.round(s.x), hautRepere, equipes[s.eq].clair, true);
+    hautRepere -= 6;
   }
+  if (s.tient) badgePalet(g, Math.round(s.x), hautRepere, temps);
   if (estControle && s.arme && s.vise !== null) {
     // flèche de visée pointillée, qui s'allonge avec la puissance
     const L = 12 + 26 * s.charge;
@@ -155,15 +180,6 @@ export function dessinePatineur(
     const by_ = sp.y + Math.sin(s.vise) * L;
     px(g, bx_ - 2, by_ - 2, 5, 5, C.contour);
     px(g, bx_ - 1, by_ - 1, 3, 3, c);
-  }
-  if (s.arme) {
-    const w = 13;
-    const x = Math.round(s.x) - 6;
-    const y = teteY - (s.humain ? 13 : 7);
-    px(g, x - 1, y - 1, w + 2, 4, C.contour);
-    px(g, x, y, w, 2, '#2a2f4a');
-    const c = s.charge > 0.85 ? (Math.floor(temps * 20) & 1 ? '#ffffff' : '#ff5a4e') : s.charge > 0.5 ? '#ffb13b' : '#ffe27a';
-    px(g, x, y, Math.max(1, Math.round(w * s.charge)), 2, c);
   }
 }
 

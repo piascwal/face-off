@@ -44,6 +44,7 @@ import {
   dessineRalenti,
   dessineScene,
   dessineSelectionEquipe,
+  dessineJaugeTir,
   dessineTableau,
   EQUIPES_JOUABLES,
   resoutEquipe,
@@ -1109,7 +1110,9 @@ export class GameApp {
           onPasser: () => this.passeRalenti(),
         });
       } else if (this.ecranUI === 'jeu') {
-        dessineCommandes(g, this.W, this.H, state.temps, state.controles[this.eqLocal], this.entrees.instantaneUI());
+        const pilote = state.controles[this.eqLocal];
+        dessineCommandes(g, this.W, this.H, state.temps, pilote, this.entrees.instantaneUI());
+        if (pilote?.arme) dessineJaugeTir(g, this.H, pilote.charge, state.temps);
       } else if (this.ecranUI === 'lan') {
         dessineLan(g, this.boutons, this.W, this.H, tempsUI, this.lanProps());
       } else if (this.ecranUI === 'lanConfig') {
