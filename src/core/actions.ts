@@ -1,4 +1,4 @@
-import { CHANGEMENT_AUTO_MARGE, CHANGEMENT_AUTO_SEUIL, COMBO_SEUIL, FRAPPE_PASSE, FRAPPE_TIR } from './constants';
+import { CHANGEMENT_AUTO_MARGE, CHANGEMENT_AUTO_SEUIL, COMBO_SEUIL } from './constants';
 import { qualiteDuTir } from './shooting';
 import { equipe } from './state-helpers';
 import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types';
@@ -80,8 +80,6 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   const renfort = state.bonus[s.eq] === 'tir';
   const v = (150 + 290 * puissance) * (special ? 1.25 : 1) * (renfort ? 1.15 : 1);
   lachePalet(state, s, 0.3);
-  s.frappe = FRAPPE_TIR;
-  s.frappeAmp = special ? 1 : 0.55 + 0.45 * puissance;
   const sp = pointCrosse(s);
   p.x = sp.x;
   p.y = sp.y;
@@ -178,8 +176,6 @@ export function lancePasse(state: MatchState, x: number, y: number, m: Skater, e
 
 export function passeVers(state: MatchState, s: Skater, m: Skater, err = 0.03): void {
   lachePalet(state, s, 0.3);
-  s.frappe = FRAPPE_PASSE;
-  s.frappeAmp = 0.35;
   const sp = pointCrosse(s);
   state.palet.dernier = s;
   lancePasse(state, sp.x, sp.y, m, err);

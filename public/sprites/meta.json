@@ -1,36 +1,26 @@
 {
-  "echelle": 0.6428571428571429,
   "joueur": {
-    "tileW": 58,
-    "tileH": 60,
-    "images": 8,
-    "bob": [
-      0,
-      1,
-      1,
-      0,
-      0,
-      1,
-      1,
-      0
-    ],
+    "tileW": 133,
+    "tileH": 105,
+    "images": 4,
+    "arret": 0,
     "pied": {
-      "x": 25,
-      "y": 57
+      "x": 52.2,
+      "y": 101
     },
-    "gants": {
-      "x": 37,
-      "y": 29
-    }
+    "tete": 0,
+    "echelle": 0.36
   },
   "gardien": {
-    "tileW": 40,
-    "tileH": 43,
+    "tileW": 132,
+    "tileH": 115,
     "pied": {
-      "x": 16,
-      "y": 41
-    }
+      "x": 71.4,
+      "y": 113
+    },
+    "echelle": 0.28
   },
+  "visages": 6,
   "teamIds": [
     "toulouse",
     "nice",

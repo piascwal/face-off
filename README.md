@@ -186,40 +186,54 @@ gardien, sans jamais rendre un tir imparable à 100 %. Testé et verrouillé par
 
 ### 4. Sprites pixel art
 
-Les joueurs sont vus **de profil**, dessinés d'après un sprite de référence
-fait main (`assets/sprites-src/joueur-reference.png`, 33×56 px) puis
-déclinés automatiquement par `scripts/generate-sprites.mjs` +
-`scripts/sprites-profil.mjs` (Node + `@napi-rs/canvas`) :
+Les joueurs et les gardiens viennent de deux **illustrations pixel art**
+générées avec un outil d'image (`assets/sprites-src/planche-patinage.jpg`, une planche
+d'images de patinage, et `gardien.jpg`). Ces images sont des dessins pixel
+art agrandis et compressés en JPEG sur fond magenta ; la chaîne les ramène à
+du vrai pixel art, puis les décline pour chaque équipe.
 
-- **Recoloration par rôle** : chaque couleur de la référence correspond à un
-  rôle (casque, maillot clair/ombre, bandes, gants, culotte, peau…), repeint
-  aux couleurs de chaque équipe × maillot domicile/extérieur. Une couleur
-  inconnue dans la référence fait échouer le script plutôt que de passer
-  inaperçue.
-- **Patinage** : le haut du corps vient de la référence, les deux jambes sont
-  redessinées à partir d'un petit squelette (hanche, genou, cheville ; la
-  jambe éloignée plus sombre) sur un cycle de 8 images avec un léger
-  balancement vertical.
-- **Crosse animée** : la crosse n'est pas dans le sprite, elle est tracée au
-  rendu (`render/entities-render.ts::dessinePatineur`) avec le même grain
-  que les sprites : portée au sol, **armée** par-dessus l'épaule selon la
-  charge du tir, **frappe** (retour sur la glace puis accompagnement vers
-  l'avant, plus ample pour un tir fort que pour une passe) et poke-check.
-  Les gants sont redessinés par-dessus le manche (lignes 2 et 3 des feuilles).
-- **Détail double** : le jeu dessine directement à la résolution de l'écran ;
-  un patineur fait 36 px logiques de haut pour 56 px de sprite.
+**1. Conversion (une fois, Python)** — `scripts/convertit-sources.py` :
 
-Format des feuilles (tailles de case, ancrages pieds/gants, balancement dans
-`public/sprites/meta.json`) :
+- détoure le fond (et, pour le gardien, la glace, l'ombre et le reflet) ;
+- découpe la planche image par image, en rendant à chacune le bout de
+  palette qui touche le joueur voisin ;
+- retrouve la grille du dessin (période et calage) et garde **une couleur
+  par case** (la médiane : le plus proche voisin ramasserait le bruit JPEG) ;
+- réduit chaque dessin à **64 couleurs** (k-moyennes) ;
+- classe chaque pixel dans un **rôle** : maillot, bandes, empiècements
+  clairs, casque, gants, peau, barbe, emplacement de l'écusson, contour, ou
+  « à garder » (crosse, culotte, patins, grille du masque).
 
-- `public/sprites/skater-<id>-<variante>.png` : 8 colonnes (cycle de
-  patinage) × 4 lignes (corps orienté droite / gauche, puis gants seuls
-  droite / gauche).
-- `public/sprites/goalie-<id>-<variante>.png` : 1 colonne × 2 lignes
-  (droite / gauche), crosse comprise.
+Il écrit `joueur.png` / `gardien.png`, leurs cartes de rôles
+(`*-roles.png`) et `sprites.json` (tailles de case, ancrages) dans
+`assets/sprites-src/`. Ces fichiers sont committés : `npm run sprites` n'a
+pas besoin de Python. Le patinage utilise 4 images de la planche, calées sur
+le casque et les patins, avec la moitié de l'écart de hauteur rattrapée pour
+adoucir le rebond ; la première sert aussi de pose à l'arrêt.
 
-Pour changer le style, il suffit de retoucher la référence (en gardant la
-palette de rôles de `sprites-profil.mjs`) et de relancer `npm run sprites` ;
+**2. Déclinaison (Node)** — `scripts/generate-sprites.mjs` +
+`scripts/sprites-illustres.mjs` :
+
+- chaque rôle est repeint aux couleurs de l'équipe × maillot
+  domicile/extérieur en gardant les ombres et les reflets du dessin (même
+  rapport de luminosité à la couleur d'origine) ;
+- l'écusson de l'équipe est posé sur la poitrine ;
+- chaque feuille est ramenée à 64 couleurs au plus ;
+- un calque commun (`visages.png`) donne **6 visages** (teint, couleur de
+  barbe ; 16 couleurs chacun) : chaque joueur garde le sien, tiré de son rang et de son équipe
+  (le même sur les deux écrans en Wi-Fi).
+
+Format des feuilles (`public/sprites/meta.json` : cases, ancrages, échelle) :
+
+- `skater-<id>-<variante>.png` : 4 colonnes (cycle de patinage) × 2 lignes
+  (vers la droite / vers la gauche) ;
+- `goalie-<id>-<variante>.png` : 1 colonne × 2 lignes ;
+- `visages.png` : 4 colonnes × (6 variantes vers la droite, puis 6 vers la
+  gauche).
+
+Le jeu dessine directement à la résolution de l'écran : un pixel de sprite
+fait 0,36 px logique pour un patineur (≈ 36 px de haut) et 0,28 pour le
+gardien, un peu plus petit pour ne pas masquer toute la cage.
 `src/render/sprites.ts` ne connaît que ce contrat, jamais le contenu
 artistique. Même logique pour les écussons (`public/logos/<id>.png`, fond
 déjà transparent).

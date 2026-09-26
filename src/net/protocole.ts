@@ -151,7 +151,7 @@ export function lisEvenement(o: unknown, versLocal: (x: number, y: number) => [n
 const TYPE_INSTANTANE = 1;
 const TYPE_ENTREE = 2;
 const PHASES: GamePhase[] = ['engagement', 'jeu', 'but', 'fin'];
-const F_PATINEUR = 16;
+const F_PATINEUR = 14;
 const TAILLE_PATINEUR = F_PATINEUR * 4 + 1;
 const TAILLE_GARDIEN = 5 * 4;
 // … + statistiques (passes, mises en échec, meilleure combo, possession)
@@ -173,8 +173,6 @@ export interface EtatPatineur {
   pokeT: number;
   ex: number;
   ey: number;
-  frappe: number;
-  frappeAmp: number;
   vise: number | null;
   tient: boolean;
   arme: boolean;
@@ -283,7 +281,7 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
   u8(n);
   for (let i = 0; i < n; i++) {
     const s = state.patineurs[i]!;
-    for (const v of [s.x, s.y, s.vx, s.vy, s.face, s.charge, s.elanT, s.elanCd, s.sonne, s.anim, s.pokeT, s.ex, s.ey, s.frappe, s.frappeAmp]) f(v);
+    for (const v of [s.x, s.y, s.vx, s.vy, s.face, s.charge, s.elanT, s.elanCd, s.sonne, s.anim, s.pokeT, s.ex, s.ey]) f(v);
     f(s.vise ?? NaN);
     u8((s.tient ? 1 : 0) | (s.arme ? 2 : 0) | (s.humain ? 4 : 0));
   }
@@ -349,7 +347,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
   if (buf.byteLength !== TAILLE_ENTETE + n * TAILLE_PATINEUR + 2 * TAILLE_GARDIEN + TAILLE_PALET) return null;
   const patineurs: EtatPatineur[] = [];
   for (let i = 0; i < n; i++) {
-    const [x, y, vx, vy, face, charge, elanT, elanCd, sonne, anim, pokeT, ex, ey, frappe, frappeAmp] = Array.from({ length: 15 }, f) as number[];
+    const [x, y, vx, vy, face, charge, elanT, elanCd, sonne, anim, pokeT, ex, ey] = Array.from({ length: 13 }, f) as number[];
     const vise = fNul();
     const b = u8();
     patineurs.push({
@@ -366,8 +364,6 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
       pokeT: pokeT!,
       ex: ex!,
       ey: ey!,
-      frappe: frappe!,
-      frappeAmp: frappeAmp!,
       vise,
       tient: (b & 1) !== 0,
       arme: (b & 2) !== 0,
@@ -451,8 +447,6 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
     s.sonne = sb.sonne;
     s.anim = lerp(sa.anim, sb.anim, t);
     s.pokeT = sb.pokeT;
-    s.frappe = sb.frappe;
-    s.frappeAmp = sb.frappeAmp;
     s.ex = sb.ex;
     s.ey = sb.ey;
     s.vise = sb.vise;

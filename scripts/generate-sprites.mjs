@@ -2,17 +2,16 @@
 // Génère les feuilles de sprites PNG des patineurs et gardiens, les écussons
 // détourés et les icônes PWA.
 //
-// Les joueurs sont dessinés de profil à partir d'un joueur de référence fait
-// main (assets/sprites-src/joueur-reference.png), recoloré pour chaque équipe
-// et chaque maillot, avec un cycle de patinage en 8 images (voir
-// sprites-profil.mjs). Remplacer la référence par un autre dessin (mêmes
-// couleurs-rôles) suffit à changer tous les joueurs du jeu.
+// Les joueurs et les gardiens viennent d'illustrations pixel art converties
+// par convertit-sources.py (assets/sprites-src/) : ce script les repeint pour
+// chaque équipe et chaque maillot, pose l'écusson de l'équipe sur la poitrine
+// et dessine le calque des variantes de visage (voir sprites-illustres.mjs).
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detoure } from './logo-cutout.mjs';
-import { ANCRES, BOB, feuilleGardien, feuilleJoueur, GARDIEN, IMAGES_JOUEUR, JOUEUR, lisReference } from './sprites-profil.mjs';
+import { chargeSources, feuilleGardien, feuilleJoueur, feuilleVisages, VISAGES } from './sprites-illustres.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_SPRITES = path.join(__dirname, '..', 'public', 'sprites');
@@ -50,33 +49,10 @@ const EQUIPES = INTERIEURS.flatMap((base) =>
   VARIANTES.map((variante) => ({
     ...palette(base, variante),
     id: `${base.id}-${variante}`,
+    base: base.id,
   })),
 );
 const EQUIPES_LOGO = INTERIEURS; // un seul écusson par équipe, indépendant du maillot
-/** Taille d'un pixel de sprite, en pixels logiques du jeu : le joueur fait 36 px de haut en jeu. */
-const ECHELLE_SPRITE = 36 / 56;
-const reference = lisReference(await loadImage(path.join(__dirname, '..', 'assets', 'sprites-src', 'joueur-reference.png')));
-
-for (const eq of EQUIPES) {
-  writeFileSync(path.join(OUT_SPRITES, `skater-${eq.id}.png`), feuilleJoueur(reference, eq).toBuffer('image/png'));
-  writeFileSync(path.join(OUT_SPRITES, `goalie-${eq.id}.png`), feuilleGardien(eq).toBuffer('image/png'));
-}
-
-writeFileSync(
-  path.join(OUT_SPRITES, 'meta.json'),
-  JSON.stringify(
-    {
-      echelle: ECHELLE_SPRITE,
-      joueur: { tileW: JOUEUR.W, tileH: JOUEUR.H, images: IMAGES_JOUEUR, bob: BOB, pied: ANCRES.pied, gants: ANCRES.gants },
-      gardien: { tileW: GARDIEN.W, tileH: GARDIEN.H, pied: GARDIEN.pied },
-      teamIds: EQUIPES_LOGO.map((e) => e.id),
-      variants: VARIANTES,
-    },
-    null,
-    2,
-  ),
-);
-
 // --- Écussons des équipes : fond retiré (damier « transparent » ou couleur
 // pleine selon la source, voir logo-cutout.mjs), recadrés en carré sur un
 // fond PNG transparent. ------------------------------------------------------
@@ -129,6 +105,40 @@ async function traiteLogos() {
 }
 
 await traiteLogos();
+
+// --- Joueurs et gardiens --------------------------------------------------
+
+/**
+ * Taille d'un pixel de sprite, en pixels logiques du jeu : le patineur fait
+ * environ 36 px de haut en jeu, le gardien (accroupi) un peu moins, pour ne
+ * pas masquer toute la cage.
+ */
+const ECHELLE_JOUEUR = 0.36;
+const ECHELLE_GARDIEN = 0.28;
+const sources = await chargeSources(path.join(__dirname, '..', 'assets', 'sprites-src'));
+
+for (const eq of EQUIPES) {
+  const logo = await loadImage(path.join(OUT_LOGOS, `${eq.base}.png`));
+  writeFileSync(path.join(OUT_SPRITES, `skater-${eq.id}.png`), feuilleJoueur(sources, eq, logo).toBuffer('image/png'));
+  writeFileSync(path.join(OUT_SPRITES, `goalie-${eq.id}.png`), feuilleGardien(sources, eq, logo).toBuffer('image/png'));
+}
+writeFileSync(path.join(OUT_SPRITES, 'visages.png'), feuilleVisages(sources).toBuffer('image/png'));
+
+const { joueur, gardien } = sources.meta;
+writeFileSync(
+  path.join(OUT_SPRITES, 'meta.json'),
+  JSON.stringify(
+    {
+      joueur: { ...joueur, echelle: ECHELLE_JOUEUR },
+      gardien: { ...gardien, echelle: ECHELLE_GARDIEN },
+      visages: VISAGES.length,
+      teamIds: EQUIPES_LOGO.map((e) => e.id),
+      variants: VARIANTES,
+    },
+    null,
+    2,
+  ),
+);
 
 // --- Icônes PWA : un petit palet pixel art sur fond nuit ------------------
 

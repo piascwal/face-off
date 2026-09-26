@@ -1,0 +1,35 @@
+{
+  "roles": [
+    "vide",
+    "contour",
+    "maillot",
+    "bande",
+    "blanc",
+    "casque",
+    "casque-bande",
+    "gants",
+    "garde",
+    "peau",
+    "barbe",
+    "ecusson"
+  ],
+  "joueur": {
+    "tileW": 133,
+    "tileH": 105,
+    "images": 4,
+    "arret": 0,
+    "pied": {
+      "x": 52.2,
+      "y": 101
+    },
+    "tete": 0
+  },
+  "gardien": {
+    "tileW": 132,
+    "tileH": 115,
+    "pied": {
+      "x": 71.4,
+      "y": 113
+    }
+  }
+}
