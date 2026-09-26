@@ -210,7 +210,7 @@ export function collisionsPatineurs(state: MatchState): void {
       state.evenements.push({ type: 'secousse', force: 3 });
       state.evenements.push({ type: 'charge' });
       state.evenements.push({ type: 'etincelles', x: (s.x + o.x) / 2, y: (s.y + o.y) / 2 - 4, n: 10, c: '#ffffff' });
-      state.evenements.push({ type: 'bulle', txt: 'CHECK!', x: (s.x + o.x) / 2, y: o.y - 18, c: '#ffd35c' });
+      state.evenements.push({ type: 'bulle', txt: 'ÉCHEC !', x: (s.x + o.x) / 2, y: o.y - 18, c: '#ffd35c' });
       state.stats.checks[s.eq]++;
       if (s.humain || o.humain) state.evenements.push({ type: 'vibre', ms: 35 });
       break;

@@ -81,5 +81,5 @@ export function dessineCommandes(
   disque(g, ze.x, ze.y + (eAppui ? 1 : 0), ze.r - 1, pret ? '#3fb4e8' : '#3a4060');
   if (!pret) anneau(g, ze.x, ze.y, ze.r + 1, '#8fe3ff', 1 - Math.max(0, s.elanCd) / 1.4, 1);
   g.globalAlpha = 1;
-  texte(g, s.tient ? 'SPRINT' : 'CHECK', ze.x, ze.y - 3, C.blanc, 1, 'c');
+  texte(g, s.tient ? 'SPRINT' : 'ÉCHEC', ze.x, ze.y - 3, C.blanc, 1, 'c');
 }
