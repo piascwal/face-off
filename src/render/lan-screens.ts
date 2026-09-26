@@ -212,7 +212,6 @@ export function dessineSalon(g: CanvasRenderingContext2D, boutons: ZoneBouton[],
   if (etat.code) {
     const ms = etat.latenceMs !== null ? `   WIFI ${Math.max(1, Math.round(etat.latenceMs))} MS` : '';
     texte(g, `CODE DE VERIFICATION ${etat.code}${ms}`, cx, 124, C.or, 1, 'c');
-    texte(g, 'LE MEME CODE DOIT S\'AFFICHER SUR LES DEUX ECRANS', cx, 134, '#6f7aa6', 1, 'c');
   }
   if (etat.message) texte(g, etat.message, cx, 150, '#ff9a5c', 1, 'c');
 
@@ -329,9 +328,8 @@ export function dessinePauseLan(g: CanvasRenderingContext2D, boutons: ZoneBouton
   g.fillRect(0, 0, W, H);
   const cx = Math.round(W / 2);
   const cy = Math.round(H / 2);
-  texte(g, 'PAUSE', cx, cy - 58, C.blanc, 3, 'c');
-  texte(g, `DEMANDEE PAR ${etat.par}`, cx, cy - 22, C.or, 1, 'c');
-  texte(g, 'LE MATCH EST FIGE SUR LES DEUX ECRANS', cx, cy - 12, '#6f7aa6', 1, 'c');
+  texte(g, 'PAUSE', cx, cy - 52, C.blanc, 3, 'c');
+  texte(g, `DEMANDEE PAR ${etat.par}`, cx, cy - 16, C.or, 1, 'c');
   bouton(g, boutons, 'REPRENDRE', cx - 55, cy + 2, 110, 18, etat.onReprendre, BLEU);
   bouton(g, boutons, 'QUITTER LA PARTIE', cx - 55, cy + 26, 110, 18, etat.onQuitter);
 }
