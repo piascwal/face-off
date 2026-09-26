@@ -1,5 +1,5 @@
 import { changeJoueur, elan, passeJoueur, surReception, tir } from './actions';
-import { BUT_DEMI, UNE_TOUCHE_CHARGE } from './constants';
+import { BUT_DEMI, ECHEC_PORTEE, UNE_TOUCHE_CHARGE } from './constants';
 import { angleVersCoinLoin, butAttaque, sensAttaque } from './shooting';
 import type { InputIntent, MatchState, Rink, Skater } from './types';
 import { angDiff } from './utils';
@@ -70,6 +70,27 @@ export function tirPlausible(rink: Rink, s: Skater, ix: number, iy: number): boo
 }
 
 /**
+ * Cible d'une mise en échec : le porteur adverse s'il est à portée (il passe
+ * en priorité), sinon l'adversaire le plus proche. `null` si personne n'est
+ * assez près.
+ */
+export function cibleEchec(state: MatchState, s: Skater): Skater | null {
+  let cible: Skater | null = null;
+  let meilleur = Infinity;
+  for (const o of state.patineurs) {
+    if (o.eq === s.eq || o.sonne > 0) continue;
+    const d = Math.hypot(o.x - s.x, o.y - s.y);
+    if (d > ECHEC_PORTEE) continue;
+    const sc = d - (o.tient ? 30 : 0);
+    if (sc < meilleur) {
+      meilleur = sc;
+      cible = o;
+    }
+  }
+  return cible;
+}
+
+/**
  * Applique l'intention d'entrée d'un pas de simulation au patineur humain.
  * Fonction pure côté simulation : en réseau local, l'hôte applique ici
  * l'`InputIntent` reçu du client pour l'équipe adverse (voir src/net).
@@ -81,11 +102,11 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
   // appui sur TIR hors de toute situation de tir : c'est une passe
   const tirEnPasse =
     intent.tirAppui && actif && s.tient && !s.arme && !tirPlausible(rink, s, intent.ix, intent.iy) && passeJoueur(state, s, intent.ix, intent.iy, state.assistPasse);
-  if (intent.tirAppui && !tirEnPasse) {
-    if (actif && !s.tient) {
-      s.pokeT = 0.3;
-      state.evenements.push({ type: 'elan' });
-    }
+  // sans le palet, le gros bouton met en échec : l'élan part tout seul vers la cible
+  if (intent.tirAppui && !tirEnPasse && actif && !s.tient) {
+    const c = cibleEchec(state, s);
+    if (c) elan(state, s, c.x + c.vx * 0.12 - s.x, c.y + c.vy * 0.12 - s.y);
+    else elan(state, s, intent.ix, intent.iy);
   }
   if (intent.tirTenu && s.tient && !s.arme && actif) {
     s.arme = true;

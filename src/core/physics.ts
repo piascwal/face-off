@@ -91,7 +91,6 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
   s.recupCd -= dt;
   s.elanCd -= dt;
   s.elanT -= dt;
-  s.pokeT -= dt;
   if (s.sonne > 0) s.sonne -= dt;
   let ix = s.ex;
   let iy = s.ey;
@@ -521,8 +520,8 @@ export function recuperations(state: MatchState, dt: number): void {
       if (o.eq === c.eq || o.sonne > 0 || o.recupCd > 0) continue;
       const sp = pointCrosse(o);
       const d = Math.hypot(p.x - sp.x, p.y - sp.y);
-      const portee = o.pokeT > 0 ? 10 : 6.5;
-      const taux = o.humain ? (o.pokeT > 0 ? 7 : 0.7) : state.nivEq[o.eq].poke;
+      const portee = 6.5;
+      const taux = o.humain ? 0.7 : state.nivEq[o.eq].poke;
       if (d < portee && Math.random() < taux * dt) {
         lachePalet(state, c, 0.4);
         const a = o.face + alea(-0.8, 0.8);

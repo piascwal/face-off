@@ -46,12 +46,14 @@ export function dessineCommandes(
   const tAppui = ui.tir !== null;
   g.globalAlpha = tAppui ? 0.9 : 0.6;
   disque(g, zt.x, zt.y, zt.r, C.contour);
-  disque(g, zt.x, zt.y + (tAppui ? 1 : 0), zt.r - 1, s.tient ? '#ff5470' : '#6b7295');
-  if (!tAppui) disque(g, zt.x, zt.y + 1, zt.r - 3, s.tient ? '#e03a58' : '#5a6082');
+  // rouge pour tirer, orange pour mettre en échec (gris le temps que l'élan se recharge)
+  const [fond, face] = s.tient ? ['#ff5470', '#e03a58'] : s.elanCd > 0 ? ['#6b7295', '#5a6082'] : ['#ff9a4a', '#e07428'];
+  disque(g, zt.x, zt.y + (tAppui ? 1 : 0), zt.r - 1, fond);
+  if (!tAppui) disque(g, zt.x, zt.y + 1, zt.r - 3, face);
   if (s.arme) anneau(g, zt.x, zt.y, zt.r + 2, C.or, s.charge, 2);
   g.globalAlpha = 1;
   // hors situation de tir, le bouton fait une passe : son libellé le dit
-  const libelle = !s.tient ? 'CROSSE' : s.arme || tirPlausible(rink, s, s.ex, s.ey) ? 'TIR' : 'PASSE';
+  const libelle = !s.tient ? 'ÉCHEC' : s.arme || tirPlausible(rink, s, s.ex, s.ey) ? 'TIR' : 'PASSE';
   texte(g, libelle, zt.x, zt.y - 3 + (tAppui ? 1 : 0), C.blanc, 1, 'c');
   if (ui.tir && s.arme) {
     const dx = ui.tir.x - ui.tir.x0;
@@ -81,5 +83,5 @@ export function dessineCommandes(
   disque(g, ze.x, ze.y + (eAppui ? 1 : 0), ze.r - 1, pret ? '#3fb4e8' : '#3a4060');
   if (!pret) anneau(g, ze.x, ze.y, ze.r + 1, '#8fe3ff', 1 - Math.max(0, s.elanCd) / 1.4, 1);
   g.globalAlpha = 1;
-  texte(g, s.tient ? 'SPRINT' : 'ÉCHEC', ze.x, ze.y - 3, C.blanc, 1, 'c');
+  texte(g, 'SPRINT', ze.x, ze.y - 3, C.blanc, 1, 'c');
 }

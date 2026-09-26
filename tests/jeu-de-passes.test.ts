@@ -4,7 +4,7 @@ import { COMBO_BONUS, UNE_TOUCHE_BONUS, UNE_TOUCHE_S } from '../src/core/constan
 import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
 import { pointDeSoutien } from '../src/core/ai';
-import { appliqueEntreeJoueur, tirPlausible } from '../src/core/humanControl';
+import { appliqueEntreeJoueur, cibleEchec, tirPlausible } from '../src/core/humanControl';
 import { pas } from '../src/core/simulation';
 import { INTENT_VIDE, type MatchState, type Skater } from '../src/core/types';
 
@@ -131,7 +131,7 @@ describe('passes selon la zone, bouton de tir malin, démarquage', () => {
     appliqueEntreeJoueur(rink, st2, a2, { ...INTENT_VIDE, tirAppui: true, tirTenu: true }, 1 / 60);
     expect(a2.tient).toBe(false);
     expect(st2.palet.passe?.vers).toBe(b2);
-    expect(a2.pokeT).toBe(0);
+    expect(a2.elanT).toBeLessThanOrEqual(0);
   });
 
   it('le coéquipier se démarque : son point de soutien est loin des adversaires', () => {
@@ -143,5 +143,22 @@ describe('passes selon la zone, bouton de tir malin, démarquage', () => {
     const pt = pointDeSoutien(rink, st, b, a, true);
     const libre = Math.min(...eux.map((e) => Math.hypot(e.x - pt.x, e.y - pt.y)));
     expect(libre).toBeGreaterThan(25);
+  });
+});
+
+describe('bouton ÉCHEC', () => {
+  it('sans le palet, le gros bouton fonce sur le porteur adverse et le met en échec', () => {
+    const { st, a } = situation();
+    const [p1, p2] = st.patineurs.filter((s) => s.eq === 1) as [Skater, Skater];
+    // le porteur à 40 px, un autre adversaire plus près mais sans le palet
+    Object.assign(p1, { x: a.x + 40, y: a.y + 6, vx: 0, vy: 0 });
+    Object.assign(p2, { x: a.x - 20, y: a.y - 8, vx: 0, vy: 0 });
+    prendPalet(st, p1);
+    expect(cibleEchec(st, a)).toBe(p1);
+    appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, tirAppui: true, tirTenu: true }, 1 / 60);
+    expect(a.elanT).toBeGreaterThan(0);
+    for (let i = 0; i < 30 && p1.tient; i++) pas(rink, st, 1 / 60);
+    expect(p1.tient).toBe(false);
+    expect(p1.sonne).toBeGreaterThan(0);
   });
 });

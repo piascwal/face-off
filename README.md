@@ -307,6 +307,15 @@ Ensuite :
 Mesure en IA contre IA (50 matchs) : en 3 contre 3, +21 % de passes pour
 le même nombre de buts (8,9 contre 8,6) ; en 2 contre 2, +11 % de passes.
 
+**Défense arcade : un seul geste, la mise en échec.** Sans le palet, le gros
+bouton devient ÉCHEC (orange, gris pendant la recharge) : l'élan vise tout
+seul le porteur adverse à moins de 55 px (`ECHEC_PORTEE`), ou à défaut
+l'adversaire le plus proche, sinon il part dans la direction du joystick.
+Le petit bouton est un simple SPRINT. Le coup de crosse (harponnage sur
+bouton) a disparu : il faisait double emploi avec l'échec. Une crosse qui
+traîne tout près du palet adverse peut toujours le chiper, sans rien avoir
+à appuyer. Au clavier : ESPACE tire ou met en échec, MAJ sprinte.
+
 Passes et tirs laissent une **traînée** derrière le palet (bleue pour une
 passe, orange avec des lignes de vitesse pour un tir), sur le modèle de
 l'élan des patineurs.

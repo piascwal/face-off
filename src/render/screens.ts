@@ -74,7 +74,7 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
   if (bas + 20 < H) {
     texte(
       g,
-      menu.tactile ? 'GAUCHE : PATINER   DROITE : TIR / PASSE / ÉCHEC' : 'FLECHES  ESPACE : TIR  L : PASSE  MAJ : ÉCHEC',
+      menu.tactile ? 'GAUCHE : PATINER   DROITE : TIR / ÉCHEC, PASSE, SPRINT' : 'FLECHES  ESPACE : TIR / ÉCHEC  L : PASSE  MAJ : SPRINT',
       cx,
       bas + 11,
       '#6f7aa6',

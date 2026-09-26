@@ -36,7 +36,6 @@ export interface Skater {
   sonne: number;
   charge: number;
   arme: boolean;
-  pokeT: number;
   anim: number;
   humain: boolean;
   ex: number;

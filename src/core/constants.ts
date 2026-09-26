@@ -53,6 +53,11 @@ export const GARDIEN_PASSE_LENTEUR = 0.9;
  * qu'avant (1,4 s), sans casser les échappées en solo.
  */
 export const ELAN_CD_PALET = 1.7;
+/**
+ * Bouton ÉCHEC (le gros bouton, sans le palet) : l'élan vise tout seul le
+ * porteur adverse, ou l'adversaire le plus proche, s'il est à cette distance (px).
+ */
+export const ECHEC_PORTEE = 55;
 
 // Changement automatique de joueur : quand le palet est libre (personne ne le
 // tient, pas de passe en cours) et qu'un coéquipier en est nettement plus
