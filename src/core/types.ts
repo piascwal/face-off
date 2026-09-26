@@ -37,6 +37,9 @@ export interface Skater {
   charge: number;
   arme: boolean;
   pokeT: number;
+  /** Accompagnement de la crosse après un tir ou une passe : temps restant (s) et amplitude (0..1). */
+  frappe: number;
+  frappeAmp: number;
   anim: number;
   humain: boolean;
   ex: number;

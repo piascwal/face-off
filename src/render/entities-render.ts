@@ -1,11 +1,10 @@
 import { pointCrosse } from '@core/actions';
+import { FRAPPE_PASSE, FRAPPE_TIR } from '@core/constants';
 import type { Goalie, Puck, Skater } from '@core/types';
-import { ligne, px } from './primitives';
+import { px } from './primitives';
 import type { BanqueSprites } from './sprites';
 import { C, MARQUE } from './theme';
 import type { EquipeVisuelle } from './team-visuals';
-
-const CYCLE = [0, 1, 0, 2];
 
 /** Couleur fixe du repère « c'est vous » — jamais celle d'un maillot, pour ne
  * jamais se confondre avec une équipe (voir dessinePatineur). */
@@ -65,6 +64,38 @@ function repereControle(g: CanvasRenderingContext2D, x: number, fy: number, coul
   }
 }
 
+/** Pas de patinage : distance parcourue (px logiques) par image du cycle. */
+const PAS_ANIM = 6.5;
+/** Crosse animée (armé, frappe) : longueur gants → talon, et angles clés. */
+const LONG_CROSSE = 19;
+const ANGLE_SOL = 95;
+const ANGLE_ARME = 235;
+
+/**
+ * Trace un segment en « pixels de sprite » (carrés de `e` px logiques) :
+ * la crosse garde le grain des sprites, en détail double.
+ */
+function segmentFin(g: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, e: number, col: string, epais = 1): void {
+  const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / e));
+  g.fillStyle = col;
+  const t = e * epais;
+  for (let i = 0; i <= n; i++) {
+    const x = x0 + ((x1 - x0) * i) / n;
+    const y = y0 + ((y1 - y0) * i) / n;
+    g.fillRect(Math.round(x / e) * e - t / 2, Math.round(y / e) * e - t / 2, t, t);
+  }
+}
+
+/** Crosse : manche (bois, contour sombre) des gants jusqu'au talon, palette entourée de ruban noir. */
+function dessineCrosse(g: CanvasRenderingContext2D, e: number, mx: number, my: number, tx: number, ty: number, bx: number, by: number): void {
+  segmentFin(g, mx, my, tx, ty, e, '#14162c', 2.6);
+  segmentFin(g, tx, ty, bx, by, e, '#14162c', 2.6);
+  segmentFin(g, mx, my, tx, ty, e, '#a0714a', 1.2);
+  segmentFin(g, tx, ty, bx, by, e, '#1c1d32', 1.2);
+}
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
 export function dessinePatineur(
   g: CanvasRenderingContext2D,
   sprites: BanqueSprites,
@@ -74,24 +105,62 @@ export function dessinePatineur(
   equipes: [EquipeVisuelle, EquipeVisuelle],
   specialPret: boolean,
 ): void {
+  const M = sprites.meta.joueur;
+  const e = sprites.meta.echelle;
   const gauche = Math.cos(s.face) < 0;
+  const dir = gauche ? -1 : 1;
   const v = Math.hypot(s.vx, s.vy);
-  const frame = v < 14 ? 0 : CYCLE[Math.floor(s.anim / 8) % 4]!;
-  const sprite = sprites.spriteJoueur(equipes[s.eq].id, frame, gauche);
-  const { w: tw, h: th } = sprites.tailleJoueur;
-  let bx = Math.round(s.x) - tw / 2;
-  let by = Math.round(s.y) + 3 - th + 4;
-  if (s.sonne > 0) bx += Math.round(Math.sin(temps * 40));
+  const frame = v < 14 ? 0 : Math.floor(s.anim / PAS_ANIM) % M.images;
+  const bob = M.bob[frame] ?? 0;
+  const id = equipes[s.eq].id;
+  const sprite = sprites.spriteJoueur(id, frame, gauche);
+  const gants = sprites.spriteJoueur(id, frame, gauche, true);
+  const tw = M.tileW * e;
+  const th = M.tileH * e;
+  // les pieds du sprite sur la position du joueur (4 px sous son centre)
+  const piedX = gauche ? M.tileW - 1 - M.pied.x : M.pied.x;
+  let bx = s.x - (piedX + 0.5) * e;
+  const by = s.y + 4 - M.pied.y * e;
+  if (s.sonne > 0) bx += Math.sin(temps * 40);
+  const teteY = by + (2 + bob) * e;
+  const mainX = bx + ((gauche ? M.tileW - 1 - M.gants.x : M.gants.x) + 0.5) * e;
+  const mainY = by + (M.gants.y + bob + 0.5) * e;
+
+  // --- géométrie de la crosse selon le geste en cours
   const sp = pointCrosse(s);
-  const mainX = bx + (gauche ? tw * 0.28 : tw * 0.72);
-  const mainY = by + th * 0.5;
-  const crosse = () => {
-    ligne(g, mainX, mainY, sp.x, sp.y, '#5b3a22');
-    const lx = Math.round(sp.x);
-    const ly = Math.round(sp.y);
-    const dx = Math.cos(s.face) >= 0 ? 1 : -1;
-    g.fillStyle = '#111522';
-    g.fillRect(Math.min(lx, lx + dx * 2), ly, 3, 1);
+  let talon = { x: sp.x - dir * 2.5, y: sp.y + 1 };
+  let bout = { x: sp.x + dir * 2.5, y: sp.y + 1 };
+  let derriere = sp.y < s.y; // palette « plus loin » que le joueur : dessinée avant lui
+  // crosse orientée d'un angle `a` (degrés, 90 = vers la glace, 180 = vers l'arrière)
+  const oriente = (a: number) => {
+    const r = (a * Math.PI) / 180;
+    const cx = Math.cos(r) * dir;
+    const cy = Math.sin(r);
+    talon = { x: mainX + cx * LONG_CROSSE, y: mainY + cy * LONG_CROSSE };
+    // la palette part à angle droit du manche, vers l'avant quand la crosse est au sol
+    bout = { x: talon.x + Math.sin(r) * dir * 4, y: talon.y - Math.cos(r) * 4 };
+    derriere = false;
+  };
+  if (s.arme) {
+    // armé : la crosse remonte par-dessus l'épaule à mesure que le tir se charge
+    // (vite en arrière au début, puis de plus en plus haut)
+    oriente(ANGLE_SOL + (ANGLE_ARME - ANGLE_SOL) * Math.sqrt(Math.min(1, s.charge)));
+  } else if (s.frappe > 0) {
+    // frappe : la crosse redescend sur la glace puis accompagne vers l'avant,
+    // d'autant plus haut que le geste est fort
+    const amp = s.frappeAmp;
+    const u = Math.min(1, 1 - s.frappe / (amp > 0.5 ? FRAPPE_TIR : FRAPPE_PASSE));
+    const depart = ANGLE_SOL + (ANGLE_ARME - ANGLE_SOL) * Math.sqrt(amp);
+    oriente(u < 0.2 ? lerp(depart, 95, u / 0.2) : 95 - 135 * amp * Math.sin(((u - 0.2) / 0.8) * Math.PI));
+  } else if (s.pokeT > 0) {
+    // poke-check : la palette part loin devant, au ras de la glace
+    const k = 1 + (Math.max(0, s.pokeT) / 0.3) * 1.3;
+    talon = { x: s.x + (sp.x - s.x) * k - dir * 2.5, y: s.y + (sp.y - s.y) * k + 1 };
+    bout = { x: talon.x + dir * 5, y: talon.y };
+  }
+  const crosse = () => dessineCrosse(g, e, mainX, mainY, talon.x, talon.y, bout.x, bout.y);
+  const corps = (dx = 0, dy = 0) => {
+    if (sprite) g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, bx + dx, by + dy, tw, th);
   };
 
   // indicateur « c'est vous » : toujours visible, même en tenant le palet — une
@@ -106,40 +175,44 @@ export function dessinePatineur(
   if (s.tient) {
     lueurSol(g, s.x, s.y + 4, 10, C.or, 0.45 + 0.15 * Math.sin(temps * 8));
     haloSol(g, s.x, s.y + 4, 6, C.or, 0.85 + 0.15 * Math.sin(temps * 8));
-    badgePalet(g, Math.round(s.x), by - 2, temps);
+    badgePalet(g, Math.round(s.x), teteY - 4, temps);
   }
   // tir spécial chargé (combo de passes) : petite flamme pulsante au-dessus du porteur
   if (s.tient && specialPret) {
     const rebond = Math.abs(Math.sin(temps * 9)) * 2;
     const fx = Math.round(s.x);
-    const fy = by - 8 - rebond;
+    const fy = teteY - 10 - rebond;
     px(g, fx - 2, fy - 2, 5, 5, C.contour);
     px(g, fx - 1, fy - 1, 3, 3, '#ff8a3d');
     px(g, fx, fy - 2, 1, 1, '#ffd35c');
   }
 
-  if (sp.y < s.y) crosse();
-  if (sprite) g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, bx, by, tw, th);
-  if (sp.y >= s.y) crosse();
+  if (derriere) crosse();
+  corps();
+  if (!derriere) {
+    crosse();
+    // les gants repassent par-dessus le manche
+    if (gants) g.drawImage(gants.img, gants.rect.sx, gants.rect.sy, gants.rect.sw, gants.rect.sh, bx, by, tw, th);
+  }
 
   if (s.sonne > 0) {
     for (let i = 0; i < 3; i++) {
       const a = temps * 6 + i * 2.1;
-      px(g, s.x + Math.cos(a) * 6, by - 2 + Math.sin(a) * 2, 1, 1, C.or);
+      px(g, s.x + Math.cos(a) * 6, teteY - 1 + Math.sin(a) * 2, 1, 1, C.or);
     }
   }
-  if (s.elanT > 0 && sprite) {
+  if (s.elanT > 0) {
     g.globalAlpha = 0.35;
-    g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, Math.round(bx - s.vx * 0.04), Math.round(by - s.vy * 0.04), tw, th);
+    corps(-s.vx * 0.04, -s.vy * 0.04);
     g.globalAlpha = 1;
   }
   if (estControle) {
     // double chevron au-dessus du joueur, pour ne jamais le perdre de vue —
     // plus gros que le halo au sol, il reste lisible même dans une mêlée.
-    repereControle(g, Math.round(s.x), by - 7 + Math.round(Math.sin(temps * 6)));
+    repereControle(g, Math.round(s.x), teteY - 9 + Math.round(Math.sin(temps * 6)));
   } else if (s.humain) {
     // l'adversaire humain d'une partie en réseau : simple chevron à ses couleurs
-    repereControle(g, Math.round(s.x), by - 7, equipes[s.eq].clair, true);
+    repereControle(g, Math.round(s.x), teteY - 9, equipes[s.eq].clair, true);
   }
   if (estControle && s.arme && s.vise !== null) {
     // flèche de visée pointillée, qui s'allonge avec la puissance
@@ -159,7 +232,7 @@ export function dessinePatineur(
   if (s.arme) {
     const w = 13;
     const x = Math.round(s.x) - 6;
-    const y = by - (s.humain ? 11 : 5);
+    const y = teteY - (s.humain ? 13 : 7);
     px(g, x - 1, y - 1, w + 2, 4, C.contour);
     px(g, x, y, w, 2, '#2a2f4a');
     const c = s.charge > 0.85 ? (Math.floor(temps * 20) & 1 ? '#ffffff' : '#ff5a4e') : s.charge > 0.5 ? '#ffb13b' : '#ffe27a';
@@ -174,16 +247,14 @@ export function dessineGardien(
   temps: number,
   equipes: [EquipeVisuelle, EquipeVisuelle],
 ): void {
+  const M = sprites.meta.gardien;
+  const e = sprites.meta.echelle;
   const gauche = gk.eq === 1;
   const sprite = sprites.spriteGardien(equipes[gk.eq].id, gauche);
-  const { w: tw, h: th } = sprites.tailleJoueur;
-  const bx = Math.round(gk.x) - tw / 2 + Math.round(Math.sin(temps * 60) * gk.secoue);
-  const by = Math.round(gk.y) + 3 - th + 4;
-  if (sprite) g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, bx, by, tw, th);
-  // crosse de gardien, posée sur la glace
-  const dir = gauche ? -1 : 1;
-  g.fillStyle = '#5b3a22';
-  g.fillRect(Math.round(gk.x) + dir * 3 - (dir < 0 ? 3 : 0), Math.round(gk.y) + 3, 4, 1);
+  const piedX = gauche ? M.tileW - 1 - M.pied.x : M.pied.x;
+  const bx = gk.x - (piedX + 0.5) * e + Math.sin(temps * 60) * gk.secoue;
+  const by = gk.y + 4 - M.pied.y * e;
+  if (sprite) g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, bx, by, M.tileW * e, M.tileH * e);
 }
 
 export function dessinePalet(g: CanvasRenderingContext2D, p: Puck): void {

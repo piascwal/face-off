@@ -18,6 +18,8 @@ export function nouveauPatineur(eq: TeamId, rang: number): Skater {
     charge: 0,
     arme: false,
     pokeT: 0,
+    frappe: 0,
+    frappeAmp: 0,
     anim: 0,
     humain: false,
     ex: 0,

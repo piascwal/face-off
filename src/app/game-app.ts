@@ -114,7 +114,12 @@ function equipeAdverseParDefaut(idJoueur: string): TeamDef {
 export class GameApp {
   private readonly ecran: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
-  private readonly bas = document.createElement('canvas');
+  /**
+   * On dessine directement à la résolution de l'écran, avec une échelle de
+   * base ECHELLE : décor, texte et HUD gardent leurs gros pixels logiques,
+   * tandis que les sprites des joueurs (pixels de 36/56 px logique) gardent
+   * tout leur détail.
+   */
   private readonly g: CanvasRenderingContext2D;
 
   private W = 400;
@@ -174,7 +179,7 @@ export class GameApp {
   constructor(canvas: HTMLCanvasElement) {
     this.ecran = canvas;
     this.ctx = canvas.getContext('2d')!;
-    this.g = this.bas.getContext('2d')!;
+    this.g = this.ctx;
   }
 
   async demarre(): Promise<void> {
@@ -214,8 +219,7 @@ export class GameApp {
     this.ECHELLE = Math.max(1, Math.floor(this.portrait ? Math.min(dh / 360, dw / 180) : Math.min(dh / 196, dw / 360)));
     this.W = Math.ceil(dw / this.ECHELLE);
     this.H = Math.ceil(dh / this.ECHELLE);
-    this.bas.width = this.W;
-    this.bas.height = this.H;
+    // redimensionner le canevas remet son état à zéro
     this.g.imageSmoothingEnabled = false;
     if (!this.portrait) this.placePatinoire();
   }
@@ -1057,7 +1061,9 @@ export class GameApp {
   private rendu(): void {
     this.boutons = [];
     const g = this.g;
-    g.setTransform(1, 0, 0, 1, 0, 0);
+    const E = this.ECHELLE;
+    g.setTransform(E, 0, 0, E, 0, 0);
+    g.imageSmoothingEnabled = false;
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
     const tempsUI = performance.now() / 1000;
@@ -1071,10 +1077,10 @@ export class GameApp {
       const s = this.effets.secousse;
       const sx = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
       const sy = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
-      g.setTransform(1, 0, 0, 1, sx, sy);
+      g.setTransform(E, 0, 0, E, sx * E, sy * E);
       const ralenti = this.ralenti.actif && !!this.etatRalenti && this.ecranUI === 'jeu';
       dessineScene(g, this.rink, ralenti ? this.etatRalenti! : state, this.decor, this.sprites, this.effets, this.ecranUI, this.equipesActuelles, this.eqLocal);
-      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.setTransform(E, 0, 0, E, 0, 0);
       // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
       if (!ECRANS_MENU.includes(this.ecranUI)) {
         if (!ralenti) dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, tempsUI);
@@ -1133,9 +1139,6 @@ export class GameApp {
         g.fillRect(0, 0, this.W, this.H);
       }
     }
-
-    this.ctx.imageSmoothingEnabled = false;
-    this.ctx.drawImage(this.bas, 0, 0, this.W * this.ECHELLE, this.H * this.ECHELLE);
   }
 
   private menuProps(): EtatMenu {

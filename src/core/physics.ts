@@ -82,6 +82,7 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
   s.elanCd -= dt;
   s.elanT -= dt;
   s.pokeT -= dt;
+  s.frappe = Math.max(0, s.frappe - dt);
   if (s.sonne > 0) s.sonne -= dt;
   let ix = s.ex;
   let iy = s.ey;

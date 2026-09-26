@@ -183,13 +183,15 @@ export function dessinePanneauMaillot(
   // le joueur porte le maillot choisi, tourné vers le centre de l'écran
   const spriteId = `${def.id}-${cote.variante}`;
   const sprite = sprites.spriteJoueur(spriteId, 0, !faceDroite);
-  const echelle = 3;
-  const { w: tw, h: th } = sprites.tailleJoueur;
-  const sw = tw * echelle;
-  const sh = th * echelle;
+  const M = sprites.meta.joueur;
+  // ~96 px de haut, pieds centrés sous le panneau
+  const echelle = 96 / M.tileH;
+  const sw = M.tileW * echelle;
+  const sh = M.tileH * echelle;
   const sy = 36;
+  const piedX = faceDroite ? M.pied.x : M.tileW - 1 - M.pied.x;
   if (sprite) {
-    g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, cx - sw / 2, sy, sw, sh);
+    g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, cx - (piedX + 0.5) * echelle, sy, sw, sh);
   }
 
   const label = cote.variante === 'interieur' ? 'DOMICILE' : 'EXTERIEUR';

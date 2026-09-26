@@ -186,31 +186,43 @@ gardien, sans jamais rendre un tir imparable à 100 %. Testé et verrouillé par
 
 ### 4. Sprites pixel art
 
-Les silhouettes du POC (un motif ASCII de ~10×14 pixels, quelques couleurs)
-sont remplacées par de vrais fichiers PNG plus détaillés : casque en dôme
-(reflet clair, ombre sombre, visière teintée) plutôt qu'une casquette plate,
-chandail ombré à numéro avec épaulettes et bande, culotte rayée, patins avec
-languette/lacet et lame qui brille, crosse en bois de 2px tenue à deux mains
-avec sa palette scotchée posée sur la glace. Générés par
-`scripts/generate-sprites.mjs` (Node + `@napi-rs/canvas`) plutôt que dessinés
-à la main — voir la note ci-dessous.
+Les joueurs sont vus **de profil**, dessinés d'après un sprite de référence
+fait main (`assets/sprites-src/joueur-reference.png`, 33×56 px) puis
+déclinés automatiquement par `scripts/generate-sprites.mjs` +
+`scripts/sprites-profil.mjs` (Node + `@napi-rs/canvas`) :
 
-**Remplacer ces sprites par de vrais dessins.** Cette session n'a pas accès à
-un outil de génération d'images ; les PNG actuels sont donc *procéduraux*
-(dessinés par du code, en plus détaillé que le POC), pas peints à la main. Le
-format est volontairement simple pour qu'une infographiste puisse les
-remplacer sans toucher au moteur :
+- **Recoloration par rôle** : chaque couleur de la référence correspond à un
+  rôle (casque, maillot clair/ombre, bandes, gants, culotte, peau…), repeint
+  aux couleurs de chaque équipe × maillot domicile/extérieur. Une couleur
+  inconnue dans la référence fait échouer le script plutôt que de passer
+  inaperçue.
+- **Patinage** : le haut du corps vient de la référence, les deux jambes sont
+  redessinées à partir d'un petit squelette (hanche, genou, cheville ; la
+  jambe éloignée plus sombre) sur un cycle de 8 images avec un léger
+  balancement vertical.
+- **Crosse animée** : la crosse n'est pas dans le sprite, elle est tracée au
+  rendu (`render/entities-render.ts::dessinePatineur`) avec le même grain
+  que les sprites : portée au sol, **armée** par-dessus l'épaule selon la
+  charge du tir, **frappe** (retour sur la glace puis accompagnement vers
+  l'avant, plus ample pour un tir fort que pour une passe) et poke-check.
+  Les gants sont redessinés par-dessus le manche (lignes 2 et 3 des feuilles).
+- **Détail double** : le jeu dessine directement à la résolution de l'écran ;
+  un patineur fait 36 px logiques de haut pour 56 px de sprite.
 
-- `public/sprites/skater-<id>-<variante>.png` (un par équipe × maillot
-  domicile/extérieur, voir `teamIds`/`variants` dans `meta.json`) : grille de
-  `skaterFrames` colonnes × 2 lignes (ligne 0 = orienté droite, ligne 1 =
-  orienté gauche), taille de case dans `public/sprites/meta.json`.
-- `public/sprites/goalie-<id>-<variante>.png` : 1 colonne × 2 lignes, même convention.
+Format des feuilles (tailles de case, ancrages pieds/gants, balancement dans
+`public/sprites/meta.json`) :
 
-Il suffit de déposer de nouveaux PNG au même chemin avec la même grille (et
-de mettre à jour `meta.json` si la taille de case change) — `src/render/sprites.ts`
-ne connaît que ce contrat, jamais le contenu artistique. Même logique pour les
-écussons (`public/logos/<id>.png`, fond déjà transparent).
+- `public/sprites/skater-<id>-<variante>.png` : 8 colonnes (cycle de
+  patinage) × 4 lignes (corps orienté droite / gauche, puis gants seuls
+  droite / gauche).
+- `public/sprites/goalie-<id>-<variante>.png` : 1 colonne × 2 lignes
+  (droite / gauche), crosse comprise.
+
+Pour changer le style, il suffit de retoucher la référence (en gardant la
+palette de rôles de `sprites-profil.mjs`) et de relancer `npm run sprites` ;
+`src/render/sprites.ts` ne connaît que ce contrat, jamais le contenu
+artistique. Même logique pour les écussons (`public/logos/<id>.png`, fond
+déjà transparent).
 
 ### 5. Célébration de but avec l'écusson de l'équipe
 

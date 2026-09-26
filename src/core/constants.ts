@@ -32,3 +32,7 @@ export const COMBO_SEUIL = 3;
 // l'autre doit être nettement plus proche (pas juste d'un cheveu).
 export const CHANGEMENT_AUTO_SEUIL = 70;
 export const CHANGEMENT_AUTO_MARGE = 24;
+
+/** Durée (s) du geste de crosse après un tir, après une passe (affichage uniquement). */
+export const FRAPPE_TIR = 0.32;
+export const FRAPPE_PASSE = 0.2;
