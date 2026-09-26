@@ -74,10 +74,21 @@ const LAME_BRIL = '#ffffff';
 const BOIS = '#c08a52';
 const BOIS_OMBRE = '#7a5230';
 const TAPE = '#f4f6fb';
+const PLEXI = '#bfe6f0';
+const OEIL = '#171a24';
 
 function rect(ctx, x, y, w, h, color) {
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
+}
+
+/** `rect`, mais avec une opacité — pour la visière plexiglas du gardien, qui
+ * doit laisser deviner la peau et les yeux dessous. */
+function rectA(ctx, x, y, w, h, color, alpha) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, w, h);
+  ctx.globalAlpha = 1;
 }
 
 /** Mélange deux couleurs hexa (t=0 → a, t=1 → b) : sert aux teintes d'ombre
@@ -300,34 +311,92 @@ function dessinePatineur(ctx, eq, numero, frame, ox, oy) {
   crosse(ctx, eq, frame, ox, oy);
 }
 
+/**
+ * Masque de gardien : même principe que le casque du patineur (dôme +
+ * bande d'équipe) mais avec une visière plexiglas teintée sur les yeux —
+ * peau et regard visibles au travers — et une petite grille au menton
+ * (style « butterfly »), pour le distinguer du simple casque à visière du
+ * patineur.
+ */
+function dessineMasqueGardien(ctx, eq, ox, oy) {
+  const clair = mix(eq.casque, '#ffffff', 0.45);
+  const sombre = mix(eq.casque, '#000000', 0.35);
+  rect(ctx, ox + 9, oy + 0, 6, 1, clair);
+  rect(ctx, ox + 10, oy + 0, 4, 1, eq.casque);
+  rect(ctx, ox + 7, oy + 1, 2, 1, clair);
+  rect(ctx, ox + 9, oy + 1, 8, 1, eq.casque);
+  rect(ctx, ox + 17, oy + 1, 1, 1, sombre);
+  rect(ctx, ox + 6, oy + 2, 1, 1, clair);
+  rect(ctx, ox + 7, oy + 2, 11, 1, eq.casque);
+  rect(ctx, ox + 18, oy + 2, 1, 1, sombre);
+  rect(ctx, ox + 5, oy + 3, 15, 1, eq.casque);
+  rect(ctx, ox + 5, oy + 3, 1, 1, sombre);
+  rect(ctx, ox + 19, oy + 3, 1, 1, sombre);
+  // bande d'équipe autour du masque
+  rect(ctx, ox + 5, oy + 4, 15, 1, eq.clair);
+  // front (peau, pas encore de visière)
+  rect(ctx, ox + 5, oy + 5, 15, 1, PEAU);
+  rect(ctx, ox + 5, oy + 5, 1, 1, PEAU_OMBRE);
+  rect(ctx, ox + 19, oy + 5, 1, 1, PEAU_OMBRE);
+  // visière plexiglas : bandeau fin sur les yeux seulement
+  const vy = oy + 6;
+  const vh = 2;
+  rect(ctx, ox + 5, vy, 15, vh, PEAU); // peau dessous, visible par transparence
+  rectA(ctx, ox + 5, vy, 15, vh, PLEXI, 0.24);
+  rect(ctx, ox + 5, vy, 15, 1, mix(eq.casque, PLEXI, 0.4)); // rebord haut
+  rectA(ctx, ox + 6, vy, 3, 1, '#ffffff', 0.75); // reflet
+  rect(ctx, ox + 8, vy + 1, 2, 1, OEIL);
+  rect(ctx, ox + 14, vy + 1, 2, 1, OEIL);
+  rect(ctx, ox + 8, vy + 1, 1, 1, '#5b8fc9');
+  rect(ctx, ox + 14, vy + 1, 1, 1, '#5b8fc9');
+  // joues/nez/bouche : peau nue sous la visière
+  rect(ctx, ox + 5, oy + 8, 15, 2, PEAU);
+  rect(ctx, ox + 5, oy + 8, 1, 2, PEAU_OMBRE);
+  rect(ctx, ox + 19, oy + 8, 1, 2, PEAU_OMBRE);
+  // grille au menton (butterfly) + rebord du masque des deux côtés
+  for (let i = 0; i < 4; i++) rect(ctx, ox + 8 + i * 2, oy + 11, 1, 2, '#3a4560');
+  rect(ctx, ox + 6, oy + 12, 12, 1, '#3a4560');
+  rect(ctx, ox + 6, oy + 10, 13, 1, PEAU_OMBRE);
+  rect(ctx, ox + 5, oy + 6, 1, 4, eq.casque);
+  rect(ctx, ox + 19, oy + 6, 1, 4, eq.casque);
+}
+
 function dessineGardien(ctx, eq, ox, oy) {
   // jambières larges
-  rect(ctx, ox + 4, oy + 18, 6, 9, '#eef2f8');
-  rect(ctx, ox + 14, oy + 18, 6, 9, '#eef2f8');
-  rect(ctx, ox + 4, oy + 24, 6, 2, eq.maillot);
-  rect(ctx, ox + 14, oy + 24, 6, 2, eq.maillot);
-  rect(ctx, ox + 4, oy + 27, 6, 2, PATIN);
-  rect(ctx, ox + 14, oy + 27, 6, 2, PATIN);
-  rect(ctx, ox + 3, oy + 29, 8, 1, LAME);
-  rect(ctx, ox + 13, oy + 29, 8, 1, LAME);
+  rect(ctx, ox + 3, oy + 20, 7, 8, '#eef2f8');
+  rect(ctx, ox + 14, oy + 20, 7, 8, '#eef2f8');
+  rect(ctx, ox + 3, oy + 20, 7, 2, eq.clair);
+  rect(ctx, ox + 14, oy + 20, 7, 2, eq.clair);
+  rect(ctx, ox + 3, oy + 26, 7, 2, eq.maillot);
+  rect(ctx, ox + 14, oy + 26, 7, 2, eq.maillot);
+  rect(ctx, ox + 4, oy + 28, 5, 1, SUPPORT);
+  rect(ctx, ox + 15, oy + 28, 5, 1, SUPPORT);
+  rect(ctx, ox + 3, oy + 29, 7, 1, LAME);
+  rect(ctx, ox + 14, oy + 29, 7, 1, LAME);
+  rect(ctx, ox + 3, oy + 29, 2, 1, LAME_BRIL);
+  rect(ctx, ox + 14, oy + 29, 2, 1, LAME_BRIL);
   // plastron large
-  rect(ctx, ox + 4, oy + 9, 16, 9, eq.maillot);
-  rect(ctx, ox + 4, oy + 9, 16, 2, eq.clair);
-  rect(ctx, ox + 4, oy + 13, 16, 1, '#ffffff');
-  dessineChiffre(ctx, 1, ox + 10, oy + 14, eq.clair);
+  rect(ctx, ox + 4, oy + 12, 16, 9, eq.maillot);
+  rect(ctx, ox + 4, oy + 12, 16, 2, eq.clair);
+  rect(ctx, ox + 4, oy + 16, 16, 1, '#ffffff');
+  dessineChiffre(ctx, 1, ox + 10, oy + 17, eq.clair);
+  rect(ctx, ox + 4, oy + 20, 16, 1, mix(eq.maillot, '#000000', 0.3));
   // mitaine et bouclier
-  rect(ctx, ox + 0, oy + 12, 5, 6, eq.fonce);
-  rect(ctx, ox + 19, oy + 11, 5, 7, '#c9d2e3');
-  rect(ctx, ox + 19, oy + 11, 5, 1, eq.maillot);
-  // casque + grille
-  rect(ctx, ox + 7, oy + 0, 10, 3, eq.casque);
-  rect(ctx, ox + 6, oy + 3, 12, 2, eq.casque);
-  rect(ctx, ox + 8, oy + 5, 8, 3, VISIERE);
-  for (let i = 0; i < 4; i++) rect(ctx, ox + 9 + i * 2, oy + 5, 1, 3, '#3a4560');
-  rect(ctx, ox + 7, oy + 0, 3, 1, 'rgba(255,255,255,0.55)');
-  // crosse de gardien
-  ctx.fillStyle = '#5b3a22';
-  ctx.fillRect(ox + 21, oy + 17, 2, 8);
+  rect(ctx, ox + 0, oy + 15, 5, 6, eq.fonce);
+  rect(ctx, ox + 0, oy + 15, 5, 1, mix(eq.fonce, '#ffffff', 0.3));
+  rect(ctx, ox + 19, oy + 14, 5, 7, '#c9d2e3');
+  rect(ctx, ox + 19, oy + 14, 5, 1, eq.maillot);
+  rect(ctx, ox + 19, oy + 19, 5, 1, mix('#c9d2e3', '#000000', 0.25));
+  // masque
+  dessineMasqueGardien(ctx, eq, ox, oy);
+  // crosse de gardien (même bois que celle du patineur, palette plus large)
+  for (let y = 0; y <= 9; y++) {
+    rect(ctx, ox + 21, oy + 15 + y, 1, 1, BOIS);
+    rect(ctx, ox + 22, oy + 15 + y, 1, 1, BOIS_OMBRE);
+  }
+  rect(ctx, ox + 20, oy + 24, 4, 2, BOIS);
+  rect(ctx, ox + 20, oy + 25, 4, 1, BOIS_OMBRE);
+  rect(ctx, ox + 21, oy + 24, 2, 2, TAPE);
 }
 
 /** Ajoute un contour sombre d'un pixel autour de toute forme opaque. */
