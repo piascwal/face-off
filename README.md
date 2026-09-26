@@ -181,10 +181,13 @@ gardien, sans jamais rendre un tir imparable à 100 %. Testé et verrouillé par
 ### 4. Sprites pixel art
 
 Les silhouettes du POC (un motif ASCII de ~10×14 pixels, quelques couleurs)
-sont remplacées par de vrais fichiers PNG plus détaillés : casque à visière,
-chandail à numéro avec épaulettes et bande, culotte rayée, patins avec lame
-qui brille. Générés par `scripts/generate-sprites.mjs` (Node +
-`@napi-rs/canvas`) plutôt que dessinés à la main — voir la note ci-dessous.
+sont remplacées par de vrais fichiers PNG plus détaillés : casque en dôme
+(reflet clair, ombre sombre, visière teintée) plutôt qu'une casquette plate,
+chandail ombré à numéro avec épaulettes et bande, culotte rayée, patins avec
+languette/lacet et lame qui brille, crosse en bois de 2px tenue à deux mains
+avec sa palette scotchée posée sur la glace. Générés par
+`scripts/generate-sprites.mjs` (Node + `@napi-rs/canvas`) plutôt que dessinés
+à la main — voir la note ci-dessous.
 
 **Remplacer ces sprites par de vrais dessins.** Cette session n'a pas accès à
 un outil de génération d'images ; les PNG actuels sont donc *procéduraux*

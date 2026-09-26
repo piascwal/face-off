@@ -60,16 +60,39 @@ const EQUIPES = INTERIEURS.flatMap((base) =>
 const EQUIPES_LOGO = INTERIEURS; // un seul écusson par équipe, indépendant du maillot
 const CONTOUR = '#0b0e1d';
 const PEAU = '#f1c7a0';
+const PEAU_OMBRE = '#d9a47c';
 const VISIERE = '#12213a';
 const VISIERE_REFLET = '#3a5f8f';
 const CULOTTE = '#1d2340';
+const CULOTTE_OMBRE = '#131830';
 const PATIN = '#23262e';
+const PATIN_REFLET = '#4a5162';
+const SUPPORT = '#5b6273';
+const LACET = '#9aa4b8';
 const LAME = '#e6edf5';
 const LAME_BRIL = '#ffffff';
+const BOIS = '#c08a52';
+const BOIS_OMBRE = '#7a5230';
+const TAPE = '#f4f6fb';
 
 function rect(ctx, x, y, w, h, color) {
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
+}
+
+/** Mélange deux couleurs hexa (t=0 → a, t=1 → b) : sert aux teintes d'ombre
+ * dérivées de la couleur d'équipe (casque, maillot...) sans les coder en dur. */
+function mix(a, b, t) {
+  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
+  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
+  return (
+    '#' +
+    pa
+      .map((v, i) => Math.round(v + (pb[i] - v) * t)
+        .toString(16)
+        .padStart(2, '0'))
+      .join('')
+  );
 }
 
 const CHIFFRES = {
@@ -94,39 +117,106 @@ function dessineChiffre(ctx, n, ox, oy, color) {
   }
 }
 
+/**
+ * Casque en dôme (au lieu d'une simple casquette plate) : galbe arrondi sur
+ * le dessus, reflet clair et ombre sombre sur les bords pour donner du
+ * volume, visière teintée avec son propre reflet, et menton dégagé.
+ */
 function dessineCasque(ctx, eq, ox, oy) {
-  rect(ctx, ox + 8, oy + 0, 8, 1, eq.casque);
-  rect(ctx, ox + 6, oy + 1, 12, 2, eq.casque);
-  rect(ctx, ox + 5, oy + 3, 14, 2, eq.casque);
-  rect(ctx, ox + 7, oy + 4, 10, 2, VISIERE);
-  rect(ctx, ox + 7, oy + 4, 10, 1, VISIERE_REFLET);
-  rect(ctx, ox + 8, oy + 6, 8, 2, PEAU);
-  // reflet sur le dessus du casque
-  rect(ctx, ox + 8, oy + 0, 3, 1, 'rgba(255,255,255,0.55)');
-  // grille faciale (deux barres fines devant le visage)
-  rect(ctx, ox + 10, oy + 6, 1, 2, VISIERE);
-  rect(ctx, ox + 13, oy + 6, 1, 2, VISIERE);
+  const clair = mix(eq.casque, '#ffffff', 0.45);
+  const sombre = mix(eq.casque, '#000000', 0.35);
+  rect(ctx, ox + 9, oy + 0, 1, 1, clair);
+  rect(ctx, ox + 10, oy + 0, 1, 1, eq.casque);
+  rect(ctx, ox + 11, oy + 0, 2, 1, eq.clair);
+  rect(ctx, ox + 13, oy + 0, 2, 1, eq.casque);
+  rect(ctx, ox + 7, oy + 1, 1, 1, clair);
+  rect(ctx, ox + 8, oy + 1, 3, 1, eq.casque);
+  rect(ctx, ox + 11, oy + 1, 2, 1, eq.clair);
+  rect(ctx, ox + 13, oy + 1, 4, 1, eq.casque);
+  rect(ctx, ox + 6, oy + 2, 1, 1, clair);
+  rect(ctx, ox + 7, oy + 2, 4, 1, eq.casque);
+  rect(ctx, ox + 11, oy + 2, 2, 1, eq.clair);
+  rect(ctx, ox + 13, oy + 2, 4, 1, eq.casque);
+  rect(ctx, ox + 17, oy + 2, 1, 1, sombre);
+  rect(ctx, ox + 6, oy + 3, 5, 1, eq.casque);
+  rect(ctx, ox + 11, oy + 3, 2, 1, eq.clair);
+  rect(ctx, ox + 13, oy + 3, 4, 1, eq.casque);
+  rect(ctx, ox + 17, oy + 3, 1, 1, sombre);
+  rect(ctx, ox + 6, oy + 4, 2, 1, eq.casque);
+  rect(ctx, ox + 8, oy + 4, 2, 1, VISIERE_REFLET);
+  rect(ctx, ox + 10, oy + 4, 6, 1, VISIERE);
+  rect(ctx, ox + 16, oy + 4, 1, 1, eq.casque);
+  rect(ctx, ox + 17, oy + 4, 1, 1, sombre);
+  rect(ctx, ox + 6, oy + 5, 2, 1, eq.casque);
+  rect(ctx, ox + 8, oy + 5, 1, 1, VISIERE_REFLET);
+  rect(ctx, ox + 9, oy + 5, 7, 1, VISIERE);
+  rect(ctx, ox + 16, oy + 5, 1, 1, eq.casque);
+  rect(ctx, ox + 17, oy + 5, 1, 1, sombre);
+  rect(ctx, ox + 6, oy + 6, 2, 1, eq.casque);
+  rect(ctx, ox + 8, oy + 6, 8, 1, PEAU);
+  rect(ctx, ox + 16, oy + 6, 2, 1, sombre);
+  rect(ctx, ox + 7, oy + 7, 1, 1, eq.casque);
+  rect(ctx, ox + 8, oy + 7, 7, 1, PEAU);
+  rect(ctx, ox + 15, oy + 7, 1, 1, PEAU_OMBRE);
+  rect(ctx, ox + 16, oy + 7, 1, 1, sombre);
+  rect(ctx, ox + 8, oy + 8, 1, 1, sombre);
+  rect(ctx, ox + 9, oy + 8, 5, 1, PEAU);
+  rect(ctx, ox + 14, oy + 8, 1, 1, PEAU_OMBRE);
+  rect(ctx, ox + 15, oy + 8, 1, 1, sombre);
 }
 
+/**
+ * Maillot avec épaulettes, bande blanche, numéro, et une ombre sur le flanc
+ * droit du joueur (colonnes de droite plus sombres) pour donner du volume —
+ * plutôt qu'un aplat uniforme.
+ */
 function dessineMaillot(ctx, eq, numero, ox, oy) {
-  rect(ctx, ox + 7, oy + 8, 10, 1, eq.maillot);
-  rect(ctx, ox + 5, oy + 9, 14, 7, eq.maillot);
-  // épaulettes claires
-  rect(ctx, ox + 5, oy + 9, 3, 3, eq.clair);
-  rect(ctx, ox + 16, oy + 9, 3, 3, eq.clair);
-  // bande à mi-corps
-  rect(ctx, ox + 5, oy + 12, 14, 1, '#ffffff');
-  // ombre légère sous la bande, pour un peu de volume
-  rect(ctx, ox + 5, oy + 15, 14, 1, eq.fonce);
-  dessineChiffre(ctx, numero, ox + 10, oy + 13, eq.clair);
-  // gants
-  rect(ctx, ox + 3, oy + 13, 3, 3, eq.fonce);
-  rect(ctx, ox + 18, oy + 13, 3, 3, eq.fonce);
+  const ombre = mix(eq.maillot, '#000000', 0.3);
+  rect(ctx, ox + 7, oy + 9, 4, 1, eq.maillot);
+  rect(ctx, ox + 11, oy + 9, 2, 1, '#ffffff');
+  rect(ctx, ox + 13, oy + 9, 2, 1, eq.maillot);
+  rect(ctx, ox + 15, oy + 9, 2, 1, ombre);
+  rect(ctx, ox + 5, oy + 10, 3, 1, eq.clair);
+  rect(ctx, ox + 8, oy + 10, 8, 1, eq.maillot);
+  rect(ctx, ox + 16, oy + 10, 2, 1, eq.clair);
+  rect(ctx, ox + 18, oy + 10, 1, 1, ombre);
+  rect(ctx, ox + 5, oy + 11, 3, 1, eq.clair);
+  rect(ctx, ox + 8, oy + 11, 8, 1, eq.maillot);
+  rect(ctx, ox + 16, oy + 11, 2, 1, eq.clair);
+  rect(ctx, ox + 18, oy + 11, 1, 1, ombre);
+  rect(ctx, ox + 4, oy + 12, 1, 1, eq.clair);
+  rect(ctx, ox + 5, oy + 12, 1, 1, '#ffffff');
+  rect(ctx, ox + 6, oy + 12, 2, 1, eq.clair);
+  rect(ctx, ox + 8, oy + 12, 8, 1, eq.maillot);
+  rect(ctx, ox + 16, oy + 12, 1, 1, ombre);
+  rect(ctx, ox + 17, oy + 12, 2, 1, eq.clair);
+  rect(ctx, ox + 19, oy + 12, 1, 1, ombre);
+  rect(ctx, ox + 4, oy + 13, 1, 1, eq.maillot);
+  rect(ctx, ox + 5, oy + 13, 1, 1, '#ffffff');
+  dessineChiffre(ctx, numero, ox + 10, oy + 11, eq.clair);
+  rect(ctx, ox + 6, oy + 13, 10, 1, eq.maillot);
+  rect(ctx, ox + 16, oy + 13, 4, 1, ombre);
+  rect(ctx, ox + 4, oy + 14, 12, 1, eq.maillot);
+  rect(ctx, ox + 16, oy + 14, 4, 1, ombre);
+  rect(ctx, ox + 3, oy + 15, 2, 1, eq.fonce);
+  rect(ctx, ox + 5, oy + 15, 11, 1, eq.maillot);
+  rect(ctx, ox + 16, oy + 15, 3, 1, ombre);
+  rect(ctx, ox + 3, oy + 16, 2, 1, eq.fonce);
+  rect(ctx, ox + 5, oy + 16, 13, 1, '#ffffff');
+  rect(ctx, ox + 18, oy + 16, 1, 1, ombre);
+  rect(ctx, ox + 5, oy + 17, 14, 1, eq.fonce);
 }
 
 function dessineCulotte(ctx, eq, ox, oy) {
-  rect(ctx, ox + 6, oy + 16, 12, 3, CULOTTE);
-  rect(ctx, ox + 6, oy + 17, 12, 1, eq.maillot);
+  const ombre = mix(eq.maillot, '#000000', 0.3);
+  rect(ctx, ox + 6, oy + 18, 10, 1, CULOTTE);
+  rect(ctx, ox + 16, oy + 18, 2, 1, CULOTTE_OMBRE);
+  rect(ctx, ox + 6, oy + 19, 1, 1, CULOTTE);
+  rect(ctx, ox + 7, oy + 19, 9, 1, eq.maillot);
+  rect(ctx, ox + 16, oy + 19, 1, 1, ombre);
+  rect(ctx, ox + 17, oy + 19, 1, 1, CULOTTE_OMBRE);
+  rect(ctx, ox + 6, oy + 20, 10, 1, CULOTTE);
+  rect(ctx, ox + 16, oy + 20, 2, 1, CULOTTE_OMBRE);
 }
 
 const POSES_JAMBES = [
@@ -144,6 +234,11 @@ const POSES_JAMBES = [
   ],
 ];
 
+/**
+ * Patin détaillé : chaussure avec languette et lacet, coque plus claire au
+ * bout, support de lame distinct de la lame elle-même (plus longue, avec un
+ * reflet à l'avant) — remplace l'ancien bloc uni + trait de lame.
+ */
 function dessineJambes(ctx, eq, frame, ox, oy) {
   const paire = POSES_JAMBES[frame % POSES_JAMBES.length];
   for (const [jambe, sens] of [
@@ -151,22 +246,48 @@ function dessineJambes(ctx, eq, frame, ox, oy) {
     [paire[1], 1],
   ]) {
     const jx = ox + 12 + sens * 3 + jambe.dx;
-    const jy = oy + 19 + jambe.dy;
+    const jy = oy + 21 + jambe.dy;
     rect(ctx, jx - 1, jy, 3, 4, eq.maillot);
     rect(ctx, jx - 1, jy + 1, 3, 1, '#ffffff');
-    rect(ctx, jx - 1, jy + 4, 3, 3, PATIN);
-    rect(ctx, jx - 2, jy + 7, 5, 1, LAME);
-    rect(ctx, jx - 2, jy + 7, 2, 1, LAME_BRIL);
+    rect(ctx, jx - 1, jy + 3, 3, 1, eq.clair);
+    rect(ctx, jx - 1, jy + 4, 3, 1, PATIN_REFLET);
+    rect(ctx, jx - 1, jy + 5, 4, 2, PATIN);
+    rect(ctx, jx + 2, jy + 5, 1, 1, PATIN_REFLET);
+    rect(ctx, jx, jy + 5, 1, 1, LACET);
+    rect(ctx, jx - 1, jy + 7, 4, 1, SUPPORT);
+    rect(ctx, jx - 2, jy + 8, 6, 1, LAME);
+    rect(ctx, jx + 2, jy + 8, 2, 1, LAME_BRIL);
   }
 }
 
+/**
+ * Crosse en bois de 2px d'épaisseur, tenue à deux mains, palette posée sur
+ * la glace et scotchée en blanc — remplace l'ancien trait de 1px qui
+ * flottait à hauteur de taille.
+ */
 function crosse(ctx, eq, frame, ox, oy) {
-  void eq;
-  const bx = ox + 19;
-  const by = oy + 12 + (frame === 2 ? 1 : 0);
-  ctx.fillStyle = '#5b3a22';
-  ctx.fillRect(bx, by, 1, 6);
-  ctx.fillRect(bx, by + 6, 4, 1);
+  const d = frame === 2 ? 1 : 0;
+  const [x0, y0] = [16, 10];
+  const [x1, y1] = [18, 28];
+  const n = y1 - y0;
+  for (let i = 0; i <= n; i++) {
+    const x = Math.round(x0 + ((x1 - x0) * i) / n);
+    const y = y0 + i + d;
+    rect(ctx, ox + x, oy + y, 1, 1, BOIS);
+    rect(ctx, ox + x + 1, oy + y, 1, 1, BOIS_OMBRE);
+  }
+  rect(ctx, ox + x0, oy + y0 + d, 2, 2, TAPE);
+  rect(ctx, ox + x0, oy + y0 + d + 4, 2, 1, eq.clair);
+  // palette : posée sur la glace, scotch blanc au milieu
+  rect(ctx, ox + 17, oy + 29 + d, 6, 2, BOIS);
+  rect(ctx, ox + 17, oy + 30 + d, 6, 1, BOIS_OMBRE);
+  rect(ctx, ox + 18, oy + 29 + d, 4, 2, TAPE);
+  rect(ctx, ox + 18, oy + 30 + d, 4, 1, mix(TAPE, '#000000', 0.15));
+  // mains, l'une au-dessus de l'autre le long du manche
+  rect(ctx, ox + 15, oy + 13 + d, 3, 2, eq.fonce);
+  rect(ctx, ox + 15, oy + 13 + d, 3, 1, mix(eq.fonce, '#ffffff', 0.25));
+  rect(ctx, ox + 16, oy + 17 + d, 3, 2, eq.fonce);
+  rect(ctx, ox + 16, oy + 17 + d, 3, 1, mix(eq.fonce, '#ffffff', 0.25));
 }
 
 function dessinePatineur(ctx, eq, numero, frame, ox, oy) {
