@@ -1,5 +1,5 @@
-import { changeJoueur, elan, passeJoueur, tir } from './actions';
-import { BUT_DEMI } from './constants';
+import { changeJoueur, elan, passeJoueur, surReception, tir } from './actions';
+import { BUT_DEMI, UNE_TOUCHE_CHARGE } from './constants';
 import { angleVersCoinLoin, butAttaque } from './shooting';
 import type { InputIntent, MatchState, Rink, Skater } from './types';
 import { angDiff } from './utils';
@@ -77,7 +77,9 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
       s.arme = false;
       s.charge = 0;
     } else {
-      s.charge = Math.min(1, s.charge + dt / 0.85);
+      // sur réception, le tir se charge bien plus vite : on peut frapper en une touche
+      const vitesse = surReception(state, s) ? UNE_TOUCHE_CHARGE : 1;
+      s.charge = Math.min(1, s.charge + (dt / 0.85) * vitesse);
     }
   }
   s.vise = s.arme ? angleTirJoueur(rink, state, s, intent.ix, intent.iy, intent.viseeManuelle, true) : null;

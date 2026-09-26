@@ -46,5 +46,7 @@ export function nouveauPalet(): Puck {
     passe: null,
     trace: [],
     qualite: 0,
+    passes: 0,
+    uneTouche: false,
   };
 }

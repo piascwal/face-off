@@ -268,6 +268,30 @@ qu'un tir est tenté (spécial ou non) — logique dans `core/actions.ts`
 bien à l'IA qu'au joueur humain, puisque les deux passent par les mêmes
 fonctions.
 
+**Jeu de passes aussi payant qu'une échappée** (réglages dans
+`core/constants.ts`, tests dans `tests/jeu-de-passes.test.ts`) :
+
+- passes plus appuyées ; le coéquipier visé capte le palet de plus loin et
+  le palet est légèrement attiré vers sa crosse, un adversaire doit être
+  bien sur la ligne pour l'intercepter ;
+- chaque passe de la séquence ajoute un petit bonus de qualité au tir
+  suivant, avant même le tir spécial ;
+- **tir sur réception** (« une-touche ») : dans les 0,8 s qui suivent une
+  passe reçue, le tir est plus dangereux, et pour le joueur humain il se
+  charge deux fois plus vite ;
+- le gardien pivote un peu moins vite pendant qu'une passe traverse ;
+- l'élan (sprint) se recharge en 1,7 s au lieu de 1,4 quand on porte le
+  palet : les échappées en solo restent possibles, juste moins gratuites ;
+- un but marqué au bout d'au moins deux passes s'annonce « BUT COLLECTIF ! ».
+
+Équilibrage vérifié en faisant jouer l'IA contre elle-même (60 matchs) :
++13 % de passes, +4 % de buts. La charge accélérée n'est pas donnée à l'IA,
+sinon le score montait d'environ 20 %.
+
+Passes et tirs laissent une **traînée** derrière le palet (bleue pour une
+passe, orange avec des lignes de vitesse pour un tir), sur le modèle de
+l'élan des patineurs.
+
 ### 7. 5 contre 5, et un écran de réglages avancés
 
 `EFFECTIFS` (`core/constants.ts`) passe de `[2, 3]` à `[2, 3, 5]`. Les

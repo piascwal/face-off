@@ -1,5 +1,5 @@
 import { lachePalet, lancePasse, meilleurReceveur, pointCrosse, prendPalet } from './actions';
-import { ACCEL, BUT_DEMI, BUT_PROF, VMAX } from './constants';
+import { ACCEL, BUT_DEMI, BUT_PROF, GARDIEN_PASSE_LENTEUR, INTERCEPTION_RAYON, PASSE_AIMANT, RECEPTION_RAYON, VMAX } from './constants';
 import { rayonGardienEffectif, seuilRattrapeEffectif } from './shooting';
 import type { Goalie, MatchState, Puck, Rink, Skater } from './types';
 import { alea, angDiff, clamp } from './utils';
@@ -244,7 +244,9 @@ export function majGardien(rink: Rink, state: MatchState, gk: Goalie, dt: number
     if (t > 0 && t < 0.8) ty = p.y + p.vy * t * gk.antic;
   }
   const cible = clamp(Math.atan2(ty - rink.cy, Math.max(-2, (tx - gx) * dir)), -1.3, 1.3);
-  gk.a += clamp(cible - gk.a, -gk.vit * dt, gk.vit * dt);
+  // une passe qui traverse devant lui le prend de court : il pivote moins vite
+  const vit = gk.vit * (p.passe ? GARDIEN_PASSE_LENTEUR : 1);
+  gk.a += clamp(cible - gk.a, -vit * dt, vit * dt);
   const sortie = Math.hypot(p.x - gx, p.y - rink.cy) < 90 ? 6 : 5;
   gk.x = gx + dir * (2.5 + Math.cos(gk.a) * sortie);
   gk.y = rink.cy + Math.sin(gk.a) * (BUT_DEMI - 1);
@@ -318,6 +320,20 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
     heurteBande(rink, p, p.r, 0);
     for (const sg of segsSansFace) heurteSegment(p, p.r, sg, 0);
   } else if (!p.porteur) {
+    // passe : le palet est légèrement attiré vers la crosse du receveur quand il arrive
+    const rec = p.passe?.vers;
+    if (rec) {
+      const sp = pointCrosse(rec);
+      const dx = sp.x - p.x;
+      const dy = sp.y - p.y;
+      const d = Math.hypot(dx, dy);
+      const v = Math.hypot(p.vx, p.vy);
+      if (d < PASSE_AIMANT && d > 0.5 && v > 20) {
+        const k = Math.min(1, 6 * dt);
+        p.vx += ((dx / d) * v - p.vx) * k;
+        p.vy += ((dy / d) * v - p.vy) * k;
+      }
+    }
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     const f = Math.exp(-0.45 * dt);
@@ -432,18 +448,24 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
   state.marqueur = eq;
   state.buteur = state.palet.dernier;
   const p = state.palet;
+  const collectif = p.passes >= 2;
   state.evenements.push({ type: 'confettis', x: eq === 0 ? rink.butD : rink.butG, y: rink.cy, eq });
   state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 20, c: '#ffd35c' });
   state.evenements.push({ type: 'secousse', force: 5 });
   state.evenements.push({ type: 'flash', force: 0.7 });
   state.evenements.push({
     type: 'annonce',
-    txt: 'BUT !',
-    sous: `${state.score[0]} - ${state.score[1]}`,
+    // un but au bout d'un vrai jeu de passes se fête plus fort
+    txt: collectif ? 'BUT COLLECTIF !' : 'BUT !',
+    sous: collectif ? `${p.passes} PASSES  ${state.score[0]} - ${state.score[1]}` : `${state.score[0]} - ${state.score[1]}`,
     c: '#ffd35c',
     duree: 2.4,
     eq,
   });
+  if (collectif) {
+    state.evenements.push({ type: 'confettis', x: rink.cx, y: rink.cy, eq });
+    state.evenements.push({ type: 'secousse', force: 3 });
+  }
   state.evenements.push({ type: 'klaxon' });
   state.evenements.push({ type: 'but', eq, buteur: state.buteur });
   state.evenements.push({ type: 'ovation', niveau: 1 });
@@ -460,14 +482,17 @@ export function recuperations(state: MatchState, dt: number): void {
   if (state.phase !== 'jeu' && state.phase !== 'but') return;
   if (!p.porteur && state.phase === 'jeu') {
     let meilleur: Skater | null = null;
-    let dmin = 7;
+    let dmin = Infinity;
     for (const s of state.patineurs) {
       if (s.recupCd > 0 || s.sonne > 0) continue;
       const sp = pointCrosse(s);
       // à la crosse, ou dans les patins : on contrôle aussi un palet qui arrive dans les pieds
       const d = Math.min(Math.hypot(p.x - sp.x, p.y - sp.y), Math.hypot(p.x - s.x, p.y - s.y) - s.r + 1);
       const rel = Math.hypot(p.vx - s.vx, p.vy - s.vy);
-      if (d < dmin && rel < 320) {
+      // pendant une passe, le receveur capte de plus loin, un adversaire doit être bien placé
+      const visee = p.passe?.vers === s;
+      const portee = !p.passe ? 7 : visee ? RECEPTION_RAYON : s.eq === p.passe.vers.eq ? 7 : INTERCEPTION_RAYON;
+      if (d < portee && d < dmin && rel < (visee ? 420 : 320)) {
         dmin = d;
         meilleur = s;
       }

@@ -170,19 +170,46 @@ export function dessineGardien(
   if (sprite) g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, bx, by, M.tileW * e, M.tileH * e);
 }
 
+/**
+ * Palet, avec une traînée quand il file après une passe ou un tir — comme
+ * l'élan des patineurs : des « fantômes » du palet sur ses dernières
+ * positions et deux lignes de vitesse. Bleu glacier pour une passe, orange
+ * pour un tir appuyé.
+ */
 export function dessinePalet(g: CanvasRenderingContext2D, p: Puck): void {
   const v = Math.hypot(p.vx, p.vy);
-  if (!p.porteur && v > 170) {
-    g.globalCompositeOperation = 'lighter';
+  if (!p.porteur && v > 120) {
+    const tir = v > 330 || (p.tireur !== null && v > 200);
+    const col = tir ? '#ff7a1a' : '#1fa8e8';
     const n = p.trace.length;
-    for (let i = 0; i < n; i++) {
+    // fantômes du palet sur ses dernières positions, comme l'élan des patineurs
+    for (let i = 0; i < n - 1; i++) {
       const t = p.trace[i]!;
-      g.globalAlpha = (i / n) * 0.6;
-      g.fillStyle = v > 330 ? '#ffb04a' : '#8fe3ff';
-      g.fillRect(Math.round(t.x) - 1, Math.round(t.y), 2, 1);
+      g.globalAlpha = ((i + 1) / n) * 0.5;
+      g.fillStyle = '#0c0e16';
+      g.fillRect(Math.round(t.x) - 2, Math.round(t.y) - 1, 4, 2);
+    }
+    // traînée de couleur (2 px d'épaisseur) qui s'estompe derrière le palet
+    const ux = p.vx / v;
+    const uy = p.vy / v;
+    const L = Math.min(tir ? 30 : 22, v * 0.07);
+    g.fillStyle = col;
+    for (let k = 2; k <= L; k++) {
+      g.globalAlpha = 0.85 * (1 - k / L);
+      const x = Math.round(p.x - ux * k);
+      const y = Math.round(p.y - uy * k);
+      g.fillRect(x - 1, y - 1, 2, 2);
+    }
+    if (tir) {
+      // tir : deux fines lignes de vitesse de part et d'autre
+      for (const cote of [-3, 3]) {
+        for (let k = 4; k <= L * 0.7; k++) {
+          g.globalAlpha = 0.6 * (1 - k / (L * 0.7));
+          g.fillRect(Math.round(p.x - ux * k - uy * cote), Math.round(p.y - uy * k + ux * cote), 1, 1);
+        }
+      }
     }
     g.globalAlpha = 1;
-    g.globalCompositeOperation = 'source-over';
   }
   const x = Math.round(p.x) - 2;
   const y = Math.round(p.y) - 1;

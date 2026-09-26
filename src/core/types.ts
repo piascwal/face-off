@@ -80,6 +80,9 @@ export interface Puck {
    * `shooting.ts`.
    */
   qualite: number;
+  /** Tir en cours : nombre de passes réussies qui l'ont précédé, et tir sur réception ou non. */
+  passes: number;
+  uneTouche: boolean;
 }
 
 export interface LevelConfig {
@@ -196,6 +199,8 @@ export interface MatchState {
   combo: [number, number];
   /** Le prochain tir de cette équipe est-il chargé en tir spécial (voir COMBO_SEUIL) ? */
   tirSpecialPret: [boolean, boolean];
+  /** Dernière passe reçue (pour le tir sur réception) : qui, et à quel instant (`temps`). */
+  reception: { qui: Skater; t: number } | null;
   /** Évènements à effet de bord produits pendant le dernier pas de simulation. */
   evenements: GameEvent[];
   /** Réglages « avancés » du menu, ignorés en mode démo (toujours activés). */

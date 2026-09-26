@@ -23,6 +23,31 @@ export const EFFECTIFS = [2, 3, 5];
 /** Nombre de passes réussies d'affilée pour débloquer un tir spécial. */
 export const COMBO_SEUIL = 3;
 
+// Jeu de passes : de quoi rendre une action collective aussi payante qu'une
+// échappée en solo (voir actions.ts et physics.ts).
+/** Bonus de qualité de tir par passe réussie de la séquence en cours (avant le tir spécial). */
+export const COMBO_BONUS = 0.03;
+/**
+ * Tir sur réception (« une-touche ») : fenêtre après la réception, bonus de
+ * qualité, et charge accélérée pour le joueur humain seulement (donnée aussi
+ * à l'IA, elle tirait trop vite et le score montait de 20 % en IA contre IA).
+ */
+export const UNE_TOUCHE_S = 0.8;
+export const UNE_TOUCHE_BONUS = 0.06;
+export const UNE_TOUCHE_CHARGE = 2;
+/** Réception : le coéquipier visé capte de plus loin, un adversaire doit être bien sur la ligne. */
+export const RECEPTION_RAYON = 9;
+export const INTERCEPTION_RAYON = 6.5;
+/** Le palet est légèrement attiré vers la crosse du receveur dans ce rayon (px). */
+export const PASSE_AIMANT = 16;
+/** Le gardien pivote moins vite pendant qu'une passe traverse devant lui. */
+export const GARDIEN_PASSE_LENTEUR = 0.9;
+/**
+ * Temps de recharge de l'élan quand on porte le palet (s) : un peu plus long
+ * qu'avant (1,4 s), sans casser les échappées en solo.
+ */
+export const ELAN_CD_PALET = 1.7;
+
 // Changement automatique de joueur : quand le palet est libre (personne ne le
 // tient, pas de passe en cours) et qu'un coéquipier en est nettement plus
 // proche que celui qu'on contrôle, la main lui est redonnée sans attendre que

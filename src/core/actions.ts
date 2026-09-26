@@ -1,4 +1,12 @@
-import { CHANGEMENT_AUTO_MARGE, CHANGEMENT_AUTO_SEUIL, COMBO_SEUIL } from './constants';
+import {
+  CHANGEMENT_AUTO_MARGE,
+  CHANGEMENT_AUTO_SEUIL,
+  COMBO_BONUS,
+  COMBO_SEUIL,
+  ELAN_CD_PALET,
+  UNE_TOUCHE_BONUS,
+  UNE_TOUCHE_S,
+} from './constants';
 import { qualiteDuTir } from './shooting';
 import { equipe } from './state-helpers';
 import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types';
@@ -46,6 +54,7 @@ export function prendPalet(state: MatchState, qui: Porteur): void {
     controle(state, qui);
     if (passeReussie) {
       state.stats.passes[qui.eq]++;
+      state.reception = { qui, t: state.temps };
       const n = ++state.combo[qui.eq];
       state.stats.comboMax[qui.eq] = Math.max(state.stats.comboMax[qui.eq], n);
       if (n >= COMBO_SEUIL) {
@@ -70,12 +79,23 @@ export function lachePalet(state: MatchState, s: Skater, cd: number): void {
   s.recupCd = cd;
 }
 
+/** Le patineur vient-il de recevoir une passe (tir sur réception possible) ? */
+export function surReception(state: MatchState, s: Skater): boolean {
+  const r = state.reception;
+  return r !== null && r.qui === s && s.tient && state.temps - r.t < UNE_TOUCHE_S;
+}
+
 export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puissance: number): void {
   const p = state.palet;
   // un tir consomme la combo de passes en cours, qu'il soit spécial ou non
   const special = state.tirSpecialPret[s.eq];
+  const passes = state.combo[s.eq];
+  const uneTouche = surReception(state, s);
   state.combo[s.eq] = 0;
   state.tirSpecialPret[s.eq] = false;
+  state.reception = null;
+  // tir sur réception : il part fort même si on n'a pas eu le temps de le charger
+  if (uneTouche) puissance = Math.max(puissance, 0.55);
   // handicap « tir puissant » : palet plus rapide, un peu plus dur à arrêter
   const renfort = state.bonus[s.eq] === 'tir';
   const v = (150 + 290 * puissance) * (special ? 1.25 : 1) * (renfort ? 1.15 : 1);
@@ -89,12 +109,19 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   p.dernier = s;
   p.passe = null;
   p.qualite = qualiteDuTir(rink, s.eq, sp.x, sp.y, ang, puissance, state.gardiens[1 - s.eq] as Goalie);
-  if (special) p.qualite = Math.min(0.97, p.qualite + 0.2);
-  if (renfort) p.qualite = Math.min(0.97, p.qualite + 0.06);
+  p.passes = passes;
+  p.uneTouche = uneTouche;
+  // le jeu de passes paie : chaque passe de la séquence rend le tir plus dangereux,
+  // et un tir sur réception prend le gardien à contre-pied
+  let bonus = special ? 0.2 : Math.min(passes, COMBO_SEUIL - 1) * COMBO_BONUS;
+  if (uneTouche) bonus += UNE_TOUCHE_BONUS;
+  if (renfort) bonus += 0.06;
+  if (p.qualite > 0) p.qualite = Math.min(0.97, p.qualite + bonus);
   state.evenements.push({ type: 'frappe', puissance });
   state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 3 + Math.round(puissance * 8), c: special ? '#ff8a3d' : undefined });
   if (puissance > 0.7 || special) state.evenements.push({ type: 'secousse', force: special ? 2.5 : 1.5 });
   if (special) state.evenements.push({ type: 'bulle', txt: 'SUPER TIR !', x: sp.x, y: sp.y - 14, c: '#ff8a3d' });
+  else if (uneTouche) state.evenements.push({ type: 'bulle', txt: 'UNE-TOUCHE !', x: sp.x, y: sp.y - 14, c: '#8fe3ff' });
 }
 
 /** Une ligne de passe est libre si aucun adversaire ne traîne dessus. */
@@ -158,7 +185,8 @@ export function meilleurReceveur(
 export function lancePasse(state: MatchState, x: number, y: number, m: Skater, err: number): void {
   const p = state.palet;
   const d = Math.hypot(m.x - x, m.y - y);
-  const v = clamp(150 + d * 0.9, 170, 310);
+  // passes appuyées : moins de temps en l'air, moins de risque d'interception
+  const v = clamp(160 + d * 0.95, 180, 330);
   const t = d / v;
   const tx = m.x + m.vx * t * 0.9;
   const ty = m.y + m.vy * t * 0.9;
@@ -170,7 +198,9 @@ export function lancePasse(state: MatchState, x: number, y: number, m: Skater, e
   p.passe = { vers: m, t: 1.3 };
   p.tireur = null;
   p.qualite = 0;
+  state.reception = null;
   state.evenements.push({ type: 'frappe', puissance: 0.25 });
+  state.evenements.push({ type: 'neige', x, y, n: 3, vx: -p.vx * 0.2, vy: -p.vy * 0.2 });
   controle(state, m);
 }
 
@@ -251,7 +281,7 @@ export function elan(state: MatchState, s: Skater, dirx: number, diry: number): 
   s.vy += Math.sin(a) * boost;
   s.face = a;
   s.elanT = 0.3;
-  s.elanCd = s.tient ? 1.4 : 1.0;
+  s.elanCd = s.tient ? ELAN_CD_PALET : 1.0;
   state.evenements.push({ type: 'neige', x: s.x, y: s.y + 3, n: 6, vx: -s.vx, vy: -s.vy });
   state.evenements.push({ type: 'elan' });
 }
