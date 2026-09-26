@@ -1027,6 +1027,7 @@ export class GameApp {
       victoires: this.pref.victoires[this.pref.niveau] ?? 0,
       matchs: this.pref.matchs[this.pref.niveau] ?? 0,
       tactile: this.entrees.tactile,
+      version: __VERSION_APP__,
       onNiveau: () => {
         this.pref.niveau = (this.pref.niveau + 1) % NIVEAUX.length;
         sauvePreferences(this.pref);

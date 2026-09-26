@@ -15,6 +15,8 @@ export interface EtatMenu {
   victoires: number;
   matchs: number;
   tactile: boolean;
+  /** Numéro de version de l'app, en petit en bas à droite. */
+  version: string;
   onNiveau: () => void;
   onDuree: () => void;
   onEffectif: () => void;
@@ -67,6 +69,7 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
   bouton(g, boutons, 'MULTI WIFI', cx + 4, jy, 84, 22, menu.onReseau, { couleur: '#1f7fb3', clair: '#6fd0ff', fonce: '#0f4d73' });
   bouton(g, boutons, 'REGLAGES AVANCES', cx - 60, jy + 28, 120, 13, menu.onAvance, { couleur: '#232a58' });
   const bas = py + ph + 6;
+  texte(g, menu.version, W - 3, H - 9, '#4a5380', 1, 'd');
   if (bas + 8 < H) texte(g, menu.matchs ? `VICTOIRES ${menu.victoires} / ${menu.matchs}` : 'PREMIER MATCH ?', cx, bas, C.gris, 1, 'c');
   if (bas + 20 < H) {
     texte(

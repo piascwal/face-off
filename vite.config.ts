@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // Déployé sur GitHub Pages en tant que site de projet
@@ -7,8 +8,17 @@ import { VitePWA } from 'vite-plugin-pwa';
 // que `npm run dev` reste simple.
 const BASE = process.env.NODE_ENV === 'production' ? '/face-off/' : '/';
 
+// Numéro affiché sur l'écran d'accueil : la version de package.json, suivie du
+// numéro de build GitHub Actions (+14...) pour savoir d'un coup d'œil si un
+// téléphone a bien reçu la dernière mise en ligne.
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
+const VERSION_APP = `V${version}${process.env.GITHUB_RUN_NUMBER ? `+${process.env.GITHUB_RUN_NUMBER}` : ''}`;
+
 export default defineConfig({
   base: BASE,
+  define: {
+    __VERSION_APP__: JSON.stringify(VERSION_APP),
+  },
   resolve: {
     alias: {
       '@core': '/src/core',
