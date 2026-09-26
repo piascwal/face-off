@@ -97,6 +97,68 @@ function retireFondUni(data, w, h, fonds) {
     if (!c.bord) continue;
     for (const idx of c.pixels) data[idx * 4 + 3] = 0;
   }
+  // Liseré : la compression JPEG (et, sur fond vert/bleu saturé, la fuite de
+  // chrominance classique du « chroma key ») mélange quelques pixels de
+  // contour avec le fond. On grignote encore, pixel opaque par pixel opaque
+  // collé à une zone déjà transparente, selon deux critères complémentaires :
+  //  - proche en couleur du fond (marge plus large qu'à la détection initiale) ;
+  //  - sur un fond nettement saturé (vert/bleu franc), une « fuite » de sa
+  //    composante dominante — même très éclaircie ou mélangée à un premier
+  //    plan coloré, une teinte verte qui déborde reste reconnaissable.
+  const SEUIL_LISERE = SEUIL * 2.2;
+  const fond0 = fonds[0];
+  const canaux = [fond0.r, fond0.g, fond0.b];
+  const domIdx = canaux.indexOf(Math.max(...canaux));
+  const chromaFond = Math.max(...canaux) - Math.min(...canaux);
+  const FUITE_SEUIL = 14;
+  const estFuite = (r, g, b) => {
+    if (chromaFond < 60) return false; // fond peu saturé (blanc/noir/gris) : pas de fuite de teinte à traquer
+    const val = [r, g, b];
+    const dom = val[domIdx];
+    const autres = val.filter((_, i) => i !== domIdx);
+    return dom - Math.max(...autres) > FUITE_SEUIL;
+  };
+  // le dégradé anti-crénelage peut s'étaler sur une quinzaine de pixels
+  // (image source lissée) : assez de passes pour ronger tout le dégradé,
+  // avec un arrêt dès qu'une passe ne retire plus rien.
+  for (let passe = 0; passe < 24; passe++) {
+    const aRetirer = [];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = y * w + x;
+        if (data[idx * 4 + 3] === 0) continue;
+        const i = idx * 4;
+        const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
+        const proche = fonds.some((c) => distanceCouleur(r, g, b, c.r, c.g, c.b) < SEUIL_LISERE);
+        if (!proche && !estFuite(r, g, b)) continue;
+        const voisins = [
+          x > 0 ? idx - 1 : -1,
+          x < w - 1 ? idx + 1 : -1,
+          y > 0 ? idx - w : -1,
+          y < h - 1 ? idx + w : -1,
+        ];
+        if (voisins.some((v) => v >= 0 && data[v * 4 + 3] === 0)) aRetirer.push(idx);
+      }
+    }
+    if (aRetirer.length === 0) break;
+    for (const idx of aRetirer) data[idx * 4 + 3] = 0;
+  }
+
+  // Poussière : un pixel (ou une poignée) resté isolé au beau milieu du fond
+  // déjà retiré — coloré ni assez près du fond, ni assez « en fuite » pour
+  // les passes ci-dessus, mais trop petit pour être un vrai trait du dessin.
+  const opaque = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) opaque[i] = data[i * 4 + 3] ? 1 : 0;
+  for (const comp of composantes(opaque, w, h)) {
+    if (comp.bord || comp.pixels.length > 30) continue;
+    const fondLike = comp.pixels.every((idx) => {
+      const i = idx * 4;
+      const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
+      return fonds.some((c) => distanceCouleur(r, g, b, c.r, c.g, c.b) < SEUIL_LISERE) || estFuite(r, g, b);
+    });
+    if (!fondLike) continue;
+    for (const idx of comp.pixels) data[idx * 4 + 3] = 0;
+  }
 }
 
 // ------------------------------------------------------- damier ------------
@@ -284,9 +346,41 @@ function retireDamier(data, w, h, clair, fonce) {
 }
 
 /** Rend transparent le fond d'une image (ImageData modifiée en place). */
+/**
+ * Grignote la silhouette d'exactement 1px partout : quel que soit le fond,
+ * une compression JPEG mélange toujours un peu ses pixels de contour avec
+ * le fond sur cette épaisseur (halo de « spill » que les passes ci-dessus ne
+ * rattrapent pas forcément, notamment sur un fond très saturé comme un fond
+ * vert où teinte et dominance de canal ne suffisent pas à isoler le mélange
+ * d'une couleur d'avant-plan qui partage elle-même un canal bas avec le
+ * fond). Un pixel de perdu sur des écussons de 1000px+ est invisible une
+ * fois réduits à leur taille d'affichage ; c'est le compromis le plus sûr,
+ * indépendant de la couleur exacte du fond ou du dessin.
+ */
+function erodeSilhouette(data, w, h) {
+  const transparent = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) transparent[i] = data[i * 4 + 3] === 0 ? 1 : 0;
+  const aRetirer = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+      if (transparent[idx]) continue;
+      const voisins = [
+        x > 0 ? idx - 1 : -1,
+        x < w - 1 ? idx + 1 : -1,
+        y > 0 ? idx - w : -1,
+        y < h - 1 ? idx + w : -1,
+      ];
+      if (voisins.some((v) => v >= 0 && transparent[v])) aRetirer.push(idx);
+    }
+  }
+  for (const idx of aRetirer) data[idx * 4 + 3] = 0;
+}
+
 export function detoure(imgData) {
   const { data, width: w, height: h } = imgData;
   const fonds = detecteCouleursFond(data, w, h);
+  let mode;
   if (fonds.length === 2) {
     const [c1, c2] = fonds;
     const neutres = chroma(c1.r, c1.g, c1.b) < 20 && chroma(c2.r, c2.g, c2.b) < 20;
@@ -294,9 +388,13 @@ export function detoure(imgData) {
     const l2 = luminance(c2.r, c2.g, c2.b);
     if (neutres && Math.abs(l1 - l2) >= 25) {
       const [clair, fonce] = l1 > l2 ? [c1, c2] : [c2, c1];
-      if (retireDamier(data, w, h, clair, fonce)) return 'damier';
+      if (retireDamier(data, w, h, clair, fonce)) mode = 'damier';
     }
   }
-  retireFondUni(data, w, h, fonds);
-  return 'uni';
+  if (!mode) {
+    retireFondUni(data, w, h, fonds);
+    mode = 'uni';
+  }
+  erodeSilhouette(data, w, h);
+  return mode;
 }
