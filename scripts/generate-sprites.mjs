@@ -50,7 +50,6 @@ const EQUIPES = INTERIEURS.flatMap((base) =>
   VARIANTES.map((variante) => ({
     ...palette(base, variante),
     id: `${base.id}-${variante}`,
-    numero: base.numero,
   })),
 );
 const EQUIPES_LOGO = INTERIEURS; // un seul écusson par équipe, indépendant du maillot
