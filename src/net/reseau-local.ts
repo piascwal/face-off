@@ -14,7 +14,7 @@
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-export const VERSION_PROTOCOLE = 2;
+export const VERSION_PROTOCOLE = 3;
 const PREFIXE = 'face-off/lan/v1';
 
 export const SERVEURS_STUN = ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'];

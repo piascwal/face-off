@@ -1,10 +1,12 @@
 import { DUREES, EFFECTIFS } from '@core/constants';
+import type { BonusEquipe, StatsMatch } from '@core/types';
 import { texte } from './pixel-font';
 import { px } from './primitives';
 import type { BanqueSprites } from './sprites';
 import { dessinePanneauEquipe, dessinePanneauMaillot, type CarteEquipe } from './team-select';
 import type { TeamDef, Variante } from './team-visuals';
 import { C } from './theme';
+import { dessineStatsFin } from './screens';
 import { bouton, panneau, type ZoneBouton } from './widgets';
 
 // ======================================================== liste des parties ==
@@ -105,11 +107,13 @@ export interface EtatConfigLan {
   assistTir: boolean;
   assistPasse: boolean;
   changementAuto: boolean;
+  ralenti: boolean;
   onEffectif: () => void;
   onDuree: () => void;
   onAssistTir: () => void;
   onAssistPasse: () => void;
   onChangementAuto: () => void;
+  onRalenti: () => void;
   onRetour: () => void;
   onCreer: () => void;
 }
@@ -126,7 +130,7 @@ export function dessineConfigLan(g: CanvasRenderingContext2D, boutons: ZoneBouto
   const cx = Math.round(W / 2);
   texte(g, 'NOUVELLE PARTIE WIFI', cx, 4, C.blanc, 2, 'c');
   const pw = 230;
-  const ph = 98;
+  const ph = 116;
   const py = 26;
   panneau(g, cx - pw / 2, py, pw, ph);
   const n = EFFECTIFS[etat.effectifIdx] ?? 3;
@@ -136,6 +140,7 @@ export function dessineConfigLan(g: CanvasRenderingContext2D, boutons: ZoneBouto
     ['ASSISTANCE TIR', oui(etat.assistTir), etat.onAssistTir],
     ['ASSISTANCE PASSE', oui(etat.assistPasse), etat.onAssistPasse],
     ['CHGT AUTO JOUEUR', oui(etat.changementAuto), etat.onChangementAuto],
+    ['RALENTI DES BUTS', oui(etat.ralenti), etat.onRalenti],
   ];
   lignes.forEach(([k, v, act], i) => {
     const y = py + 6 + i * 18;
@@ -150,7 +155,7 @@ export function dessineConfigLan(g: CanvasRenderingContext2D, boutons: ZoneBouto
 
 function resumeConfig(g: CanvasRenderingContext2D, cx: number, y: number, c: ResumeConfig): void {
   const n = EFFECTIFS[c.effectifIdx] ?? 3;
-  texte(g, `${n} CONTRE ${n}   ${(DUREES[c.dureeIdx] ?? 180) / 60} MIN`, cx, y, C.blanc, 1, 'c');
+  texte(g, `${n} CONTRE ${n}   ${(DUREES[c.dureeIdx] ?? 180) / 60} MIN   RALENTI ${oui(c.ralenti)}`, cx, y, C.blanc, 1, 'c');
   texte(g, `ASSIST. TIR ${oui(c.assistTir)}   PASSE ${oui(c.assistPasse)}   CHGT AUTO ${oui(c.changementAuto)}`, cx, y + 11, C.gris, 1, 'c');
 }
 
@@ -160,7 +165,17 @@ export interface ResumeConfig {
   assistTir: boolean;
   assistPasse: boolean;
   changementAuto: boolean;
+  ralenti: boolean;
 }
+
+/** Libellés des handicaps (voir core BonusEquipe). */
+export const LIBELLES_BONUS: Record<BonusEquipe, string> = {
+  aucun: 'SANS BONUS',
+  gardien: 'GARDIEN +20%',
+  vitesse: 'VITESSE +10%',
+  tir: 'TIR PUISSANT',
+  but: "1 BUT D'AVANCE",
+};
 
 // =========================================================== salle d'attente ==
 
@@ -175,6 +190,11 @@ export interface EtatSalon {
   code: string | null;
   latenceMs: number | null;
   message: string | null;
+  /** Handicap de chaque camp (l'hôte le règle, l'invité le voit). */
+  bonus: [BonusEquipe, BonusEquipe];
+  /** Bilan des duels précédents contre cet adversaire, ou null si c'est le premier. */
+  bilan: string | null;
+  onBonus: (place: 0 | 1) => void;
   onLancer: () => void;
   onExclure: () => void;
   onQuitter: () => void;
@@ -208,12 +228,26 @@ export function dessineSalon(g: CanvasRenderingContext2D, boutons: ZoneBouton[],
   texte(g, 'VS', cx, 44, C.or, 2, 'c');
   if (!etat.invite) texte(g, 'SUR L\'AUTRE APPAREIL : MULTI WIFI', cx + 18 + cw / 2, 80, '#6f7aa6', 1, 'c');
 
-  resumeConfig(g, cx, 98, etat.config);
+  // handicap sous chaque carte : réglable par l'hôte, affiché chez l'invité
+  const places: [0 | 1, number, boolean][] = [
+    [0, cx - 18 - cw, true],
+    [1, cx + 18, !!etat.invite],
+  ];
+  for (const [place, x, visible] of places) {
+    if (!visible) continue;
+    const b = etat.bonus[place];
+    const couleur = b === 'aucun' ? C.gris : C.or;
+    if (hote) bouton(g, boutons, `< ${LIBELLES_BONUS[b]} >`, x + 10, 79, cw - 20, 12, () => etat.onBonus(place), { couleur: '#232a58', texte: couleur });
+    else texte(g, LIBELLES_BONUS[b], x + cw / 2, 82, couleur, 1, 'c');
+  }
+  if (etat.invite) texte(g, etat.bilan ?? 'PREMIER DUEL ENTRE VOUS', cx, 97, etat.bilan ? C.blanc : '#6f7aa6', 1, 'c');
+
+  resumeConfig(g, cx, 110, etat.config);
   if (etat.code) {
     const ms = etat.latenceMs !== null ? `   WIFI ${Math.max(1, Math.round(etat.latenceMs))} MS` : '';
-    texte(g, `CODE DE VERIFICATION ${etat.code}${ms}`, cx, 124, C.or, 1, 'c');
+    texte(g, `CODE DE VERIFICATION ${etat.code}${ms}`, cx, 136, C.or, 1, 'c');
   }
-  if (etat.message) texte(g, etat.message, cx, 150, '#ff9a5c', 1, 'c');
+  if (etat.message) texte(g, etat.message, cx, 152, '#ff9a5c', 1, 'c');
 
   const bas = H - 22;
   bouton(g, boutons, '< QUITTER', 4, bas, 66, 16, etat.onQuitter, { couleur: '#232a58' });
@@ -351,6 +385,9 @@ export function dessineRepriseLan(g: CanvasRenderingContext2D, W: number, H: num
 export interface EtatFinLan {
   score: [number, number];
   tirs: [number, number];
+  stats: StatsMatch;
+  /** Bilan cumulé contre cet adversaire (mis à jour avec ce match). */
+  bilan: string | null;
   prolong: boolean;
   moi: 0 | 1;
   couleurAdverse: string;
@@ -363,7 +400,7 @@ export interface EtatFinLan {
 
 /** Fin de match en réseau : on ne relance que si les deux joueurs votent la même chose. */
 export function dessineFinLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, fin: EtatFinLan): void {
-  g.fillStyle = 'rgba(7,9,20,0.62)';
+  g.fillStyle = 'rgba(7,9,20,0.74)';
   g.fillRect(0, 0, W, H);
   const cx = Math.round(W / 2);
   const cy = Math.round(H / 2);
@@ -371,23 +408,24 @@ export function dessineFinLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[]
   const gagne = fin.score[fin.moi] > fin.score[eux];
   const nul = fin.score[0] === fin.score[1];
   const titre = nul ? 'MATCH NUL' : gagne ? 'VICTOIRE !' : 'DEFAITE';
-  texte(g, titre, cx, cy - 66 + Math.round(Math.sin(temps * 4) * 1.5), gagne ? C.or : nul ? C.blanc : fin.couleurAdverse, 3, 'c');
-  texte(g, `${fin.score[0]} - ${fin.score[1]}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 38, C.blanc, 2, 'c');
-  texte(g, `TIRS CADRES  ${fin.tirs[0]} - ${fin.tirs[1]}`, cx, cy - 20, C.gris, 1, 'c');
+  texte(g, titre, cx, cy - 75 + Math.round(Math.sin(temps * 4) * 1.5), gagne ? C.or : nul ? C.blanc : fin.couleurAdverse, 3, 'c');
+  texte(g, `${fin.score[0]} - ${fin.score[1]}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 50, C.blanc, 2, 'c');
+  dessineStatsFin(g, cx, cy - 31, fin.tirs, fin.stats);
 
   const choix = (v: 'rejouer' | 'equipes', label: string, x: number, w: number, style: typeof ROUGE) => {
     const choisi = fin.monVote === v;
-    bouton(g, boutons, choisi ? `> ${label} <` : label, x, cy - 4, w, 20, () => fin.onVote(choisi ? null : v), choisi ? style : { couleur: '#232a58' });
+    bouton(g, boutons, choisi ? `> ${label} <` : label, x, cy + 17, w, 18, () => fin.onVote(choisi ? null : v), choisi ? style : { couleur: '#232a58' });
   };
   choix('rejouer', 'REJOUER', cx - 124, 110, ROUGE);
   choix('equipes', "CHANGER D'EQUIPES", cx + 4, 120, BLEU);
 
   const lib = (v: 'rejouer' | 'equipes' | null) => (v === 'rejouer' ? 'VEUT REJOUER' : v === 'equipes' ? "VEUT CHANGER D'EQUIPES" : `REFLECHIT${points(temps)}`);
-  texte(g, `${fin.nomAdverse} ${lib(fin.voteAdverse)}`, cx, cy + 24, fin.voteAdverse ? C.or : C.gris, 1, 'c');
+  texte(g, `${fin.nomAdverse} ${lib(fin.voteAdverse)}`, cx, cy + 40, fin.voteAdverse ? C.or : C.gris, 1, 'c');
   if (fin.monVote && fin.voteAdverse && fin.monVote !== fin.voteAdverse) {
-    texte(g, 'VOUS N\'ETES PAS D\'ACCORD : CHOISISSEZ LA MEME OPTION', cx, cy + 35, '#ff9a5c', 1, 'c');
+    texte(g, 'VOUS N\'ETES PAS D\'ACCORD : CHOISISSEZ LA MEME OPTION', cx, cy + 50, '#ff9a5c', 1, 'c');
   } else if (fin.monVote && !fin.voteAdverse) {
-    texte(g, 'ON RELANCE DES QUE VOUS ETES D\'ACCORD', cx, cy + 35, '#6f7aa6', 1, 'c');
+    texte(g, 'ON RELANCE DES QUE VOUS ETES D\'ACCORD', cx, cy + 50, '#6f7aa6', 1, 'c');
   }
-  bouton(g, boutons, 'QUITTER', cx - 40, cy + 48, 80, 16, fin.onQuitter, { couleur: '#232a58' });
+  bouton(g, boutons, 'QUITTER', 4, H - 22, 66, 16, fin.onQuitter, { couleur: '#232a58' });
+  if (fin.bilan) texte(g, fin.bilan, W - 6, H - 17, '#6f7aa6', 1, 'd');
 }

@@ -63,6 +63,7 @@ export function pas(
   majPalet(rink, state, dt / 2, segsSansFace);
   majPalet(rink, state, dt / 2, segsSansFace);
   recuperations(state, dt);
+  if (state.phase === 'jeu' && state.palet.porteur) state.stats.possession[state.palet.porteur.eq] += dt;
   if (state.changementAuto && state.phase === 'jeu') changeAutoSiLoin(state);
 
   if (state.phase === 'engagement') {

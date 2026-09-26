@@ -45,7 +45,9 @@ export function prendPalet(state: MatchState, qui: Porteur): void {
     state.evenements.push({ type: 'touche' });
     controle(state, qui);
     if (passeReussie) {
+      state.stats.passes[qui.eq]++;
       const n = ++state.combo[qui.eq];
+      state.stats.comboMax[qui.eq] = Math.max(state.stats.comboMax[qui.eq], n);
       if (n >= COMBO_SEUIL) {
         if (!state.tirSpecialPret[qui.eq]) {
           state.evenements.push({ type: 'bulle', txt: 'TIR SPECIAL !', x: qui.x, y: qui.y - 20, c: '#ff8a3d' });
@@ -74,7 +76,9 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   const special = state.tirSpecialPret[s.eq];
   state.combo[s.eq] = 0;
   state.tirSpecialPret[s.eq] = false;
-  const v = (150 + 290 * puissance) * (special ? 1.25 : 1);
+  // handicap « tir puissant » : palet plus rapide, un peu plus dur à arrêter
+  const renfort = state.bonus[s.eq] === 'tir';
+  const v = (150 + 290 * puissance) * (special ? 1.25 : 1) * (renfort ? 1.15 : 1);
   lachePalet(state, s, 0.3);
   const sp = pointCrosse(s);
   p.x = sp.x;
@@ -86,6 +90,7 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   p.passe = null;
   p.qualite = qualiteDuTir(rink, s.eq, sp.x, sp.y, ang, puissance, state.gardiens[1 - s.eq] as Goalie);
   if (special) p.qualite = Math.min(0.97, p.qualite + 0.2);
+  if (renfort) p.qualite = Math.min(0.97, p.qualite + 0.06);
   state.evenements.push({ type: 'frappe', puissance });
   state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 3 + Math.round(puissance * 8), c: special ? '#ff8a3d' : undefined });
   if (puissance > 0.7 || special) state.evenements.push({ type: 'secousse', force: special ? 2.5 : 1.5 });

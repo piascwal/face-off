@@ -4,6 +4,7 @@ import type { InputIntent } from '@core/types';
 import {
   appliqueAction,
   avanceReprise,
+  debutRalenti,
   inviteArrive,
   invitePart,
   nouvellePartie,
@@ -92,6 +93,7 @@ class Veille {
 
 export interface InfosHote {
   nom: string;
+  appareil: string;
   equipe: string;
   config: ConfigLan;
 }
@@ -118,7 +120,7 @@ export class SessionHote {
     infos: InfosHote,
     private readonly equipeConnue: (id: string) => boolean,
   ) {
-    this.partie = nouvellePartie(infos.config, infos.nom, infos.equipe);
+    this.partie = nouvellePartie(infos.config, infos.nom, infos.equipe, infos.appareil);
   }
 
   static async cree(infos: InfosHote, equipeConnue: (id: string) => boolean): Promise<SessionHote> {
@@ -157,6 +159,12 @@ export class SessionHote {
     const debut = appliqueAction(this.partie, 0, action, this.equipeConnue);
     this.diffuse();
     if (debut) this.onDebut();
+  }
+
+  /** Un but vient d'être marqué : le ralenti repart, personne ne l'a encore passé. */
+  debutRalenti(): void {
+    debutRalenti(this.partie);
+    this.diffuse();
   }
 
   /** Le match s'est terminé : place au vote « rejouer / changer d'équipes ». */
@@ -212,7 +220,7 @@ export class SessionHote {
         l.ferme();
         return;
       }
-      inviteArrive(this.partie, m.nom, this.equipeConnue(m.equipe) ? m.equipe : this.partie.joueurs[0].equipe);
+      inviteArrive(this.partie, m.nom, this.equipeConnue(m.equipe) ? m.equipe : this.partie.joueurs[0].equipe, m.appareil);
       this.connexionEnCours = false;
       // la partie est pleine : on la retire de la liste des autres appareils
       this.annuaire.retireAnnonce();
@@ -353,7 +361,7 @@ export class SessionClient {
     if (this.parties.length !== avant) this.onChange();
   }
 
-  async rejoins(partie: AnnoncePartie, nom: string, equipe: string): Promise<void> {
+  async rejoins(partie: AnnoncePartie, nom: string, equipe: string, appareil: string): Promise<void> {
     const annuaire = this.annuaire;
     if (!annuaire || this.liaison) return;
     if (partie.v !== VERSION_PROTOCOLE) throw new Error('version');
@@ -403,7 +411,7 @@ export class SessionClient {
     };
     l.onFerme = () => this.termine('perdu');
     this.veille = new Veille(l, () => l.ferme());
-    l.envoieCtrl(bonjour(nom, equipe));
+    l.envoieCtrl(bonjour(nom, equipe, appareil));
     // la liaison directe est établie : plus besoin des serveurs de découverte
     annuaire.ferme();
     this.annuaire = null;

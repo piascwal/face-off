@@ -1,9 +1,9 @@
 import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
 import { calculeRink, reprojette } from '@core/rink';
-import { creePartie } from '@core/rules';
+import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
 import { pas } from '@core/simulation';
 import { trouveEquipe } from '@core/teams';
-import { INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from '@core/types';
+import { BONUS_EQUIPE, INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from '@core/types';
 import type { AnnoncePartie } from '@net/annuaire';
 import {
   maillotsIdentiques,
@@ -41,6 +41,7 @@ import {
   dessineMenu,
   dessinePause,
   dessinePortrait,
+  dessineRalenti,
   dessineScene,
   dessineSelectionEquipe,
   dessineTableau,
@@ -71,7 +72,8 @@ import {
   type Variante,
   type ZoneBouton,
 } from '@render/index';
-import { chargePreferences, sauvePreferences, type Preferences } from './preferences';
+import { chargePreferences, noteDuel, sauvePreferences, type Preferences } from './preferences';
+import { dureeBut, Ralenti } from './ralenti';
 import { demandePleinEcranPaysage, PleinEcranAuPremierGeste } from './pwa';
 
 const PAS_FIXE = 1 / 120;
@@ -161,6 +163,13 @@ export class GameApp {
   private phaseVue: PhaseLan | null = null;
   /** Client : instant (s) de fin du compte à rebours de reprise en cours. */
   private finReprise: number | null = null;
+
+  // ------------------------------------------------ ralenti des buts
+  private readonly ralenti = new Ralenti();
+  /** Options du match en cours, pour recréer un état d'affichage dédié au ralenti. */
+  private optionsMatch: OptionsPartie | null = null;
+  private etatRalenti: MatchState | null = null;
+  private phaseHote: string | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.ecran = canvas;
@@ -318,7 +327,7 @@ export class GameApp {
     this.equipesActuelles = [equipeJoueur, equipeAdverse];
     this.effets.definitEquipes(this.equipesActuelles);
     this.construitDecor();
-    this.state = creePartie(this.rink!, {
+    const options: OptionsPartie = {
       mode: 'match',
       niveauIdx: this.pref.niveau,
       dureeIdx: this.pref.duree,
@@ -328,7 +337,10 @@ export class GameApp {
       assistTir: this.pref.assistTir,
       assistPasse: this.pref.assistPasse,
       changementAuto: this.pref.changementAuto,
-    });
+      dureeBut: dureeBut(this.pref.ralentiButs),
+    };
+    this.demarreRalenti(options);
+    this.state = creePartie(this.rink!, options);
     this.effets.reinitialise();
     this.ecranUI = 'jeu';
     this.enPause = false;
@@ -413,7 +425,10 @@ export class GameApp {
         c.onJeu = (buf) => {
           const j = this.jeuReseau;
           const inst = j?.role === 'client' ? decodeInstantane(buf) : null;
-          if (j?.role === 'client' && inst) j.synchro.recoit(inst, performance.now() / 1000);
+          if (j?.role === 'client' && inst) {
+            j.synchro.recoit(inst, performance.now() / 1000);
+            this.ralenti.enregistre(inst);
+          }
         };
         c.onFin = (raison) => this.ouvreLan(MESSAGES_FIN_CLIENT[raison]);
         c.onChange = () => {
@@ -464,9 +479,10 @@ export class GameApp {
       assistTir: this.pref.assistTir,
       assistPasse: this.pref.assistPasse,
       changementAuto: this.pref.changementAuto,
+      ralenti: this.pref.ralentiButs,
     };
     const equipeConnue = (id: string) => EQUIPES_JOUABLES.some((e) => e.id === id);
-    SessionHote.cree({ nom: this.pref.pseudo, equipe: this.pref.equipeJoueur, config }, equipeConnue).then(
+    SessionHote.cree({ nom: this.pref.pseudo, appareil: this.pref.appareil, equipe: this.pref.equipeJoueur, config }, equipeConnue).then(
       (h) => {
         if (gen !== this.lanGeneration) return h.ferme();
         this.hote = h;
@@ -495,7 +511,7 @@ export class GameApp {
     this.lanStatut = 'connexion';
     this.lanMessage = `CONNEXION A ${p.nom}`;
     const gen = this.lanGeneration;
-    c.rejoins(p, this.pref.pseudo, this.pref.equipeJoueur).then(
+    c.rejoins(p, this.pref.pseudo, this.pref.equipeJoueur, this.pref.appareil).then(
       () => {
         if (gen !== this.lanGeneration) return;
         this.lanStatut = 'pret';
@@ -576,7 +592,7 @@ export class GameApp {
     this.effets.definitEquipes(eqs);
     this.construitDecor();
     const c = e.config;
-    this.state = creePartie(this.rink!, {
+    const options: OptionsPartie = {
       mode: 'match',
       // coéquipiers CPU au même niveau des deux côtés : seul le talent des humains départage
       niveauIdx: 1,
@@ -588,7 +604,11 @@ export class GameApp {
       assistPasse: c.assistPasse,
       changementAuto: c.changementAuto,
       humains: [true, true],
-    });
+      bonus: [...e.bonus],
+      dureeBut: dureeBut(c.ralenti),
+    };
+    this.demarreRalenti(options);
+    this.state = creePartie(this.rink!, options);
     this.jeuReseau = jeu;
     this.phaseVue = 'match';
     this.finReprise = null;
@@ -624,6 +644,59 @@ export class GameApp {
     this.entrees.reinitialise();
     if (this.jeuReseau?.role === 'hote') this.hote?.finMatch();
     if (this.jeuReseau) this.phaseVue = 'fin';
+    // bilan des duels Wi-Fi, gardé sur chaque appareil
+    const e = this.partieLan;
+    const s = this.state;
+    const adv = e?.joueurs[this.placeLan === 0 ? 1 : 0];
+    if (this.jeuReseau && adv && s) {
+      const moi = this.eqLocal;
+      const eux = moi === 0 ? 1 : 0;
+      noteDuel(this.pref, adv.appareil, adv.nom, s.score[moi] > s.score[eux] ? 'v' : s.score[moi] < s.score[eux] ? 'd' : 'n');
+    }
+  }
+
+  // ------------------------------------------------ ralenti des buts
+
+  private demarreRalenti(options: OptionsPartie): void {
+    this.optionsMatch = options;
+    this.etatRalenti = null;
+    this.phaseHote = null;
+    this.ralenti.reinitialise();
+  }
+
+  /** À chaque image de match : enregistre (hôte/solo), fait avancer la lecture et prépare l'image du ralenti. */
+  private majRalenti(state: MatchState, dt: number, enregistre: boolean): void {
+    if (state.mode !== 'match' || !this.rink) return;
+    if (enregistre) {
+      const inst = decodeInstantane(encodeInstantane(state, this.rink, 0));
+      if (inst) this.ralenti.enregistre(inst);
+    }
+    this.ralenti.maj(state, dt, this.pauseLan || this.enPause);
+    if (this.ralenti.actif && this.optionsMatch) {
+      this.etatRalenti ??= creePartie(this.rink, this.optionsMatch);
+      this.ralenti.applique(this.etatRalenti, this.rink);
+    }
+  }
+
+  /** PASSER : en solo tout de suite ; en Wi-Fi, le jeu reprend quand les deux ont passé. */
+  private passeRalenti(): void {
+    if (!this.ralenti.actif) return;
+    if (this.jeuReseau) {
+      this.agitLan({ a: 'passer' });
+      return;
+    }
+    this.ralenti.arrete();
+    if (this.state?.phase === 'but') this.state.phaseT = Math.min(this.state.phaseT, 0.4);
+  }
+
+  /** Hôte : nouveau but → votes « passer » remis à zéro ; les deux ont passé → remise en jeu. */
+  private arbitreRalentiHote(state: MatchState): void {
+    const h = this.hote;
+    if (!h) return;
+    if (state.phase === 'but' && this.phaseHote !== 'but') h.debutRalenti();
+    this.phaseHote = state.phase;
+    const [a, b] = h.partie.ralentiPasse;
+    if (state.phase === 'but' && a && b) state.phaseT = Math.min(state.phaseT, 0.4);
   }
 
   /** Client : envoie ses entrées, puis affiche l'état interpolé reçu de l'hôte. */
@@ -649,6 +722,7 @@ export class GameApp {
       this.effets.traite(evs);
     }
     this.effets.maj(dt);
+    this.majRalenti(state, dt, false);
     if (state.phase === 'fin' && this.ecranUI === 'jeu') this.surFinMatch();
   }
 
@@ -691,7 +765,7 @@ export class GameApp {
   }
 
   private configLanProps(): EtatConfigLan {
-    const bascule = (cle: 'assistTir' | 'assistPasse' | 'changementAuto') => () => {
+    const bascule = (cle: 'assistTir' | 'assistPasse' | 'changementAuto' | 'ralentiButs') => () => {
       this.pref[cle] = !this.pref[cle];
       sauvePreferences(this.pref);
     };
@@ -701,6 +775,7 @@ export class GameApp {
       assistTir: this.pref.assistTir,
       assistPasse: this.pref.assistPasse,
       changementAuto: this.pref.changementAuto,
+      ralenti: this.pref.ralentiButs,
       onEffectif: () => {
         this.pref.effectif = (this.pref.effectif + 1) % EFFECTIFS.length;
         sauvePreferences(this.pref);
@@ -712,13 +787,29 @@ export class GameApp {
       onAssistTir: bascule('assistTir'),
       onAssistPasse: bascule('assistPasse'),
       onChangementAuto: bascule('changementAuto'),
+      onRalenti: bascule('ralentiButs'),
       onRetour: () => this.ouvreLan(),
       onCreer: () => this.creePartieLan(),
     };
   }
 
   private resumeConfig(c: ConfigLan): ResumeConfig {
-    return { effectifIdx: c.effectif, dureeIdx: c.duree, assistTir: c.assistTir, assistPasse: c.assistPasse, changementAuto: c.changementAuto };
+    return {
+      effectifIdx: c.effectif,
+      dureeIdx: c.duree,
+      assistTir: c.assistTir,
+      assistPasse: c.assistPasse,
+      changementAuto: c.changementAuto,
+      ralenti: c.ralenti,
+    };
+  }
+
+  /** « VOS DUELS : 5 V - 3 D » contre cet adversaire, ou null si vous ne vous êtes jamais affrontés. */
+  private bilanContre(e: EtatPartieLan): string | null {
+    const adv = e.joueurs[this.placeLan === 0 ? 1 : 0];
+    const b = adv ? this.pref.duels[adv.appareil] : undefined;
+    if (!b) return null;
+    return `VOS DUELS : ${b.v} V - ${b.d} D${b.n ? ` - ${b.n} N` : ''}`;
   }
 
   private salonProps(e: EtatPartieLan): EtatSalon {
@@ -734,6 +825,12 @@ export class GameApp {
       code: session?.code ?? null,
       latenceMs: session?.latenceMs ?? null,
       message,
+      bonus: e.bonus,
+      bilan: this.bilanContre(e),
+      onBonus: (place) => {
+        const i = BONUS_EQUIPE.indexOf(e.bonus[place]);
+        this.agitLan({ a: 'bonus', place, bonus: BONUS_EQUIPE[(i + 1) % BONUS_EQUIPE.length]! });
+      },
       onLancer: () => this.agitLan({ a: 'lancer' }),
       onExclure: () => this.hote?.exclut(),
       onQuitter: () => this.ouvreLan(),
@@ -765,6 +862,8 @@ export class GameApp {
     return {
       score: state.score,
       tirs: state.tirs,
+      stats: state.stats,
+      bilan: this.bilanContre(e),
       prolong: state.prolong,
       moi,
       couleurAdverse: this.equipesActuelles[eux].maillot,
@@ -814,6 +913,14 @@ export class GameApp {
         if (e.pointerType === 'mouse') this.pleinEcran.tente();
         const p = this.versLogique(e);
         if (this.portrait) return;
+        if (this.ecranUI === 'jeu' && this.ralenti.actif && !this.pauseLan) {
+          const b = clicSurBouton(this.boutons, p.x, p.y);
+          if (b) {
+            this.audio.clic();
+            b.act();
+            return;
+          }
+        }
         if (this.ecranUI === 'jeu' && !this.enPause && !this.pauseLan) {
           if (this.entrees.pointeSurPause(p, this.W)) {
             this.pause(true);
@@ -862,6 +969,7 @@ export class GameApp {
         else if (this.ecranUI === 'lanChoix') this.basculePretLan();
         else if (this.ecranUI === 'fin' && this.jeuReseau) this.agitLan({ a: 'vote', vote: 'rejouer' });
         else if (this.ecranUI === 'jeu' && this.pauseLan) this.agitLan({ a: 'pause', on: false });
+        else if (this.ecranUI === 'jeu' && this.ralenti.actif) this.passeRalenti();
         else if (this.ecranUI === 'equipes') this.confirmeSelection();
         else if (this.ecranUI === 'maillots') this.confirmeMaillots();
         else if (this.ecranUI === 'fin') this.rejoue();
@@ -935,6 +1043,8 @@ export class GameApp {
         reseau.dernierEnvoi = t;
       }
       this.effets.maj(dt);
+      if (reseau?.role === 'hote') this.arbitreRalentiHote(state);
+      this.majRalenti(state, dt, state.dureeBut > DUREE_BUT);
       if (state.phase === 'fin' && state.mode === 'match' && this.ecranUI !== 'fin') {
         this.surFinMatch();
         if (!reseau) this.persisteFinMatch(state.score[0] > state.score[1]);
@@ -962,14 +1072,15 @@ export class GameApp {
       const sx = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
       const sy = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
       g.setTransform(1, 0, 0, 1, sx, sy);
-      dessineScene(g, this.rink, state, this.decor, this.sprites, this.effets, this.ecranUI, this.equipesActuelles, this.eqLocal);
+      const ralenti = this.ralenti.actif && !!this.etatRalenti && this.ecranUI === 'jeu';
+      dessineScene(g, this.rink, ralenti ? this.etatRalenti! : state, this.decor, this.sprites, this.effets, this.ecranUI, this.equipesActuelles, this.eqLocal);
       g.setTransform(1, 0, 0, 1, 0, 0);
       // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
       if (!ECRANS_MENU.includes(this.ecranUI)) {
-        dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, tempsUI);
+        if (!ralenti) dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, tempsUI);
         dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
       }
-      if (this.ecranUI === 'menu' || !ECRANS_MENU.includes(this.ecranUI)) {
+      if (!ralenti && (this.ecranUI === 'menu' || !ECRANS_MENU.includes(this.ecranUI))) {
         dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
       }
       if (this.jeuReseau && !ECRANS_MENU.includes(this.ecranUI)) this.dessineEtatReseau(g, tempsUI);
@@ -982,6 +1093,15 @@ export class GameApp {
         });
       } else if (this.ecranUI === 'jeu' && this.pauseLan) {
         dessineRepriseLan(g, this.W, this.H, this.repriseRestante());
+      } else if (ralenti) {
+        const enLan = !!partie && !!this.jeuReseau;
+        const passe = enLan && partie!.ralentiPasse[this.placeLan];
+        const autre = partie?.joueurs[this.placeLan === 0 ? 1 : 0];
+        dessineRalenti(g, this.boutons, this.W, this.H, tempsUI, {
+          progression: this.ralenti.progression,
+          attente: passe ? `EN ATTENTE DE ${autre?.nom ?? ''}` : null,
+          onPasser: () => this.passeRalenti(),
+        });
       } else if (this.ecranUI === 'jeu') {
         dessineCommandes(g, this.W, this.H, state.temps, state.controles[this.eqLocal], this.entrees.instantaneUI());
       } else if (this.ecranUI === 'lan') {
@@ -1057,6 +1177,11 @@ export class GameApp {
       assistPasse: this.pref.assistPasse,
       changementAuto: this.pref.changementAuto,
       secoussesReduites: this.pref.secoussesReduites,
+      ralentiButs: this.pref.ralentiButs,
+      onRalenti: () => {
+        this.pref.ralentiButs = !this.pref.ralentiButs;
+        sauvePreferences(this.pref);
+      },
       onAssistTir: () => {
         this.pref.assistTir = !this.pref.assistTir;
         sauvePreferences(this.pref);
@@ -1111,6 +1236,7 @@ export class GameApp {
     return {
       score: state.score,
       tirs: state.tirs,
+      stats: state.stats,
       prolong: state.prolong,
       niveauNom: NIVEAUX[this.pref.niveau]!.nom,
       victoires: this.pref.victoires[this.pref.niveau] ?? 0,

@@ -201,6 +201,7 @@ export function collisionsPatineurs(state: MatchState): void {
       state.evenements.push({ type: 'charge' });
       state.evenements.push({ type: 'etincelles', x: (s.x + o.x) / 2, y: (s.y + o.y) / 2 - 4, n: 10, c: '#ffffff' });
       state.evenements.push({ type: 'bulle', txt: 'CHECK!', x: (s.x + o.x) / 2, y: o.y - 18, c: '#ffd35c' });
+      state.stats.checks[s.eq]++;
       if (s.humain || o.humain) state.evenements.push({ type: 'vibre', ms: 35 });
       break;
     }
@@ -383,7 +384,7 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
   state.score[eq]++;
   state.tirs[eq]++;
   state.phase = 'but';
-  state.phaseT = 2.6;
+  state.phaseT = state.dureeBut;
   state.lampe[1 - eq] = 1;
   state.excite = 1;
   state.marqueur = eq;
@@ -402,6 +403,7 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
     eq,
   });
   state.evenements.push({ type: 'klaxon' });
+  state.evenements.push({ type: 'but', eq, buteur: state.buteur });
   state.evenements.push({ type: 'ovation', niveau: 1 });
   if (state.mode === 'match') state.evenements.push({ type: 'vibre', ms: eq === 0 ? [60, 40, 120] : 80 });
   for (const s of state.patineurs) {

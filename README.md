@@ -367,6 +367,33 @@ par un broker MQTT local, pour tester à deux onglets sur une seule machine.
 - Pour du jeu par Internet, le même protocole pourrait passer par un serveur
   relais (TURN).
 
+### 9. Handicap, statistiques et ralenti des buts
+
+- **Handicap (Wi-Fi)**. Dans la salle d'attente, l'hôte peut donner un coup de
+  pouce à chaque camp : gardien +20 %, vitesse +10 %, tir puissant (palet
+  15 % plus rapide) ou 1 but d'avance. L'invité le voit, et tout changement
+  oblige les deux joueurs à revalider. L'équipe aidée porte une petite étoile
+  au tableau d'affichage.
+  - Moteur : `OptionsPartie.bonus` et `MatchState.bonus` (`core/rules.ts`,
+    `core/actions.ts::tir`).
+- **Statistiques de fin de match (solo et Wi-Fi)** : tirs cadrés, passes
+  réussies, possession, mises en échec, meilleure combo. Elles sont comptées
+  par la simulation (`MatchState.stats`) et transmises dans les instantanés en
+  Wi-Fi.
+- **Historique des duels (Wi-Fi)**. Chaque appareil a un identifiant stable,
+  échangé seulement dans la liaison chiffrée, et garde son bilan contre chaque
+  adversaire (« VOS DUELS : 5 V - 3 D »). Le bilan s'affiche en salle
+  d'attente et en fin de match.
+- **Ralenti des buts (solo et Wi-Fi)**. Après la célébration, les 2,5 s avant
+  le but sont rejouées à demi-vitesse (`app/ralenti.ts`). Chaque appareil
+  rejoue ses propres instantanés (ceux que l'hôte envoie déjà), calés sur le
+  temps de simulation : le ralenti démarre ensemble sur les deux écrans, sans
+  trafic de plus.
+  - **PASSER** l'arrête tout de suite en solo ; en Wi-Fi, le jeu reprend
+    quand les deux ont passé.
+  - Désactivable dans les réglages avancés (solo) et dans la configuration de
+    la partie Wi-Fi.
+
 ## Licence
 
 Apache-2.0, voir [LICENSE](./LICENSE).

@@ -1,5 +1,5 @@
 import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
-import type { Rink } from '@core/types';
+import type { Rink, StatsMatch } from '@core/types';
 import type { Banniere } from './effects';
 import { obtientLogo } from './logos';
 import { largeurTexte, texte } from './pixel-font';
@@ -89,10 +89,12 @@ export interface EtatAvance {
   assistPasse: boolean;
   changementAuto: boolean;
   secoussesReduites: boolean;
+  ralentiButs: boolean;
   onAssistTir: () => void;
   onAssistPasse: () => void;
   onChangementAuto: () => void;
   onSecousses: () => void;
+  onRalenti: () => void;
   onRetour: () => void;
 }
 
@@ -116,6 +118,7 @@ export function dessineAvance(g: CanvasRenderingContext2D, boutons: ZoneBouton[]
     ['ASSISTANCE PASSE', menu.assistPasse ? 'OUI' : 'NON', menu.onAssistPasse],
     ['CHGT AUTO JOUEUR', menu.changementAuto ? 'OUI' : 'NON', menu.onChangementAuto],
     ['SECOUSSES ECRAN', menu.secoussesReduites ? 'REDUITES' : 'NORMALES', menu.onSecousses],
+    ['RALENTI DES BUTS', menu.ralentiButs ? 'OUI' : 'NON', menu.onRalenti],
   ];
   lignes.forEach(([k, v, act], i) => {
     const y = py + 6 + i * 17;
@@ -143,9 +146,29 @@ export function dessinePause(
   bouton(g, boutons, 'ABANDONNER', cx - 55, cy + 18, 110, 18, onAbandonner);
 }
 
+/** Tableau de statistiques de fin de match : valeur de l'équipe 0 à gauche, de l'équipe 1 à droite. */
+export function dessineStatsFin(g: CanvasRenderingContext2D, cx: number, y: number, tirs: [number, number], s: StatsMatch): void {
+  const total = s.possession[0] + s.possession[1];
+  const pct = (i: 0 | 1) => (total > 0 ? `${Math.round((s.possession[i] / total) * 100)}%` : '-');
+  const lignes: [string, string, string][] = [
+    ['TIRS CADRES', String(tirs[0]), String(tirs[1])],
+    ['PASSES', String(s.passes[0]), String(s.passes[1])],
+    ['POSSESSION', pct(0), pct(1)],
+    ['MISES EN ECHEC', String(s.checks[0]), String(s.checks[1])],
+    ['MEILLEURE COMBO', `X${s.comboMax[0]}`, `X${s.comboMax[1]}`],
+  ];
+  lignes.forEach(([k, a, b], i) => {
+    const yy = y + i * 9;
+    texte(g, a, cx - 62, yy, C.blanc, 1, 'd');
+    texte(g, k, cx, yy, C.gris, 1, 'c');
+    texte(g, b, cx + 62, yy, C.blanc, 1, 'g');
+  });
+}
+
 export interface EtatFin {
   score: [number, number];
   tirs: [number, number];
+  stats: StatsMatch;
   prolong: boolean;
   niveauNom: string;
   victoires: number;
@@ -156,19 +179,19 @@ export interface EtatFin {
 }
 
 export function dessineFin(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, fin: EtatFin): void {
-  g.fillStyle = 'rgba(7,9,20,0.62)';
+  g.fillStyle = 'rgba(7,9,20,0.74)';
   g.fillRect(0, 0, W, H);
   const cx = Math.round(W / 2);
   const cy = Math.round(H / 2);
   const gagne = fin.score[0] > fin.score[1];
   const t = temps;
   const titre = gagne ? 'VICTOIRE !' : 'DEFAITE';
-  texte(g, titre, cx, cy - 58 + Math.round(Math.sin(t * 4) * 1.5), gagne ? C.or : fin.equipes[1].maillot, 3, 'c');
-  texte(g, `${fin.score[0]} - ${fin.score[1]}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 28, C.blanc, 2, 'c');
-  texte(g, `TIRS CADRES  ${fin.tirs[0]} - ${fin.tirs[1]}`, cx, cy - 8, C.gris, 1, 'c');
-  bouton(g, boutons, 'REJOUER', cx - 108, cy + 10, 100, 20, fin.onRejouer, { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' });
-  bouton(g, boutons, 'MENU', cx + 8, cy + 10, 100, 20, fin.onMenu);
-  texte(g, `NIVEAU ${fin.niveauNom}   VICTOIRES ${fin.victoires} / ${fin.matchs}`, cx, cy + 40, '#6f7aa6', 1, 'c');
+  texte(g, titre, cx, cy - 75 + Math.round(Math.sin(t * 4) * 1.5), gagne ? C.or : fin.equipes[1].maillot, 3, 'c');
+  texte(g, `${fin.score[0]} - ${fin.score[1]}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 50, C.blanc, 2, 'c');
+  dessineStatsFin(g, cx, cy - 31, fin.tirs, fin.stats);
+  bouton(g, boutons, 'REJOUER', cx - 108, cy + 17, 100, 20, fin.onRejouer, { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' });
+  bouton(g, boutons, 'MENU', cx + 8, cy + 17, 100, 20, fin.onMenu);
+  texte(g, `NIVEAU ${fin.niveauNom}   VICTOIRES ${fin.victoires} / ${fin.matchs}`, cx, cy + 45, '#6f7aa6', 1, 'c');
 }
 
 export function dessineBanniere(g: CanvasRenderingContext2D, W: number, rink: Rink, banniere: Banniere | null, ecranUI: string): void {
@@ -256,4 +279,31 @@ export function dessinePortrait(g: CanvasRenderingContext2D, W: number, H: numbe
   texte(g, 'VOTRE TELEPHONE', cx, cy + 40, C.or, 1, 'c');
   texte(g, 'LE MATCH SE JOUE', cx, cy + 58, C.gris, 1, 'c');
   texte(g, 'EN PAYSAGE', cx, cy + 68, C.gris, 1, 'c');
+}
+
+export interface EtatRalenti {
+  progression: number;
+  /** En Wi-Fi, après avoir passé : on attend que l'autre passe aussi. */
+  attente: string | null;
+  onPasser: () => void;
+}
+
+/** Bandeau du ralenti de but : repère « RALENTI », avancement et bouton PASSER. */
+export function dessineRalenti(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, r: EtatRalenti): void {
+  const y = H - 22;
+  g.fillStyle = 'rgba(7,9,20,0.72)';
+  g.fillRect(0, y - 2, W, 24);
+  if (Math.floor(temps * 2) % 2 === 0) {
+    g.fillStyle = '#ff4a4a';
+    g.fillRect(8, y + 5, 5, 5);
+  }
+  texte(g, 'RALENTI', 17, y + 4, C.blanc, 1, 'g');
+  const bx = 70;
+  const bw = W - bx - 90;
+  g.fillStyle = '#2a3160';
+  g.fillRect(bx, y + 7, bw, 2);
+  g.fillStyle = C.or;
+  g.fillRect(bx, y + 7, Math.round(bw * r.progression), 2);
+  if (r.attente) texte(g, r.attente, W - 6, y + 4, C.or, 1, 'd');
+  else bouton(g, boutons, 'PASSER >', W - 78, y, 72, 16, r.onPasser, { couleur: '#232a58' });
 }

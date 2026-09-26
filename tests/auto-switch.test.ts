@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { changeAutoSiLoin, controle } from '../src/core/actions';
 import { CHANGEMENT_AUTO_MARGE, CHANGEMENT_AUTO_SEUIL } from '../src/core/constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from '../src/core/entities';
-import type { MatchState } from '../src/core/types';
+import { statsVides, type MatchState } from '../src/core/types';
 
 function etatVide(): MatchState {
   return {
@@ -36,6 +36,9 @@ function etatVide(): MatchState {
     assistTir: true,
     assistPasse: true,
     changementAuto: true,
+    bonus: ['aucun', 'aucun'],
+    stats: statsVides(),
+    dureeBut: 2.6,
   };
 }
 

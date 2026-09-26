@@ -12,17 +12,19 @@ import {
   type EtatPartieLan,
 } from '../src/net/partie';
 
-const CONFIG = { effectif: 0, duree: 1, assistTir: true, assistPasse: false, changementAuto: true };
+const CONFIG = { effectif: 0, duree: 1, assistTir: true, assistPasse: false, changementAuto: true, ralenti: true };
+const A = '0123456789abcdef';
+const B = 'fedcba9876543210';
 
 function partieADeux(): EtatPartieLan {
-  const e = nouvellePartie(CONFIG, 'LYNX 12', 'toulouse');
-  inviteArrive(e, 'ORQUE 7', 'nice');
+  const e = nouvellePartie(CONFIG, 'LYNX 12', 'toulouse', A);
+  inviteArrive(e, 'ORQUE 7', 'nice', B);
   return e;
 }
 
 describe('partie Wi-Fi : on n’avance que quand les deux ont validé', () => {
   it('seul l’hôte lance, et seulement avec un invité', () => {
-    const seul = nouvellePartie(CONFIG, 'LYNX 12', 'toulouse');
+    const seul = nouvellePartie(CONFIG, 'LYNX 12', 'toulouse', A);
     appliqueAction(seul, 0, { a: 'lancer' });
     expect(seul.phase).toBe('attente');
     const e = partieADeux();

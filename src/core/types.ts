@@ -95,6 +95,23 @@ export interface LevelConfig {
 }
 
 export type GamePhase = 'engagement' | 'jeu' | 'but' | 'fin';
+
+/** Coup de pouce accordé à une équipe pour équilibrer un match entre joueurs de niveaux différents. */
+export type BonusEquipe = 'aucun' | 'gardien' | 'vitesse' | 'tir' | 'but';
+export const BONUS_EQUIPE: BonusEquipe[] = ['aucun', 'gardien', 'vitesse', 'tir', 'but'];
+
+/** Statistiques cumulées pendant le match, par équipe (affichées à la fin). */
+export interface StatsMatch {
+  passes: [number, number];
+  /** Secondes passées avec le palet (patineur ou gardien). */
+  possession: [number, number];
+  checks: [number, number];
+  comboMax: [number, number];
+}
+
+export function statsVides(): StatsMatch {
+  return { passes: [0, 0], possession: [0, 0], checks: [0, 0], comboMax: [0, 0] };
+}
 export type GameMode = 'demo' | 'match';
 
 /** Un évènement de gameplay à effet de bord (son, particule, vibration, texte...). */
@@ -185,6 +202,11 @@ export interface MatchState {
   assistTir: boolean;
   assistPasse: boolean;
   changementAuto: boolean;
+  /** Handicap de chaque équipe (voir BonusEquipe). */
+  bonus: [BonusEquipe, BonusEquipe];
+  stats: StatsMatch;
+  /** Durée de la phase « but » (célébration, plus le ralenti éventuel), en secondes. */
+  dureeBut: number;
 }
 
 export function estPatineur(o: Porteur | null | undefined): o is Skater {

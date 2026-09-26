@@ -2,7 +2,7 @@ import { controle } from './actions';
 import { DUREES, EFFECTIFS, NIVEAUX } from './constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from './entities';
 import { PROFIL_NEUTRE, type TeamProfile } from './teams';
-import type { GameMode, LevelConfig, MatchState, Rink, TeamId } from './types';
+import { statsVides, type BonusEquipe, type GameMode, type LevelConfig, type MatchState, type Rink, type TeamId } from './types';
 import { clamp, decalageRang } from './utils';
 
 export interface OptionsPartie {
@@ -23,7 +23,13 @@ export interface OptionsPartie {
   changementAuto?: boolean;
   /** Équipes pilotées par un humain ; par défaut seule l'équipe 0 (solo contre le CPU). */
   humains?: [boolean, boolean];
+  /** Handicap de chaque équipe (partie Wi-Fi) ; aucun par défaut. */
+  bonus?: [BonusEquipe, BonusEquipe];
+  /** Durée de la phase « but » ; allongée quand le ralenti des buts est activé. */
+  dureeBut?: number;
 }
+
+export const DUREE_BUT = 2.6;
 
 /**
  * Un profil d'équipe (vitesse/tir/défense/gardien) module le niveau de
@@ -56,6 +62,16 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
   // choisi dans le menu ne règle que le CPU. Les deux sont ensuite modulés
   // par le profil de l'équipe choisie.
   const nivEq: [LevelConfig, LevelConfig] = [combineProfil(NIVEAUX[1]!, profilJoueur), combineProfil(niveauAdverse, profilAdverse)];
+  const bonus: [BonusEquipe, BonusEquipe] = opts.mode === 'demo' ? ['aucun', 'aucun'] : (opts.bonus ?? ['aucun', 'aucun']);
+  for (const eq of [0, 1] as TeamId[]) {
+    const n = nivEq[eq];
+    if (bonus[eq] === 'gardien') {
+      n.gk *= 1.2;
+      n.antic = Math.min(1, n.antic * 1.2);
+    } else if (bonus[eq] === 'vitesse') {
+      n.vit *= 1.1;
+    }
+  }
 
   const state: MatchState = {
     mode: opts.mode,
@@ -67,7 +83,8 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     controles: [null, null],
     gardiens: [nouveauGardien(0), nouveauGardien(1)],
     palet: nouveauPalet(),
-    score: [0, 0],
+    // « 1 but d'avance » : l'équipe aidée commence le match en menant
+    score: [bonus[0] === 'but' ? 1 : 0, bonus[1] === 'but' ? 1 : 0],
     tirs: [0, 0],
     arrets: [0, 0],
     horloge: opts.mode === 'demo' ? 0 : DUREES[opts.dureeIdx]!,
@@ -85,6 +102,9 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     assistTir: opts.mode === 'demo' ? true : (opts.assistTir ?? true),
     assistPasse: opts.mode === 'demo' ? true : (opts.assistPasse ?? true),
     changementAuto: opts.mode === 'demo' ? true : (opts.changementAuto ?? true),
+    bonus,
+    stats: statsVides(),
+    dureeBut: opts.dureeBut ?? DUREE_BUT,
   };
 
   for (const eq of [0, 1] as TeamId[]) {

@@ -1,6 +1,6 @@
-import type { GameEvent, GamePhase, InputIntent, MatchState, Rink, TeamId } from '@core/types';
+import type { GameEvent, GamePhase, InputIntent, MatchState, Rink, StatsMatch, TeamId } from '@core/types';
 import { angDiff } from '@core/utils';
-import { lisAction, lisEtatPartie, type ActionLan, type EtatPartieLan } from './partie';
+import { APPAREIL_SUR, lisAction, lisEtatPartie, type ActionLan, type EtatPartieLan } from './partie';
 import { VERSION_PROTOCOLE } from './reseau-local';
 
 /**
@@ -19,7 +19,7 @@ import { VERSION_PROTOCOLE } from './reseau-local';
 export type { VarianteMaillot } from './partie';
 
 export type MsgCtrl =
-  | { t: 'bonjour'; v: number; nom: string; equipe: string }
+  | { t: 'bonjour'; v: number; nom: string; equipe: string; appareil: string }
   /** État de la partie (salle d'attente, choix, votes, pause), diffusé par l'hôte à chaque changement. */
   | { t: 'etat'; e: EtatPartieLan }
   /** Action du client sur ses propres choix (équipe, maillot, prêt, vote, pause). */
@@ -42,8 +42,14 @@ export function lisCtrl(o: unknown): MsgCtrl | null {
   const m = o as Record<string, unknown>;
   switch (m.t) {
     case 'bonjour':
-      return typeof m.v === 'number' && typeof m.nom === 'string' && NOM_SUR.test(m.nom) && typeof m.equipe === 'string' && EQUIPE_SURE.test(m.equipe)
-        ? { t: 'bonjour', v: m.v, nom: m.nom, equipe: m.equipe }
+      return typeof m.v === 'number' &&
+        typeof m.nom === 'string' &&
+        NOM_SUR.test(m.nom) &&
+        typeof m.equipe === 'string' &&
+        EQUIPE_SURE.test(m.equipe) &&
+        typeof m.appareil === 'string' &&
+        APPAREIL_SUR.test(m.appareil)
+        ? { t: 'bonjour', v: m.v, nom: m.nom, equipe: m.equipe, appareil: m.appareil }
         : null;
     case 'etat': {
       const e = lisEtatPartie(m.e);
@@ -68,8 +74,8 @@ export function lisCtrl(o: unknown): MsgCtrl | null {
   }
 }
 
-export function bonjour(nom: string, equipe: string): MsgCtrl {
-  return { t: 'bonjour', v: VERSION_PROTOCOLE, nom, equipe };
+export function bonjour(nom: string, equipe: string, appareil: string): MsgCtrl {
+  return { t: 'bonjour', v: VERSION_PROTOCOLE, nom, equipe, appareil };
 }
 
 // ------------------------------------------------------------ évènements --
@@ -148,7 +154,8 @@ const PHASES: GamePhase[] = ['engagement', 'jeu', 'but', 'fin'];
 const F_PATINEUR = 14;
 const TAILLE_PATINEUR = F_PATINEUR * 4 + 1;
 const TAILLE_GARDIEN = 5 * 4;
-const TAILLE_ENTETE = 1 + 1 + 4 + 4 + 16 + 1 + 4 + 4 + 1 + 8 + 12 + 2 + 2 + 1;
+// … + statistiques (passes, mises en échec, meilleure combo, possession)
+const TAILLE_ENTETE = 1 + 1 + 4 + 4 + 16 + 1 + 4 + 4 + 1 + 8 + 12 + 2 + 2 + 1 + 4 + 4 + 2 + 8;
 const TAILLE_PALET = 4 * 4 + 1;
 export const PATINEURS_MAX = 12;
 
@@ -197,6 +204,7 @@ export interface Instantane {
   excite: number;
   combo: [number, number];
   controles: [number, number];
+  stats: StatsMatch;
   patineurs: EtatPatineur[];
   gardiens: [EtatGardien, EtatGardien];
   palet: { x: number; y: number; vx: number; vy: number; porteur: number };
@@ -261,6 +269,15 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
   u8(Math.min(255, state.combo[1]));
   i8(state.controles[0] ? state.patineurs.indexOf(state.controles[0]) : -1);
   i8(state.controles[1] ? state.patineurs.indexOf(state.controles[1]) : -1);
+  const st = state.stats;
+  u16(st.passes[0]);
+  u16(st.passes[1]);
+  u16(st.checks[0]);
+  u16(st.checks[1]);
+  u8(Math.min(255, st.comboMax[0]));
+  u8(Math.min(255, st.comboMax[1]));
+  f(st.possession[0]);
+  f(st.possession[1]);
   u8(n);
   for (let i = 0; i < n; i++) {
     const s = state.patineurs[i]!;
@@ -321,6 +338,10 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
   const excite = f();
   const combo: [number, number] = [u8(), u8()];
   const controles: [number, number] = [i8(), i8()];
+  const passes: [number, number] = [u16(), u16()];
+  const checks: [number, number] = [u16(), u16()];
+  const comboMax: [number, number] = [u8(), u8()];
+  const possession: [number, number] = [f(), f()];
   const n = u8();
   if (!phase || n > PATINEURS_MAX || rink.w < 10 || rink.h < 10) return null;
   if (buf.byteLength !== TAILLE_ENTETE + n * TAILLE_PATINEUR + 2 * TAILLE_GARDIEN + TAILLE_PALET) return null;
@@ -370,6 +391,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
     excite,
     combo,
     controles,
+    stats: { passes, checks, comboMax, possession },
     patineurs,
     gardiens,
     palet,
@@ -406,6 +428,7 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
   state.lampe = [...b.lampe];
   state.excite = b.excite;
   state.combo = [...b.combo];
+  state.stats = { passes: [...b.stats.passes], checks: [...b.stats.checks], comboMax: [...b.stats.comboMax], possession: [...b.stats.possession] };
 
   const n = Math.min(state.patineurs.length, b.patineurs.length);
   for (let i = 0; i < n; i++) {
