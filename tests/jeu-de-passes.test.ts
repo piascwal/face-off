@@ -116,7 +116,7 @@ describe('passes selon la zone, bouton de tir malin, démarquage', () => {
   });
 
   it('le bouton de tir fait une passe dans sa moitié, mais tire face à la cage adverse', () => {
-    const { st, a, b } = situation();
+    const { st, b } = situation();
     // face à la cage adverse, près d'elle : c'est un tir
     prendPalet(st, b);
     expect(tirPlausible(rink, b, 0, 0)).toBe(true);
