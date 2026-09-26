@@ -105,8 +105,10 @@ sprites, HUD, menus, effets).
 
 ### Sélection d'équipe
 
-Six vraies équipes jouables (Toulouse, Nice, Vaujany, Nîmes, Grenoble,
-Montpellier), chacune avec un profil de stats (`core/teams.ts` : vitesse, tir,
+Onze équipes jouables — six clubs français (Toulouse, Nice, Vaujany, Nîmes,
+Grenoble, Montpellier) et cinq écussons « invités » (Canadiens de Montréal,
+Ducks d'Anaheim, Spartiates de Marseille, Lynx de Valence, Chevaliers du lac
+d'Annecy) — chacune avec un profil de stats (`core/teams.ts` : vitesse, tir,
 défense, gardien — des multiplicateurs qui modulent réellement la simulation,
 pas juste de la couleur) affiché en notes façon jeu de sport (ATT/DEF/note
 globale, 65 à 99). Le choix se fait en deux écrans pensés « manette »
@@ -128,8 +130,8 @@ bord ; fond en damier « transparent » incrusté dans le JPEG retiré en
 reconstruisant la grille du damier (pas et décalage mesurés sur le
 pourtour), ce qui élimine aussi les poches de damier enfermées dans le dessin
 et les jointures floutées par la compression. Les écussons sont ensuite
-recadrés sur leur partie opaque, en 256×256. Les 24
-feuilles de sprites (6 équipes × domicile/extérieur × patineur/gardien)
+recadrés sur leur partie opaque, en 256×256. Les 44
+feuilles de sprites (11 équipes × domicile/extérieur × patineur/gardien)
 générées par le même script que les sprites — voir
 [Sprites](#sprites-pixel-art).
 

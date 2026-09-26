@@ -74,9 +74,52 @@ const INTERIEURS: Omit<TeamDef, 'exterieur'>[] = [
     logo: 'logos/montpellier.png',
     interieur: { maillot: '#0d1e4a', fonce: '#071230', clair: '#e8611c', casque: '#0d1e4a' },
   },
+  {
+    id: 'montreal',
+    nom: 'Canadiens',
+    ville: 'Montréal',
+    code: 'MONTREAL',
+    logo: 'logos/montreal.png',
+    interieur: { maillot: '#af1e2d', fonce: '#14205c', clair: '#ffffff', casque: '#14205c' },
+  },
+  {
+    id: 'ducks',
+    nom: 'Ducks',
+    ville: 'Anaheim',
+    code: 'ANAHEIM',
+    logo: 'logos/ducks.png',
+    interieur: { maillot: '#0d0d0d', fonce: '#c9a227', clair: '#f2661c', casque: '#0d0d0d' },
+  },
+  {
+    id: 'marseille',
+    nom: 'Spartiates',
+    ville: 'Marseille',
+    code: 'MARSEILLE',
+    logo: 'logos/marseille.png',
+    interieur: { maillot: '#2f7bbf', fonce: '#16213e', clair: '#c7ccd1', casque: '#2b2f38' },
+  },
+  {
+    id: 'valence',
+    nom: 'Lynx',
+    ville: 'Valence',
+    code: 'VALENCE',
+    logo: 'logos/valence.png',
+    interieur: { maillot: '#c41e3a', fonce: '#0d0d0d', clair: '#ffffff', casque: '#0d0d0d' },
+  },
+  {
+    id: 'annecy',
+    nom: 'Chevaliers',
+    ville: 'Annecy',
+    code: 'ANNECY',
+    logo: 'logos/annecy.png',
+    interieur: { maillot: '#141414', fonce: '#8b1e1e', clair: '#ffffff', casque: '#141414' },
+  },
 ];
 
-export const EQUIPES_JOUABLES: TeamDef[] = INTERIEURS.map((def) => ({ ...def, exterieur: inverse(def.interieur) }));
+export const EQUIPES_JOUABLES: TeamDef[] = INTERIEURS.map((def) => ({
+  ...def,
+  exterieur: inverse(def.interieur),
+}));
 
 export function trouveTeamDef(id: string): TeamDef {
   return EQUIPES_JOUABLES.find((e) => e.id === id) ?? EQUIPES_JOUABLES[0]!;

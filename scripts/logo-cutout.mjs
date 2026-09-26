@@ -92,27 +92,38 @@ function retireFondUni(data, w, h, fonds) {
       : 0;
   }
   // sur fond uni, seul ce qui touche le bord est du fond : un aplat blanc
-  // enfermé dans un logo sur fond blanc fait partie du dessin.
+  // enfermé dans un logo sur fond blanc fait partie du dessin (et une simple
+  // taille de poche ne suffit pas à trancher : une texture d'écailles peut
+  // légitimement dessiner de petites facettes de la couleur du fond).
   for (const c of composantes(masque, w, h)) {
     if (!c.bord) continue;
     for (const idx of c.pixels) data[idx * 4 + 3] = 0;
   }
-  // Liseré : la compression JPEG (et, sur fond vert/bleu saturé, la fuite de
+  // Liseré : la compression JPEG (et, sur fond saturé, la fuite de
   // chrominance classique du « chroma key ») mélange quelques pixels de
   // contour avec le fond. On grignote encore, pixel opaque par pixel opaque
   // collé à une zone déjà transparente, selon deux critères complémentaires :
   //  - proche en couleur du fond (marge plus large qu'à la détection initiale) ;
-  //  - sur un fond nettement saturé (vert/bleu franc), une « fuite » de sa
-  //    composante dominante — même très éclaircie ou mélangée à un premier
-  //    plan coloré, une teinte verte qui déborde reste reconnaissable.
+  //  - sur un fond nettement saturé à UNE SEULE composante dominante (vert ou
+  //    bleu franc), une « fuite » de cette composante — même très éclaircie ou
+  //    mélangée à un premier plan coloré, une teinte qui déborde reste
+  //    reconnaissable. Un fond à deux composantes hautes (magenta, jaune...)
+  //    n'a pas de composante dominante unique : n'importe quelle couleur
+  //    d'avant-plan qui n'utilise qu'UNE de ces deux composantes (un rouge
+  //    franc sur fond magenta, par exemple) ressemblerait alors à une fuite
+  //    alors que ce n'en est pas une, donc on renonce à ce critère pour ces
+  //    fonds-là (la passe « proche » plus large, et l'érosion finale d'1px,
+  //    suffisent à nettoyer leur liseré).
   const SEUIL_LISERE = SEUIL * 2.2;
   const fond0 = fonds[0];
   const canaux = [fond0.r, fond0.g, fond0.b];
-  const domIdx = canaux.indexOf(Math.max(...canaux));
-  const chromaFond = Math.max(...canaux) - Math.min(...canaux);
+  const maxFond = Math.max(...canaux);
+  const chromaFond = maxFond - Math.min(...canaux);
+  const hautes = canaux.filter((c) => c > maxFond - chromaFond * 0.4).length;
+  const domIdx = canaux.indexOf(maxFond);
   const FUITE_SEUIL = 14;
   const estFuite = (r, g, b) => {
-    if (chromaFond < 60) return false; // fond peu saturé (blanc/noir/gris) : pas de fuite de teinte à traquer
+    if (chromaFond < 60 || hautes !== 1) return false; // fond peu saturé, ou à deux composantes dominantes : pas de fuite de teinte fiable à traquer
     const val = [r, g, b];
     const dom = val[domIdx];
     const autres = val.filter((_, i) => i !== domIdx);

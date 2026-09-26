@@ -39,6 +39,11 @@ const INTERIEURS = [
   { id: 'nimes', numero: 4, maillot: '#2f7d3a', fonce: '#163a1b', clair: '#d8b23a', casque: '#163a1b' },
   { id: 'grenoble', numero: 5, maillot: '#2f6fd0', fonce: '#0c1830', clair: '#f2661c', casque: '#0c1830' },
   { id: 'montpellier', numero: 6, maillot: '#0d1e4a', fonce: '#071230', clair: '#e8611c', casque: '#0d1e4a' },
+  { id: 'montreal', numero: 7, maillot: '#af1e2d', fonce: '#14205c', clair: '#ffffff', casque: '#14205c' },
+  { id: 'ducks', numero: 8, maillot: '#0d0d0d', fonce: '#c9a227', clair: '#f2661c', casque: '#0d0d0d' },
+  { id: 'marseille', numero: 9, maillot: '#2f7bbf', fonce: '#16213e', clair: '#c7ccd1', casque: '#2b2f38' },
+  { id: 'valence', numero: 0, maillot: '#c41e3a', fonce: '#0d0d0d', clair: '#ffffff', casque: '#0d0d0d' },
+  { id: 'annecy', numero: 4, maillot: '#141414', fonce: '#8b1e1e', clair: '#ffffff', casque: '#141414' },
 ];
 const VARIANTES = ['interieur', 'exterieur'];
 function palette(base, variante) {
@@ -68,12 +73,16 @@ function rect(ctx, x, y, w, h, color) {
 }
 
 const CHIFFRES = {
+  0: ['111', '101', '101', '101', '111'],
   1: ['010', '110', '010', '010', '111'],
   2: ['111', '001', '111', '100', '111'],
   3: ['111', '001', '111', '001', '111'],
   4: ['101', '101', '111', '001', '001'],
   5: ['111', '100', '111', '001', '111'],
   6: ['011', '100', '111', '101', '111'],
+  7: ['111', '001', '001', '001', '001'],
+  8: ['111', '101', '111', '101', '111'],
+  9: ['111', '101', '111', '001', '111'],
 };
 
 function dessineChiffre(ctx, n, ox, oy, color) {

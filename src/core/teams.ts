@@ -22,6 +22,11 @@ export const EQUIPES_JOUABLES: TeamProfile[] = [
   { id: 'nimes', vit: 1.05, tir: 1.1, defense: 0.88, gardien: 0.92 },
   { id: 'grenoble', vit: 1.08, tir: 1.08, defense: 0.95, gardien: 0.98 },
   { id: 'montpellier', vit: 1.12, tir: 1.12, defense: 1.05, gardien: 1.1 },
+  { id: 'montreal', vit: 1.1, tir: 1.08, defense: 1.0, gardien: 1.05 },
+  { id: 'ducks', vit: 0.95, tir: 0.92, defense: 1.12, gardien: 1.08 },
+  { id: 'marseille', vit: 0.9, tir: 0.88, defense: 1.15, gardien: 1.1 },
+  { id: 'valence', vit: 1.15, tir: 1.1, defense: 0.88, gardien: 0.9 },
+  { id: 'annecy', vit: 0.98, tir: 0.98, defense: 1.05, gardien: 1.02 },
 ];
 
 export function trouveEquipe(id: string): TeamProfile {
