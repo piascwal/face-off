@@ -1,11 +1,20 @@
-import type { Skater } from '@core/types';
+import { tirPlausible } from '@core/humanControl';
+import type { Rink, Skater } from '@core/types';
 import { GLISSE_MIN, RAYON_JOY, zoneElan, zonePasse, zoneTir } from './hud-zones';
 import type { InstantaneUI } from '@input/game-input';
 import { texte } from './pixel-font';
 import { anneau, disque, ligne } from './primitives';
 import { C } from './theme';
 
-export function dessineCommandes(g: CanvasRenderingContext2D, W: number, H: number, temps: number, s: Skater | null, ui: InstantaneUI): void {
+export function dessineCommandes(
+  g: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  temps: number,
+  s: Skater | null,
+  ui: InstantaneUI,
+  rink: Rink,
+): void {
   if (!ui.tactile || !s) return;
 
   if (ui.joy) {
@@ -41,7 +50,9 @@ export function dessineCommandes(g: CanvasRenderingContext2D, W: number, H: numb
   if (!tAppui) disque(g, zt.x, zt.y + 1, zt.r - 3, s.tient ? '#e03a58' : '#5a6082');
   if (s.arme) anneau(g, zt.x, zt.y, zt.r + 2, C.or, s.charge, 2);
   g.globalAlpha = 1;
-  texte(g, s.tient ? 'TIR' : 'CROSSE', zt.x, zt.y - 3 + (tAppui ? 1 : 0), C.blanc, 1, 'c');
+  // hors situation de tir, le bouton fait une passe : son libellé le dit
+  const libelle = !s.tient ? 'CROSSE' : s.arme || tirPlausible(rink, s, s.ex, s.ey) ? 'TIR' : 'PASSE';
+  texte(g, libelle, zt.x, zt.y - 3 + (tAppui ? 1 : 0), C.blanc, 1, 'c');
   if (ui.tir && s.arme) {
     const dx = ui.tir.x - ui.tir.x0;
     const dy = ui.tir.y - ui.tir.y0;

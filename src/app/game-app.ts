@@ -1111,7 +1111,7 @@ export class GameApp {
         });
       } else if (this.ecranUI === 'jeu') {
         const pilote = state.controles[this.eqLocal];
-        dessineCommandes(g, this.W, this.H, state.temps, pilote, this.entrees.instantaneUI());
+        dessineCommandes(g, this.W, this.H, state.temps, pilote, this.entrees.instantaneUI(), this.rink);
         if (pilote?.arme) dessineJaugeTir(g, this.H, pilote.charge, state.temps);
       } else if (this.ecranUI === 'lan') {
         dessineLan(g, this.boutons, this.W, this.H, tempsUI, this.lanProps());

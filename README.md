@@ -288,6 +288,25 @@ fonctions.
 +13 % de passes, +4 % de buts. La charge accélérée n'est pas donnée à l'IA,
 sinon le score montait d'environ 20 %.
 
+Ensuite :
+
+- **les coéquipiers se démarquent** (`ai.ts::pointDeSoutien`) : autour du
+  porteur, chaque soutien choisit l'endroit le plus libre (loin des
+  adversaires, ligne de passe dégagée, à bonne distance, sans se coller à un
+  coéquipier) — l'un vers la cage, les autres en retrait pour la remise ;
+- **passes plus sûres dans sa propre moitié** : visée deux fois plus
+  précise, réception un peu plus large et interception un peu plus dure
+  (`PASSE_FACILE_MARGE`) ;
+- **bouton de tir malin** (`humanControl.ts::tirPlausible`) : si l'on n'arme
+  pas déjà un tir et qu'on n'est ni dans la moitié adverse ni tourné vers la
+  cage (à 100° près), TIR fait une passe ; le bouton affiche alors PASSE ;
+- **cages un peu plus larges** (ouverture de 32 px au lieu de 30) et gardien
+  dessiné un peu plus bas, pour que ses jambières couvrent bien la zone où il
+  arrête vraiment le palet.
+
+Mesure en IA contre IA (50 matchs) : en 3 contre 3, +21 % de passes pour
+le même nombre de buts (8,9 contre 8,6) ; en 2 contre 2, +11 % de passes.
+
 Passes et tirs laissent une **traînée** derrière le palet (bleue pour une
 passe, orange avec des lignes de vitesse pour un tir), sur le modèle de
 l'élan des patineurs.

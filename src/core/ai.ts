@@ -1,9 +1,51 @@
-import { elan, meilleurReceveur, passeVers, tir } from './actions';
+import { elan, ligneLibre, meilleurReceveur, passeVers, tir } from './actions';
 import { VMAX } from './constants';
 import { angleVersCoinLoin, butAttaque, butDefendu, sensAttaque } from './shooting';
 import { equipe, plusProche } from './state-helpers';
 import type { MatchState, Rink, Skater } from './types';
 import { alea, angDiff, clamp, decalageRang, pointSegDist } from './utils';
+
+/**
+ * Se démarquer : parmi quelques points de soutien autour du porteur, choisir
+ * celui qui offre une vraie option de passe — loin des adversaires, ligne de
+ * passe dégagée, à bonne distance du porteur, sans se coller à un coéquipier.
+ * `avant` : le soutien offensif (vers la cage) ou celui qui reste en retrait
+ * pour la remise.
+ */
+export function pointDeSoutien(rink: Rink, state: MatchState, s: Skater, c: Skater, avant: boolean): { x: number; y: number } {
+  const atk = butAttaque(rink, s.eq);
+  const dir = sensAttaque(s.eq);
+  const cy = rink.cy;
+  const eux = equipe(state, s.eq === 0 ? 1 : 0);
+  const autres = equipe(state, s.eq).filter((m) => m !== s && m !== c);
+  const xs = avant ? [c.x + dir * 35, c.x + dir * 65, atk - dir * 45, atk - dir * 75] : [c.x - dir * 30, c.x - dir * 50, c.x];
+  const ys = [-48, -28, -10, 10, 28, 48];
+  let meilleur = { x: s.x, y: s.y };
+  let score = -Infinity;
+  for (const x0 of xs) {
+    for (const dy of ys) {
+      const x = clamp(x0, rink.x + 14, rink.x + rink.w - 14);
+      const y = clamp(cy + dy, rink.y + 14, rink.y + rink.h - 14);
+      // pas derrière la cage adverse
+      if ((x - atk) * dir > -18) continue;
+      let sc = 0;
+      const libre = Math.min(40, ...eux.map((e) => Math.hypot(e.x - x, e.y - y)));
+      sc += libre * 1.2;
+      sc += ligneLibre(state, s.eq, c.x, c.y, x, y) ? 30 : -30;
+      const dc = Math.hypot(x - c.x, y - c.y);
+      sc -= Math.abs(dc - 60) * 0.35;
+      if (avant) sc += (x - c.x) * dir * 0.12;
+      for (const m of autres) if (Math.hypot(m.x - x, m.y - y) < 28 || Math.hypot(m.ia.tx - x, m.ia.ty - y) < 24) sc -= 30;
+      // un peu de constance : on ne traverse pas la patinoire pour un point à peine meilleur
+      sc -= Math.hypot(x - s.x, y - s.y) * 0.08;
+      if (sc > score) {
+        score = sc;
+        meilleur = { x, y };
+      }
+    }
+  }
+  return meilleur;
+}
 
 function planIA(rink: Rink, state: MatchState, s: Skater): void {
   const p = state.palet;
@@ -112,18 +154,15 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
       ia.tx = def + dir * rink.w * (s.rang === 0 ? 0.3 : 0.42);
       ia.ty = cy + decalageRang(s.rang, 40);
     } else {
-      // soutien : un joueur dans l'enclave, l'autre en retrait pour la remise
+      // soutien : le plus avancé se démarque vers la cage, les autres offrent une
+      // remise en retrait — chacun cherche l'espace libre et une ligne de passe dégagée
       const soutiens = nous.filter((m) => m !== c).sort((a, b) => Math.abs(a.x - atk) - Math.abs(b.x - atk));
-      const haut = c.y < cy ? 1 : -1;
-      if (soutiens[0] === s) {
-        ia.tx = atk - dir * 52;
-        ia.ty = cy + haut * 22;
-      } else {
-        ia.tx = c.x - dir * 45;
-        ia.ty = cy + haut * 34;
-      }
-      ia.tx += alea(-6, 6);
-      ia.ty += alea(-6, 6);
+      const k = soutiens.indexOf(s);
+      const pt = pointDeSoutien(rink, state, s, c, k === 0 || (k === 1 && soutiens.length > 2));
+      ia.tx = pt.x;
+      ia.ty = pt.y;
+      // se replacer plus souvent tant qu'on n'est pas démarqué
+      ia.t = Math.min(ia.t, 0.15);
     }
   } else {
     // palet libre : le plus proche fonce, les autres se placent

@@ -71,7 +71,8 @@ export interface Puck {
   porteur: Porteur | null;
   dernier: Porteur | null;
   tireur: TeamId | null;
-  passe: { vers: Skater; t: number } | null;
+  /** Passe en cours : receveur visé, temps restant, et passe « facile » (partie de sa propre moitié). */
+  passe: { vers: Skater; t: number; facile: boolean } | null;
   trace: Vec2[];
   /**
    * Qualité (0..1) du tir en cours : combine la puissance et la précision du

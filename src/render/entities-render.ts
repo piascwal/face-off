@@ -166,7 +166,9 @@ export function dessineGardien(
   const ancre = M.pied.x + M.decalage;
   const piedX = gauche ? M.tileW - ancre : ancre;
   const bx = gk.x - piedX * e + Math.sin(temps * 60) * gk.secoue;
-  const by = gk.y + 4 - M.pied.y * e;
+  // pieds un peu plus bas que ceux des patineurs : les jambières couvrent alors
+  // toute la zone où le gardien arrête vraiment le palet
+  const by = gk.y + 6 - M.pied.y * e;
   if (sprite) g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, bx, by, M.tileW * e, M.tileH * e);
 }
 

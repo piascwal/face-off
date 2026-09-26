@@ -3,8 +3,10 @@ import { passeVers, prendPalet, surReception, tir } from '../src/core/actions';
 import { COMBO_BONUS, UNE_TOUCHE_BONUS, UNE_TOUCHE_S } from '../src/core/constants';
 import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
+import { pointDeSoutien } from '../src/core/ai';
+import { appliqueEntreeJoueur, tirPlausible } from '../src/core/humanControl';
 import { pas } from '../src/core/simulation';
-import type { MatchState, Skater } from '../src/core/types';
+import { INTENT_VIDE, type MatchState, type Skater } from '../src/core/types';
 
 const rink = calculeRink(400, 200);
 
@@ -49,7 +51,7 @@ describe('jeu de passes', () => {
     const seul = qualite((st, _a, b) => prendPalet(st, b));
     const uneTouche = qualite((st, a, b) => {
       prendPalet(st, a);
-      st.palet.passe = { vers: b, t: 1 };
+      st.palet.passe = { vers: b, t: 1, facile: false };
       prendPalet(st, b); // passe reçue à l'instant
       expect(surReception(st, b)).toBe(true);
     });
@@ -60,7 +62,7 @@ describe('jeu de passes', () => {
   it('la fenêtre du tir sur réception se referme', () => {
     const { st, a, b } = situation();
     prendPalet(st, a);
-    st.palet.passe = { vers: b, t: 1 };
+    st.palet.passe = { vers: b, t: 1, facile: false };
     prendPalet(st, b);
     st.temps += UNE_TOUCHE_S + 0.01;
     expect(surReception(st, b)).toBe(false);
@@ -94,5 +96,52 @@ describe('jeu de passes', () => {
     const annonce = st.evenements.find((e) => e.type === 'annonce');
     expect(st.score[0]).toBe(1);
     expect(annonce && 'txt' in annonce ? annonce.txt : '').toBe('BUT COLLECTIF !');
+  });
+});
+
+describe('passes selon la zone, bouton de tir malin, démarquage', () => {
+  it('une passe partie de sa propre moitié est « facile »', () => {
+    const { st, a, b } = situation();
+    for (const gk of st.gardiens) gk.x = gk.eq === 0 ? rink.butG + 3 : rink.butD - 3;
+    prendPalet(st, a);
+    passeVers(st, a, b);
+    expect(st.palet.passe?.facile).toBe(false); // on attaque près de la cage adverse
+    const { st: st2, a: a2, b: b2 } = situation();
+    for (const gk of st2.gardiens) gk.x = gk.eq === 0 ? rink.butG + 3 : rink.butD - 3;
+    a2.x = rink.cx - 80;
+    b2.x = rink.cx - 40;
+    prendPalet(st2, a2);
+    passeVers(st2, a2, b2);
+    expect(st2.palet.passe?.facile).toBe(true);
+  });
+
+  it('le bouton de tir fait une passe dans sa moitié, mais tire face à la cage adverse', () => {
+    const { st, a, b } = situation();
+    // face à la cage adverse, près d'elle : c'est un tir
+    prendPalet(st, b);
+    expect(tirPlausible(rink, b, 0, 0)).toBe(true);
+    appliqueEntreeJoueur(rink, st, b, { ...INTENT_VIDE, tirAppui: true, tirTenu: true }, 1 / 60);
+    expect(b.arme).toBe(true);
+    // dans sa moitié : le même appui part en passe vers le coéquipier
+    const { st: st2, a: a2, b: b2 } = situation();
+    a2.x = rink.cx - 100;
+    b2.x = rink.cx - 60;
+    prendPalet(st2, a2);
+    expect(tirPlausible(rink, a2, 0, 0)).toBe(false);
+    appliqueEntreeJoueur(rink, st2, a2, { ...INTENT_VIDE, tirAppui: true, tirTenu: true }, 1 / 60);
+    expect(a2.tient).toBe(false);
+    expect(st2.palet.passe?.vers).toBe(b2);
+    expect(a2.pokeT).toBe(0);
+  });
+
+  it('le coéquipier se démarque : son point de soutien est loin des adversaires', () => {
+    const { st, a, b } = situation();
+    prendPalet(st, a);
+    const eux = st.patineurs.filter((s) => s.eq === 1);
+    // les défenseurs collés à l'endroit où le soutien se placerait sinon (enclave, côté bas)
+    eux.forEach((e, i) => Object.assign(e, { x: rink.butD - 55 + i * 4, y: rink.cy + 22 - i * 3 }));
+    const pt = pointDeSoutien(rink, st, b, a, true);
+    const libre = Math.min(...eux.map((e) => Math.hypot(e.x - pt.x, e.y - pt.y)));
+    expect(libre).toBeGreaterThan(25);
   });
 });

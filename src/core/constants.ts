@@ -6,7 +6,7 @@ import type { LevelConfig } from './types';
 // simulation qu'un client.
 export const PAS = 1 / 120;
 
-export const BUT_DEMI = 15; // demi-largeur de l'ouverture des cages
+export const BUT_DEMI = 16; // demi-largeur de l'ouverture des cages
 export const BUT_PROF = 9; // profondeur des filets
 export const VMAX = 100; // vitesse de patinage de base (px/s)
 export const ACCEL = 640;
@@ -38,6 +38,12 @@ export const UNE_TOUCHE_CHARGE = 2;
 /** Réception : le coéquipier visé capte de plus loin, un adversaire doit être bien sur la ligne. */
 export const RECEPTION_RAYON = 9;
 export const INTERCEPTION_RAYON = 6.5;
+/**
+ * Dans sa propre moitié de patinoire, loin de la pression, une passe réussit
+ * plus souvent : réception et interception décalées d'autant (px), et visée
+ * deux fois plus précise.
+ */
+export const PASSE_FACILE_MARGE = 1.5;
 /** Le palet est légèrement attiré vers la crosse du receveur dans ce rayon (px). */
 export const PASSE_AIMANT = 16;
 /** Le gardien pivote moins vite pendant qu'une passe traverse devant lui. */

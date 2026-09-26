@@ -182,8 +182,18 @@ export function meilleurReceveur(
 }
 
 /** Envoie le palet vers un coéquipier, en visant là où il sera. */
+/** Le point (x, y) est-il dans la moitié de patinoire que défend l'équipe `eq` ? */
+export function dansSaMoitie(state: MatchState, eq: TeamId, x: number): boolean {
+  const [nous, eux] = [state.gardiens[eq], state.gardiens[1 - eq]];
+  if (!nous || !eux || nous.x === eux.x) return false;
+  return Math.abs(x - nous.x) < Math.abs(x - eux.x);
+}
+
 export function lancePasse(state: MatchState, x: number, y: number, m: Skater, err: number): void {
   const p = state.palet;
+  // dans sa moitié, loin de la pression : une passe plus précise et plus sûre
+  const facile = dansSaMoitie(state, m.eq, x);
+  if (facile) err *= 0.5;
   const d = Math.hypot(m.x - x, m.y - y);
   // passes appuyées : moins de temps en l'air, moins de risque d'interception
   const v = clamp(160 + d * 0.95, 180, 330);
@@ -195,7 +205,7 @@ export function lancePasse(state: MatchState, x: number, y: number, m: Skater, e
   p.y = y;
   p.vx = Math.cos(a) * v;
   p.vy = Math.sin(a) * v;
-  p.passe = { vers: m, t: 1.3 };
+  p.passe = { vers: m, t: 1.3, facile };
   p.tireur = null;
   p.qualite = 0;
   state.reception = null;

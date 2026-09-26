@@ -1,5 +1,15 @@
 import { lachePalet, lancePasse, meilleurReceveur, pointCrosse, prendPalet } from './actions';
-import { ACCEL, BUT_DEMI, BUT_PROF, GARDIEN_PASSE_LENTEUR, INTERCEPTION_RAYON, PASSE_AIMANT, RECEPTION_RAYON, VMAX } from './constants';
+import {
+  ACCEL,
+  BUT_DEMI,
+  BUT_PROF,
+  GARDIEN_PASSE_LENTEUR,
+  INTERCEPTION_RAYON,
+  PASSE_AIMANT,
+  PASSE_FACILE_MARGE,
+  RECEPTION_RAYON,
+  VMAX,
+} from './constants';
 import { rayonGardienEffectif, seuilRattrapeEffectif } from './shooting';
 import type { Goalie, MatchState, Puck, Rink, Skater } from './types';
 import { alea, angDiff, clamp } from './utils';
@@ -491,7 +501,8 @@ export function recuperations(state: MatchState, dt: number): void {
       const rel = Math.hypot(p.vx - s.vx, p.vy - s.vy);
       // pendant une passe, le receveur capte de plus loin, un adversaire doit être bien placé
       const visee = p.passe?.vers === s;
-      const portee = !p.passe ? 7 : visee ? RECEPTION_RAYON : s.eq === p.passe.vers.eq ? 7 : INTERCEPTION_RAYON;
+      const marge = p.passe?.facile ? PASSE_FACILE_MARGE : 0;
+      const portee = !p.passe ? 7 : visee ? RECEPTION_RAYON + marge : s.eq === p.passe.vers.eq ? 7 : INTERCEPTION_RAYON - marge;
       if (d < portee && d < dmin && rel < (visee ? 420 : 320)) {
         dmin = d;
         meilleur = s;
