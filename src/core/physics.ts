@@ -258,9 +258,51 @@ export function majGardien(rink: Rink, state: MatchState, gk: Goalie, dt: number
   }
 }
 
+/** La cage (ligne de but, sens vers le centre) où se trouve le palet, s'il est dedans. */
+function cageDuPalet(rink: Rink, p: Puck): { gx: number; dir: 1 | -1 } | null {
+  if (Math.abs(p.y - rink.cy) > BUT_DEMI) return null;
+  if (p.x < rink.butG && p.x > rink.butG - BUT_PROF - 2) return { gx: rink.butG, dir: 1 };
+  if (p.x > rink.butD && p.x < rink.butD + BUT_PROF + 2) return { gx: rink.butD, dir: -1 };
+  return null;
+}
+
+/**
+ * Après un but, le palet reste au fond des filets : il y glisse en perdant
+ * vite sa vitesse, rebondit mollement sur les parois, et ni le gardien ni
+ * les patineurs ne peuvent plus le repousser dehors. Sans ça, un tir qui
+ * rentre ressortait souvent aussitôt, et on ne voyait pas qu'il y avait but.
+ */
+function retiensDansFilet(rink: Rink, p: Puck, cage: { gx: number; dir: 1 | -1 }, dt: number): void {
+  p.x += p.vx * dt;
+  p.y += p.vy * dt;
+  const f = Math.exp(-4 * dt);
+  p.vx *= f;
+  p.vy *= f;
+  const fond = cage.gx - cage.dir * BUT_PROF;
+  const x0 = Math.min(fond, cage.gx) + p.r;
+  const x1 = Math.max(fond, cage.gx) - p.r;
+  const y0 = rink.cy - BUT_DEMI + p.r;
+  const y1 = rink.cy + BUT_DEMI - p.r;
+  if (p.x < x0 || p.x > x1) {
+    p.x = clamp(p.x, x0, x1);
+    p.vx *= -0.2;
+  }
+  if (p.y < y0 || p.y > y1) {
+    p.y = clamp(p.y, y0, y1);
+    p.vy *= -0.2;
+  }
+}
+
 export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace: SegmentCage[]): void {
   const p: Puck = state.palet;
   const px0 = p.x;
+  if (state.phase === 'but' && !p.porteur) {
+    const cage = cageDuPalet(rink, p);
+    if (cage) {
+      retiensDansFilet(rink, p, cage, dt);
+      return;
+    }
+  }
   if (p.porteur && 'face' in p.porteur) {
     const s = p.porteur;
     const sp = pointCrosse(s);
