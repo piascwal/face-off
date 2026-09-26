@@ -20,6 +20,7 @@ export class SynchroClient {
   private gigue = 0.004;
   private delai = 0.045;
   private arriveeDerniere = 0;
+  private sortDePause = false;
 
   /** Les instantanés d'un match précédent (numérotés avant `seqMin`) sont ignorés. */
   constructor(private readonly seqMin = 0) {}
@@ -43,9 +44,14 @@ export class SynchroClient {
     if (dernier) {
       // arrivé en retard, dépassé par un plus récent : inutile
       if (inst.seq <= dernier.seq) return;
-      const ecart = Math.abs(maintenant - this.arriveeDerniere - (inst.temps - dernier.temps));
-      this.gigue = this.gigue * 0.92 + Math.min(0.25, ecart) * 0.08;
-      this.delai = Math.min(DELAI_MAX, Math.max(DELAI_MIN, 1 / 60 + this.gigue * 3));
+      // match figé (pause partagée), ou tout premier instantané après : rien à mesurer
+      const fige = inst.temps <= dernier.temps;
+      if (!fige && !this.sortDePause) {
+        const ecart = Math.abs(maintenant - this.arriveeDerniere - (inst.temps - dernier.temps));
+        this.gigue = this.gigue * 0.92 + Math.min(0.25, ecart) * 0.08;
+        this.delai = Math.min(DELAI_MAX, Math.max(DELAI_MIN, 1 / 60 + this.gigue * 3));
+      }
+      this.sortDePause = fige;
     }
     this.tampon.push(inst);
     if (this.tampon.length > TAMPON_MAX) this.tampon.shift();

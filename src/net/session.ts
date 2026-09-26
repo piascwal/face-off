@@ -1,7 +1,18 @@
 import { Annuaire, COURTIERS, type AnnoncePartie, type Signal } from './annuaire';
 import { Liaison } from './liaison';
 import type { InputIntent } from '@core/types';
-import { bonjour, EmetteurEntrees, EntreeDistante, lisCtrl, type JoueurSalon, type MsgCtrl } from './protocole';
+import {
+  appliqueAction,
+  avanceReprise,
+  inviteArrive,
+  invitePart,
+  nouvellePartie,
+  versFin,
+  type ActionLan,
+  type ConfigLan,
+  type EtatPartieLan,
+} from './partie';
+import { bonjour, EmetteurEntrees, EntreeDistante, lisCtrl, type MsgCtrl } from './protocole';
 import { detecteReseaux, salonPour, VERSION_PROTOCOLE, type Salon } from './reseau-local';
 
 /**
@@ -82,16 +93,18 @@ class Veille {
 export interface InfosHote {
   nom: string;
   equipe: string;
-  effectif: number;
-  duree: number;
+  config: ConfigLan;
 }
 
 export class SessionHote {
-  invite: JoueurSalon | null = null;
+  /** État partagé de la partie ; l'hôte en est le seul arbitre. */
+  readonly partie: EtatPartieLan;
   code: string | null = null;
   /** Un client est en train de se connecter (offre reçue, liaison pas encore ouverte). */
   connexionEnCours = false;
   onChange: () => void = () => {};
+  /** Les deux joueurs ont validé (maillots, ou vote « rejouer ») : l'app lance le match. */
+  onDebut: () => void = () => {};
   onInviteParti: (raison: RaisonFin, nom: string) => void = () => {};
 
   private liaison: Liaison | null = null;
@@ -102,14 +115,17 @@ export class SessionHote {
 
   private constructor(
     private readonly annuaire: Annuaire,
-    private infos: InfosHote,
-  ) {}
+    infos: InfosHote,
+    private readonly equipeConnue: (id: string) => boolean,
+  ) {
+    this.partie = nouvellePartie(infos.config, infos.nom, infos.equipe);
+  }
 
-  static async cree(infos: InfosHote): Promise<SessionHote> {
+  static async cree(infos: InfosHote, equipeConnue: (id: string) => boolean): Promise<SessionHote> {
     const salons = await salonsDuReseau();
     const annuaire = new Annuaire(salons, courtiers(), true);
     await annuaire.ouvre();
-    const s = new SessionHote(annuaire, infos);
+    const s = new SessionHote(annuaire, infos, equipeConnue);
     annuaire.onSignal = (de, salon, sig) => void s.surSignal(de, salon, sig);
     s.annonce();
     return s;
@@ -119,31 +135,39 @@ export class SessionHote {
     return this.veille?.latenceMs ?? null;
   }
 
-  get infosHote(): InfosHote {
-    return this.infos;
+  get aUnInvite(): boolean {
+    return this.partie.joueurs[1] !== null;
   }
 
   private annonce(): void {
     if (this.ferme_) return;
-    this.annuaire.annonce({ nom: this.infos.nom, equipe: this.infos.equipe, effectif: this.infos.effectif, duree: this.infos.duree });
+    const j = this.partie.joueurs[0];
+    const c = this.partie.config;
+    this.annuaire.annonce({ nom: j.nom, equipe: j.equipe, effectif: c.effectif, duree: c.duree });
   }
 
-  majInfos(infos: Partial<InfosHote>): void {
-    this.infos = { ...this.infos, ...infos };
-    if (!this.liaison) this.annonce();
-    this.envoieSalon();
+  /** Envoie l'état de la partie à l'invité et prévient l'app. */
+  private diffuse(): void {
+    this.liaison?.envoieCtrl({ t: 'etat', e: this.partie } satisfies MsgCtrl);
     this.onChange();
   }
 
-  private envoieSalon(): void {
-    if (!this.invite || !this.liaison) return;
-    this.liaison.envoieCtrl({
-      t: 'salon',
-      hote: { nom: this.infos.nom, equipe: this.infos.equipe },
-      invite: this.invite,
-      effectif: this.infos.effectif,
-      duree: this.infos.duree,
-    } satisfies MsgCtrl);
+  /** Applique une action de l'hôte lui-même (même règles que pour l'invité). */
+  agit(action: ActionLan): void {
+    const debut = appliqueAction(this.partie, 0, action, this.equipeConnue);
+    this.diffuse();
+    if (debut) this.onDebut();
+  }
+
+  /** Le match s'est terminé : place au vote « rejouer / changer d'équipes ». */
+  finMatch(): void {
+    versFin(this.partie);
+    this.diffuse();
+  }
+
+  /** Fait avancer le compte à rebours de reprise après une pause. */
+  avance(dt: number): void {
+    if (avanceReprise(this.partie, dt)) this.diffuse();
   }
 
   private async surSignal(de: string, salon: number, sig: Signal): Promise<void> {
@@ -166,7 +190,7 @@ export class SessionHote {
       this.libere(l);
       return;
     }
-    // on attend le « bonjour » du client pour connaître son équipe
+    // on attend le « bonjour » du client pour connaître son nom et son équipe
     l.onCtrl = (o) => this.surCtrl(l, o);
     l.onJeu = (d) => {
       if (this.entree.recoit(d, performance.now() / 1000)) this.veille?.recuJeu();
@@ -175,7 +199,7 @@ export class SessionHote {
     this.veille = new Veille(l, () => l.ferme());
     // un pair qui ouvre la liaison sans jamais se présenter ne bloque pas la partie
     setTimeout(() => {
-      if (this.liaison === l && !this.invite) this.libere(l);
+      if (this.liaison === l && !this.aUnInvite) this.libere(l);
     }, 10_000);
   }
 
@@ -184,20 +208,19 @@ export class SessionHote {
     const m = lisCtrl(o);
     if (!m || this.veille?.recu(m)) return;
     if (m.t === 'bonjour') {
-      if (m.v !== VERSION_PROTOCOLE) {
+      if (m.v !== VERSION_PROTOCOLE || this.aUnInvite) {
         l.ferme();
         return;
       }
-      this.invite = { nom: m.nom, equipe: m.equipe };
+      inviteArrive(this.partie, m.nom, this.equipeConnue(m.equipe) ? m.equipe : this.partie.joueurs[0].equipe);
       this.connexionEnCours = false;
       // la partie est pleine : on la retire de la liste des autres appareils
       this.annuaire.retireAnnonce();
-      this.envoieSalon();
-      this.onChange();
-    } else if (m.t === 'equipe' && this.invite) {
-      this.invite = { ...this.invite, equipe: m.equipe };
-      this.envoieSalon();
-      this.onChange();
+      this.diffuse();
+    } else if (m.t === 'action' && this.aUnInvite) {
+      const debut = appliqueAction(this.partie, 1, m.x, this.equipeConnue);
+      this.diffuse();
+      if (debut) this.onDebut();
     } else if (m.t === 'quitte') {
       this.parti(l, 'quitte');
     }
@@ -210,16 +233,16 @@ export class SessionHote {
     this.veille?.arrete();
     this.veille = null;
     this.liaison = null;
-    this.invite = null;
     this.code = null;
     this.connexionEnCours = false;
+    invitePart(this.partie);
     this.annonce();
     this.onChange();
   }
 
   private parti(l: Liaison, raison: RaisonFin): void {
     if (this.liaison !== l) return;
-    const invite = this.invite;
+    const invite = this.partie.joueurs[1];
     this.libere(l);
     if (invite) this.onInviteParti(raison, invite.nom);
   }
@@ -229,20 +252,15 @@ export class SessionHote {
     return this.entree.prochain(maintenant);
   }
 
-  /** Renvoie l'invité dans le salon d'attente (ex. après la fin d'un match). */
-  retourSalon(): void {
-    this.liaison?.envoieCtrl({ t: 'salonRetour' } satisfies MsgCtrl);
-    this.envoieSalon();
-  }
-
   exclut(): void {
     const l = this.liaison;
-    if (!l) return;
+    if (!l || !this.aUnInvite) return;
     l.envoieCtrl({ t: 'exclu' } satisfies MsgCtrl);
+    l.onCtrl = () => {};
+    invitePart(this.partie);
+    this.onChange();
     // laisse partir le message avant de couper
     setTimeout(() => this.libere(l), 150);
-    this.invite = null;
-    this.onChange();
   }
 
   envoieCtrl(m: MsgCtrl): void {
@@ -274,7 +292,8 @@ export class SessionClient {
   parties: AnnoncePartie[] = [];
   /** Partie rejointe (salon d'attente ou match). */
   rejointe: AnnoncePartie | null = null;
-  salon: Extract<MsgCtrl, { t: 'salon' }> | null = null;
+  /** Dernier état de la partie diffusé par l'hôte. */
+  partie: EtatPartieLan | null = null;
   code: string | null = null;
   onChange: () => void = () => {};
   onCtrl: (m: MsgCtrl) => void = () => {};
@@ -369,8 +388,8 @@ export class SessionClient {
     l.onCtrl = (o) => {
       const m = lisCtrl(o);
       if (!m || this.veille?.recu(m)) return;
-      if (m.t === 'salon') {
-        this.salon = m;
+      if (m.t === 'etat') {
+        this.partie = m.e;
         this.onChange();
       } else if (m.t === 'quitte' || m.t === 'exclu') {
         this.termine(m.t);
@@ -391,8 +410,9 @@ export class SessionClient {
     this.onChange();
   }
 
-  changeEquipe(equipe: string): void {
-    this.liaison?.envoieCtrl({ t: 'equipe', equipe } satisfies MsgCtrl);
+  /** Demande à l'hôte d'appliquer une action sur ses propres choix. */
+  agit(x: ActionLan): void {
+    this.liaison?.envoieCtrl({ t: 'action', x } satisfies MsgCtrl);
   }
 
   /** Envoie l'intention de cette image à l'hôte (à appeler à chaque image pendant un match). */

@@ -1,5 +1,6 @@
 import type { GameEvent, GamePhase, InputIntent, MatchState, Rink, TeamId } from '@core/types';
 import { angDiff } from '@core/utils';
+import { lisAction, lisEtatPartie, type ActionLan, type EtatPartieLan } from './partie';
 import { VERSION_PROTOCOLE } from './reseau-local';
 
 /**
@@ -15,92 +16,50 @@ import { VERSION_PROTOCOLE } from './reseau-local';
  * piloter autre chose que son propre joueur.
  */
 
-export type VarianteMaillot = 'interieur' | 'exterieur';
-
-export interface JoueurSalon {
-  nom: string;
-  equipe: string;
-}
+export type { VarianteMaillot } from './partie';
 
 export type MsgCtrl =
   | { t: 'bonjour'; v: number; nom: string; equipe: string }
-  | { t: 'salon'; hote: JoueurSalon; invite: JoueurSalon | null; effectif: number; duree: number }
-  | { t: 'equipe'; equipe: string }
-  | {
-      t: 'debut';
-      /** Numéro du premier instantané de ce match (les précédents sont ignorés). */
-      s0: number;
-      effectif: number;
-      duree: number;
-      equipes: [string, string];
-      variantes: [VarianteMaillot, VarianteMaillot];
-      assistTir: boolean;
-      assistPasse: boolean;
-      changementAuto: boolean;
-    }
+  /** État de la partie (salle d'attente, choix, votes, pause), diffusé par l'hôte à chaque changement. */
+  | { t: 'etat'; e: EtatPartieLan }
+  /** Action du client sur ses propres choix (équipe, maillot, prêt, vote, pause). */
+  | { t: 'action'; x: ActionLan }
+  /** Un match commence avec l'état diffusé juste avant ; `s0` = numéro de son premier instantané. */
+  | { t: 'debut'; s0: number }
   /** Évènements d'un pas, datés en temps de simulation (`k`) pour être joués en phase avec l'image. */
   | { t: 'ev'; k: number; l: unknown[] }
   | { t: 'ping'; k: number }
   | { t: 'pong'; k: number }
-  | { t: 'salonRetour' }
   | { t: 'quitte' }
   | { t: 'exclu' };
 
 const NOM_SUR = /^[A-Z0-9 ]{1,14}$/;
 const EQUIPE_SURE = /^[a-z]{2,16}$/;
-const entierBorne = (x: unknown, max: number): x is number => typeof x === 'number' && Number.isInteger(x) && x >= 0 && x <= max;
-const joueur = (o: unknown): JoueurSalon | null => {
-  if (!o || typeof o !== 'object') return null;
-  const j = o as Record<string, unknown>;
-  return typeof j.nom === 'string' && NOM_SUR.test(j.nom) && typeof j.equipe === 'string' && EQUIPE_SURE.test(j.equipe)
-    ? { nom: j.nom, equipe: j.equipe }
-    : null;
-};
-const variante = (x: unknown): x is VarianteMaillot => x === 'interieur' || x === 'exterieur';
 
 /** Valide un message du canal de contrôle ; renvoie null s'il est mal formé. */
 export function lisCtrl(o: unknown): MsgCtrl | null {
   if (!o || typeof o !== 'object') return null;
   const m = o as Record<string, unknown>;
   switch (m.t) {
-    case 'bonjour': {
-      const j = joueur(m);
-      return j && typeof m.v === 'number' ? { t: 'bonjour', v: m.v, ...j } : null;
+    case 'bonjour':
+      return typeof m.v === 'number' && typeof m.nom === 'string' && NOM_SUR.test(m.nom) && typeof m.equipe === 'string' && EQUIPE_SURE.test(m.equipe)
+        ? { t: 'bonjour', v: m.v, nom: m.nom, equipe: m.equipe }
+        : null;
+    case 'etat': {
+      const e = lisEtatPartie(m.e);
+      return e ? { t: 'etat', e } : null;
     }
-    case 'salon': {
-      const hote = joueur(m.hote);
-      const invite = m.invite === null ? null : joueur(m.invite);
-      if (!hote || (m.invite !== null && !invite) || !entierBorne(m.effectif, 9) || !entierBorne(m.duree, 9)) return null;
-      return { t: 'salon', hote, invite, effectif: m.effectif, duree: m.duree };
+    case 'action': {
+      const x = lisAction(m.x);
+      return x ? { t: 'action', x } : null;
     }
-    case 'equipe':
-      return typeof m.equipe === 'string' && EQUIPE_SURE.test(m.equipe) ? { t: 'equipe', equipe: m.equipe } : null;
-    case 'debut': {
-      const eq = m.equipes;
-      const va = m.variantes;
-      if (!Array.isArray(eq) || eq.length !== 2 || !eq.every((e) => typeof e === 'string' && EQUIPE_SURE.test(e))) return null;
-      if (!Array.isArray(va) || va.length !== 2 || !va.every(variante)) return null;
-      if (!entierBorne(m.effectif, 9) || !entierBorne(m.duree, 9)) return null;
-      if (typeof m.assistTir !== 'boolean' || typeof m.assistPasse !== 'boolean' || typeof m.changementAuto !== 'boolean') return null;
-      if (typeof m.s0 !== 'number' || !Number.isInteger(m.s0) || m.s0 < 0) return null;
-      return {
-        t: 'debut',
-        s0: m.s0,
-        effectif: m.effectif,
-        duree: m.duree,
-        equipes: [eq[0] as string, eq[1] as string],
-        variantes: [va[0] as VarianteMaillot, va[1] as VarianteMaillot],
-        assistTir: m.assistTir,
-        assistPasse: m.assistPasse,
-        changementAuto: m.changementAuto,
-      };
-    }
+    case 'debut':
+      return typeof m.s0 === 'number' && Number.isInteger(m.s0) && m.s0 >= 0 ? { t: 'debut', s0: m.s0 } : null;
     case 'ev':
       return Array.isArray(m.l) && m.l.length <= 200 && typeof m.k === 'number' && Number.isFinite(m.k) ? { t: 'ev', k: m.k, l: m.l } : null;
     case 'ping':
     case 'pong':
       return typeof m.k === 'number' && Number.isFinite(m.k) ? { t: m.t, k: m.k } : null;
-    case 'salonRetour':
     case 'quitte':
     case 'exclu':
       return { t: m.t };

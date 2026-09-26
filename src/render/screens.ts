@@ -1,5 +1,5 @@
 import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
-import type { Rink, TeamId } from '@core/types';
+import type { Rink } from '@core/types';
 import type { Banniere } from './effects';
 import { obtientLogo } from './logos';
 import { largeurTexte, texte } from './pixel-font';
@@ -130,17 +130,14 @@ export function dessinePause(
   H: number,
   onReprendre: () => void,
   onAbandonner: () => void,
-  /** En réseau, la partie continue pendant la pause : on le rappelle. */
-  reseau = false,
 ): void {
   g.fillStyle = 'rgba(7,9,20,0.6)';
   g.fillRect(0, 0, W, H);
   const cx = Math.round(W / 2);
   const cy = Math.round(H / 2);
   texte(g, 'PAUSE', cx, cy - 40, C.blanc, 3, 'c');
-  if (reseau) texte(g, 'LE MATCH CONTINUE PENDANT CE TEMPS !', cx, cy - 16, C.or, 1, 'c');
   bouton(g, boutons, 'REPRENDRE', cx - 55, cy - 6, 110, 18, onReprendre, { couleur: '#1f7fb3', clair: '#6fd0ff', fonce: '#0f4d73' });
-  bouton(g, boutons, reseau ? 'QUITTER' : 'ABANDONNER', cx - 55, cy + 18, 110, 18, onAbandonner);
+  bouton(g, boutons, 'ABANDONNER', cx - 55, cy + 18, 110, 18, onAbandonner);
 }
 
 export interface EtatFin {
@@ -151,10 +148,6 @@ export interface EtatFin {
   victoires: number;
   matchs: number;
   equipes: [EquipeVisuelle, EquipeVisuelle];
-  /** Équipe du joueur sur cet écran (1 pour le client d'une partie en réseau). */
-  eqLocal?: TeamId;
-  /** Partie en réseau : l'hôte propose revanche/salon, le client attend sa décision. */
-  reseau?: 'hote' | 'client';
   onRejouer: () => void;
   onMenu: () => void;
 }
@@ -164,24 +157,15 @@ export function dessineFin(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
   g.fillRect(0, 0, W, H);
   const cx = Math.round(W / 2);
   const cy = Math.round(H / 2);
-  const moi = fin.eqLocal ?? 0;
-  const eux = 1 - moi;
-  const gagne = fin.score[moi]! > fin.score[eux]!;
+  const gagne = fin.score[0] > fin.score[1];
   const t = temps;
   const titre = gagne ? 'VICTOIRE !' : 'DEFAITE';
-  texte(g, titre, cx, cy - 58 + Math.round(Math.sin(t * 4) * 1.5), gagne ? C.or : fin.equipes[eux]!.maillot, 3, 'c');
+  texte(g, titre, cx, cy - 58 + Math.round(Math.sin(t * 4) * 1.5), gagne ? C.or : fin.equipes[1].maillot, 3, 'c');
   texte(g, `${fin.score[0]} - ${fin.score[1]}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 28, C.blanc, 2, 'c');
   texte(g, `TIRS CADRES  ${fin.tirs[0]} - ${fin.tirs[1]}`, cx, cy - 8, C.gris, 1, 'c');
-  const rouge = { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' };
-  if (fin.reseau === 'client') {
-    bouton(g, boutons, 'QUITTER', cx - 50, cy + 10, 100, 20, fin.onMenu);
-    texte(g, "L'HOTE PEUT LANCER UNE REVANCHE", cx, cy + 40, '#6f7aa6', 1, 'c');
-    return;
-  }
-  bouton(g, boutons, fin.reseau ? 'REVANCHE' : 'REJOUER', cx - 108, cy + 10, 100, 20, fin.onRejouer, rouge);
-  bouton(g, boutons, fin.reseau ? 'SALON' : 'MENU', cx + 8, cy + 10, 100, 20, fin.onMenu);
-  if (fin.reseau) texte(g, 'MATCH EN RESEAU LOCAL', cx, cy + 40, '#6f7aa6', 1, 'c');
-  else texte(g, `NIVEAU ${fin.niveauNom}   VICTOIRES ${fin.victoires} / ${fin.matchs}`, cx, cy + 40, '#6f7aa6', 1, 'c');
+  bouton(g, boutons, 'REJOUER', cx - 108, cy + 10, 100, 20, fin.onRejouer, { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' });
+  bouton(g, boutons, 'MENU', cx + 8, cy + 10, 100, 20, fin.onMenu);
+  texte(g, `NIVEAU ${fin.niveauNom}   VICTOIRES ${fin.victoires} / ${fin.matchs}`, cx, cy + 40, '#6f7aa6', 1, 'c');
 }
 
 export function dessineBanniere(g: CanvasRenderingContext2D, W: number, rink: Rink, banniere: Banniere | null, ecranUI: string): void {

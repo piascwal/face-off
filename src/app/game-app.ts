@@ -5,7 +5,16 @@ import { pas } from '@core/simulation';
 import { trouveEquipe } from '@core/teams';
 import { INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from '@core/types';
 import type { AnnoncePartie } from '@net/annuaire';
-import { angleVersHote, decodeInstantane, directionVersHote, encodeInstantane, evenementsPourEnvoi, type MsgCtrl, type VarianteMaillot } from '@net/protocole';
+import {
+  maillotsIdentiques,
+  type ActionLan,
+  type ConfigLan,
+  type EtatPartieLan,
+  type JoueurLan,
+  type PhaseLan,
+  type Place,
+} from '@net/partie';
+import { angleVersHote, decodeInstantane, directionVersHote, encodeInstantane, evenementsPourEnvoi, type MsgCtrl } from '@net/protocole';
 import { SessionClient, SessionHote, type RaisonFin } from '@net/session';
 import { SynchroClient } from '@net/synchro';
 import { joueEvenements, MoteurAudio } from '@audio/sound';
@@ -21,7 +30,12 @@ import {
   dessineAvance,
   dessineChoixMaillots,
   dessineCommandes,
+  dessineChoixLan,
+  dessineConfigLan,
+  dessineFinLan,
   dessineLan,
+  dessinePauseLan,
+  dessineRepriseLan,
   dessineSalon,
   dessineFin,
   dessineMenu,
@@ -42,8 +56,13 @@ import {
   type EtatAvance,
   type EtatChoixMaillots,
   type EtatFin,
+  type CoteChoixLan,
+  type EtatChoixLan,
+  type EtatConfigLan,
+  type EtatFinLan,
   type EtatLan,
   type EtatSalon,
+  type ResumeConfig,
   type StatutLan,
   type EtatMenu,
   type EtatSelectionEquipe,
@@ -57,10 +76,10 @@ import { demandePleinEcranPaysage, PleinEcranAuPremierGeste } from './pwa';
 
 const PAS_FIXE = 1 / 120;
 
-type EcranUI = 'menu' | 'avance' | 'equipes' | 'maillots' | 'lan' | 'salon' | 'jeu' | 'pause' | 'fin';
+type EcranUI = 'menu' | 'avance' | 'equipes' | 'maillots' | 'lan' | 'lanConfig' | 'salon' | 'lanChoix' | 'jeu' | 'pause' | 'fin';
 
 /** Écrans de menu plein cadre : ni tableau d'affichage ni bandeau par-dessus. */
-const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'equipes', 'maillots', 'lan', 'salon'];
+const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'equipes', 'maillots', 'lan', 'lanConfig', 'salon', 'lanChoix'];
 
 /** Match en réseau local : l'hôte simule (équipe 0), le client affiche et envoie ses entrées (équipe 1). */
 type JeuReseau = { role: 'hote'; eqLocal: 0; dernierEnvoi: number } | { role: 'client'; eqLocal: 1; synchro: SynchroClient };
@@ -138,6 +157,10 @@ export class GameApp {
   /** Invalide les réponses asynchrones d'un écran réseau qu'on a déjà quitté. */
   private lanGeneration = 0;
   private seqInstantane = 0;
+  /** Dernière phase de partie Wi-Fi appliquée à l'écran. */
+  private phaseVue: PhaseLan | null = null;
+  /** Client : instant (s) de fin du compte à rebours de reprise en cours. */
+  private finReprise: number | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.ecran = canvas;
@@ -330,6 +353,34 @@ export class GameApp {
     return this.jeuReseau?.eqLocal ?? 0;
   }
 
+  /** État partagé de la partie Wi-Fi (l'original chez l'hôte, la copie reçue chez le client). */
+  private get partieLan(): EtatPartieLan | null {
+    return this.hote?.partie ?? this.client?.partie ?? null;
+  }
+
+  private get placeLan(): Place {
+    return this.hote ? 0 : 1;
+  }
+
+  /** Toute action de partie passe par l'hôte, y compris celles de l'hôte lui-même. */
+  private agitLan(x: ActionLan): void {
+    if (this.hote) this.hote.agit(x);
+    else this.client?.agit(x);
+  }
+
+  /** Match en réseau figé (pause demandée par l'un des deux, ou compte à rebours de reprise). */
+  private get pauseLan(): boolean {
+    const e = this.partieLan;
+    return !!this.jeuReseau && !!e && e.phase === 'match' && (e.pause !== null || this.repriseRestante() > 0);
+  }
+
+  private repriseRestante(): number {
+    const e = this.partieLan;
+    if (!e || e.pause !== null) return 0;
+    if (this.hote) return e.reprise;
+    return this.finReprise === null ? 0 : Math.max(0, this.finReprise - performance.now() / 1000);
+  }
+
   /** Ferme toute session réseau en cours (annonce retirée, l'autre joueur est prévenu). */
   private fermeReseau(): void {
     this.lanGeneration++;
@@ -338,6 +389,8 @@ export class GameApp {
     this.client?.ferme();
     this.client = null;
     this.jeuReseau = null;
+    this.phaseVue = null;
+    this.finReprise = null;
   }
 
   /** Écran de la liste des parties : détecte le réseau et écoute les annonces. */
@@ -363,6 +416,11 @@ export class GameApp {
           if (j?.role === 'client' && inst) j.synchro.recoit(inst, performance.now() / 1000);
         };
         c.onFin = (raison) => this.ouvreLan(MESSAGES_FIN_CLIENT[raison]);
+        c.onChange = () => {
+          const e = c.partie;
+          if (e) this.finReprise = e.reprise > 0 ? performance.now() / 1000 + e.reprise : null;
+          this.suitPhaseLan();
+        };
       },
       (e: unknown) => {
         if (gen !== this.lanGeneration) return;
@@ -388,24 +446,40 @@ export class GameApp {
     this.client.actualise();
   }
 
+  /** CRÉER UNE PARTIE : l'hôte règle d'abord le format du match. */
+  private ouvreConfigLan(): void {
+    this.fermeReseau();
+    this.ecranUI = 'lanConfig';
+  }
+
   private creePartieLan(): void {
     this.fermeReseau();
+    this.ecranUI = 'lan';
     this.lanStatut = 'creation';
     this.lanMessage = null;
     const gen = this.lanGeneration;
-    SessionHote.cree({ nom: this.pref.pseudo, equipe: this.pref.equipeJoueur, effectif: this.pref.effectif, duree: this.pref.duree }).then(
+    const config: ConfigLan = {
+      effectif: this.pref.effectif,
+      duree: this.pref.duree,
+      assistTir: this.pref.assistTir,
+      assistPasse: this.pref.assistPasse,
+      changementAuto: this.pref.changementAuto,
+    };
+    const equipeConnue = (id: string) => EQUIPES_JOUABLES.some((e) => e.id === id);
+    SessionHote.cree({ nom: this.pref.pseudo, equipe: this.pref.equipeJoueur, config }, equipeConnue).then(
       (h) => {
         if (gen !== this.lanGeneration) return h.ferme();
         this.hote = h;
+        h.onChange = () => this.suitPhaseLan();
+        h.onDebut = () => this.lanceMatchHote();
         h.onInviteParti = (raison, nom) => {
-          if (this.ecranUI !== 'salon') this.retourSalonHote(false);
           this.salonMessage = {
             txt: raison === 'quitte' ? `${nom} A QUITTE LA PARTIE` : `CONNEXION PERDUE AVEC ${nom}`,
             jusqua: performance.now() / 1000 + 6,
           };
         };
         this.salonMessage = null;
-        this.ecranUI = 'salon';
+        this.suitPhaseLan();
       },
       (e: unknown) => {
         if (gen !== this.lanGeneration) return;
@@ -426,7 +500,7 @@ export class GameApp {
         if (gen !== this.lanGeneration) return;
         this.lanStatut = 'pret';
         this.lanMessage = null;
-        this.ecranUI = 'salon';
+        this.suitPhaseLan();
       },
       (e: unknown) => {
         if (gen !== this.lanGeneration) return;
@@ -436,65 +510,89 @@ export class GameApp {
     );
   }
 
-  /** Change sa propre équipe dans la salle d'attente ; l'autre appareil la voit aussitôt. */
-  private tourneEquipeSalon(sens: 1 | -1): void {
-    this.audio.clic();
-    const n = EQUIPES_JOUABLES.length;
-    const i = Math.max(0, EQUIPES_JOUABLES.findIndex((e) => e.id === this.pref.equipeJoueur));
-    this.pref.equipeJoueur = EQUIPES_JOUABLES[(i + sens + n) % n]!.id;
-    sauvePreferences(this.pref);
-    this.hote?.majInfos({ equipe: this.pref.equipeJoueur });
-    this.client?.changeEquipe(this.pref.equipeJoueur);
+  /**
+   * Aligne l'écran sur la phase de la partie partagée : salle d'attente,
+   * choix des équipes/maillots... Le match et la fin sont pilotés par la
+   * simulation elle-même (message `debut`, phase `fin` de l'état de jeu).
+   */
+  private suitPhaseLan(): void {
+    const e = this.partieLan;
+    if (!e || e.phase === this.phaseVue) return;
+    // tant que la connexion n'est pas finie, le client reste sur la liste
+    if (this.client && !this.client.rejointe) return;
+    this.phaseVue = e.phase;
+    if (e.phase === 'attente' || e.phase === 'equipes' || e.phase === 'maillots') {
+      if (this.jeuReseau) {
+        this.jeuReseau = null;
+        this.creeDemo();
+        this.effets.reinitialise();
+      }
+      this.ecranUI = e.phase === 'attente' ? 'salon' : 'lanChoix';
+      this.enPause = false;
+    }
   }
 
-  /** Hôte : lance (ou relance) le match avec l'invité présent dans le salon. */
+  /** Flèches du choix d'équipe : ne change que sa propre équipe (retenue pour la prochaine fois). */
+  private tourneEquipeLan(sens: 1 | -1): void {
+    const e = this.partieLan;
+    const moi = e?.joueurs[this.placeLan];
+    if (!e || !moi || moi.pret) return;
+    this.audio.clic();
+    if (e.phase === 'maillots') {
+      this.agitLan({ a: 'variante', variante: moi.variante === 'interieur' ? 'exterieur' : 'interieur' });
+      return;
+    }
+    const n = EQUIPES_JOUABLES.length;
+    const i = Math.max(0, EQUIPES_JOUABLES.findIndex((d) => d.id === moi.equipe));
+    const id = EQUIPES_JOUABLES[(i + sens + n) % n]!.id;
+    this.pref.equipeJoueur = id;
+    sauvePreferences(this.pref);
+    this.agitLan({ a: 'equipe', equipe: id });
+  }
+
+  private basculePretLan(): void {
+    const moi = this.partieLan?.joueurs[this.placeLan];
+    if (moi) this.agitLan({ a: 'pret', pret: !moi.pret });
+  }
+
+  /** Hôte : les deux joueurs ont validé, le match commence. */
   private lanceMatchHote(): void {
     const h = this.hote;
-    if (!h?.invite) return;
-    const infos = h.infosHote;
-    const idHote = trouveTeamDef(infos.equipe).id;
-    const idInvite = trouveTeamDef(h.invite.equipe).id;
-    // même équipe des deux côtés : l'invité joue en maillot extérieur
-    const variantes: [VarianteMaillot, VarianteMaillot] = ['interieur', idInvite === idHote ? 'exterieur' : 'interieur'];
-    const debut: Extract<MsgCtrl, { t: 'debut' }> = {
-      t: 'debut',
-      s0: this.seqInstantane + 1,
-      effectif: infos.effectif,
-      duree: infos.duree,
-      equipes: [idHote, idInvite],
-      variantes,
-      assistTir: this.pref.assistTir,
-      assistPasse: this.pref.assistPasse,
-      changementAuto: this.pref.changementAuto,
-    };
-    h.envoieCtrl(debut);
-    this.demarreMatchReseau(debut, { role: 'hote', eqLocal: 0, dernierEnvoi: 0 });
+    if (!h) return;
+    h.envoieCtrl({ t: 'debut', s0: this.seqInstantane + 1 });
+    this.demarreMatchReseau(h.partie, { role: 'hote', eqLocal: 0, dernierEnvoi: 0 });
   }
 
-  private demarreMatchReseau(m: Extract<MsgCtrl, { t: 'debut' }>, jeu: JeuReseau): void {
+  private demarreMatchReseau(e: EtatPartieLan, jeu: JeuReseau): void {
+    const [j0, j1] = e.joueurs;
+    if (!j1) return;
     this.audio.init();
     void demandePleinEcranPaysage();
     const eqs: [EquipeVisuelle, EquipeVisuelle] = [
-      resoutEquipe(trouveTeamDef(m.equipes[0]), m.variantes[0]),
-      resoutEquipe(trouveTeamDef(m.equipes[1]), m.variantes[1]),
+      resoutEquipe(trouveTeamDef(j0.equipe), j0.variante),
+      resoutEquipe(trouveTeamDef(j1.equipe), j1.variante),
     ];
     this.equipesActuelles = eqs;
     this.effets.definitEquipes(eqs);
     this.construitDecor();
+    const c = e.config;
     this.state = creePartie(this.rink!, {
       mode: 'match',
       // coéquipiers CPU au même niveau des deux côtés : seul le talent des humains départage
       niveauIdx: 1,
-      dureeIdx: Math.min(m.duree, DUREES.length - 1),
-      effectifIdx: Math.min(m.effectif, EFFECTIFS.length - 1),
+      dureeIdx: Math.min(c.duree, DUREES.length - 1),
+      effectifIdx: Math.min(c.effectif, EFFECTIFS.length - 1),
       equipeJoueur: trouveEquipe(eqs[0].teamId),
       equipeAdverse: trouveEquipe(eqs[1].teamId),
-      assistTir: m.assistTir,
-      assistPasse: m.assistPasse,
-      changementAuto: m.changementAuto,
+      assistTir: c.assistTir,
+      assistPasse: c.assistPasse,
+      changementAuto: c.changementAuto,
       humains: [true, true],
     });
     this.jeuReseau = jeu;
+    this.phaseVue = 'match';
+    this.finReprise = null;
+    this.cumul = 0;
     this.effets.reinitialise();
     this.entrees.reinitialise();
     this.ecranUI = 'jeu';
@@ -504,26 +602,28 @@ export class GameApp {
 
   private surCtrlClient(m: MsgCtrl): void {
     if (m.t === 'debut') {
-      this.demarreMatchReseau(m, { role: 'client', eqLocal: 1, synchro: new SynchroClient(m.s0) });
+      const e = this.client?.partie;
+      if (e) this.demarreMatchReseau(e, { role: 'client', eqLocal: 1, synchro: new SynchroClient(m.s0) });
     } else if (m.t === 'ev') {
       if (this.jeuReseau?.role === 'client') this.jeuReseau.synchro.recoitEvenements(m.k, m.l);
-    } else if (m.t === 'salonRetour') {
-      this.jeuReseau = null;
-      this.creeDemo();
-      this.effets.reinitialise();
-      this.ecranUI = 'salon';
-      this.enPause = false;
     }
   }
 
-  /** Hôte : fin de match ou départ de l'invité — tout le monde revient dans la salle d'attente. */
-  private retourSalonHote(prevenir = true): void {
-    if (prevenir) this.hote?.retourSalon();
-    this.jeuReseau = null;
-    this.creeDemo();
-    this.effets.reinitialise();
-    this.ecranUI = 'salon';
+  /** Pause en réseau : elle vaut pour les deux joueurs (l'hôte fige la simulation). */
+  private demandePauseLan(): void {
+    if (!this.pauseLan) {
+      this.entrees.reinitialise();
+      this.agitLan({ a: 'pause', on: true });
+    }
+  }
+
+  /** Match terminé (détecté dans l'état de jeu) : écran de fin, et vote côté hôte. */
+  private surFinMatch(): void {
+    this.ecranUI = 'fin';
     this.enPause = false;
+    this.entrees.reinitialise();
+    if (this.jeuReseau?.role === 'hote') this.hote?.finMatch();
+    if (this.jeuReseau) this.phaseVue = 'fin';
   }
 
   /** Client : envoie ses entrées, puis affiche l'état interpolé reçu de l'hôte. */
@@ -533,7 +633,7 @@ export class GameApp {
     const c = this.client;
     if (!state || !rink || !c) return;
     const maintenant = performance.now() / 1000;
-    let intent = this.ecranUI === 'jeu' ? this.entrees.consomme() : INTENT_VIDE;
+    let intent = this.ecranUI === 'jeu' && !this.pauseLan ? this.entrees.consomme() : INTENT_VIDE;
     const r = synchro.rinkHote;
     if (r) {
       const kx = r.w / rink.w;
@@ -549,11 +649,7 @@ export class GameApp {
       this.effets.traite(evs);
     }
     this.effets.maj(dt);
-    if (state.phase === 'fin' && (this.ecranUI === 'jeu' || this.ecranUI === 'pause')) {
-      this.ecranUI = 'fin';
-      this.enPause = false;
-      this.entrees.reinitialise();
-    }
+    if (state.phase === 'fin' && this.ecranUI === 'jeu') this.surFinMatch();
   }
 
   /** Latence Wi-Fi en coin d'écran, et alerte si l'hôte ne donne plus signe de vie. */
@@ -561,7 +657,7 @@ export class GameApp {
     const j = this.jeuReseau;
     const ms = (j?.role === 'hote' ? this.hote?.latenceMs : this.client?.latenceMs) ?? null;
     if (ms !== null) texte(g, `WIFI ${Math.max(1, Math.round(ms))} MS`, 4, 4, ms < 60 ? '#6f7aa6' : '#ff9a5c', 1, 'g');
-    if (j?.role === 'client' && j.synchro.silence(performance.now() / 1000) > 1) {
+    if (j?.role === 'client' && !this.pauseLan && j.synchro.silence(performance.now() / 1000) > 1) {
       const cy = Math.round(this.H / 2);
       g.fillStyle = 'rgba(7,9,20,0.6)';
       g.fillRect(0, cy - 12, this.W, 22);
@@ -590,55 +686,101 @@ export class GameApp {
       pseudo: this.pref.pseudo,
       onRetour: () => this.quitteLan(),
       onActualiser: () => this.actualiseLan(),
+      onCreer: () => this.ouvreConfigLan(),
+    };
+  }
+
+  private configLanProps(): EtatConfigLan {
+    const bascule = (cle: 'assistTir' | 'assistPasse' | 'changementAuto') => () => {
+      this.pref[cle] = !this.pref[cle];
+      sauvePreferences(this.pref);
+    };
+    return {
+      effectifIdx: this.pref.effectif,
+      dureeIdx: this.pref.duree,
+      assistTir: this.pref.assistTir,
+      assistPasse: this.pref.assistPasse,
+      changementAuto: this.pref.changementAuto,
+      onEffectif: () => {
+        this.pref.effectif = (this.pref.effectif + 1) % EFFECTIFS.length;
+        sauvePreferences(this.pref);
+      },
+      onDuree: () => {
+        this.pref.duree = (this.pref.duree + 1) % DUREES.length;
+        sauvePreferences(this.pref);
+      },
+      onAssistTir: bascule('assistTir'),
+      onAssistPasse: bascule('assistPasse'),
+      onChangementAuto: bascule('changementAuto'),
+      onRetour: () => this.ouvreLan(),
       onCreer: () => this.creePartieLan(),
     };
   }
 
-  private salonProps(): EtatSalon {
+  private resumeConfig(c: ConfigLan): ResumeConfig {
+    return { effectifIdx: c.effectif, dureeIdx: c.duree, assistTir: c.assistTir, assistPasse: c.assistPasse, changementAuto: c.changementAuto };
+  }
+
+  private salonProps(e: EtatPartieLan): EtatSalon {
     const maintenant = performance.now() / 1000;
     const message = this.salonMessage && this.salonMessage.jusqua > maintenant ? this.salonMessage.txt : null;
-    const commun = {
+    const session = this.hote ?? this.client;
+    return {
+      role: this.hote ? 'hote' : 'client',
+      hote: e.joueurs[0].nom,
+      invite: e.joueurs[1]?.nom ?? null,
+      connexionEnCours: this.hote?.connexionEnCours ?? false,
+      config: this.resumeConfig(e.config),
+      code: session?.code ?? null,
+      latenceMs: session?.latenceMs ?? null,
       message,
-      onPrecedent: () => this.tourneEquipeSalon(-1),
-      onSuivant: () => this.tourneEquipeSalon(1),
-      onLancer: () => this.lanceMatchHote(),
+      onLancer: () => this.agitLan({ a: 'lancer' }),
       onExclure: () => this.hote?.exclut(),
       onQuitter: () => this.ouvreLan(),
     };
-    const h = this.hote;
-    if (h) {
-      return {
-        ...commun,
-        role: 'hote',
-        hote: { nom: h.infosHote.nom, carte: this.carteDe(h.infosHote.equipe) },
-        invite: h.invite ? { nom: h.invite.nom, carte: this.carteDe(h.invite.equipe) } : null,
-        connexionEnCours: h.connexionEnCours,
-        effectifIdx: h.infosHote.effectif,
-        dureeIdx: h.infosHote.duree,
-        code: h.code,
-        latenceMs: h.latenceMs,
-      };
-    }
-    const c = this.client;
-    const salon = c?.salon;
-    const rejointe = c?.rejointe;
+  }
+
+  private choixLanProps(e: EtatPartieLan): EtatChoixLan | null {
+    const [a, b] = e.joueurs;
+    if (!b || (e.phase !== 'equipes' && e.phase !== 'maillots')) return null;
+    const moi = this.placeLan;
+    const cote = (j: JoueurLan): CoteChoixLan => ({ nom: j.nom, pret: j.pret, carte: this.carteDe(j.equipe), variante: j.variante });
+    const autre = moi === 0 ? b : a;
     return {
-      ...commun,
-      role: 'client',
-      hote: {
-        nom: salon?.hote.nom ?? rejointe?.nom ?? '...',
-        carte: this.carteDe(salon?.hote.equipe ?? rejointe?.equipe ?? ''),
-      },
-      invite: { nom: this.pref.pseudo, carte: this.carteDe(this.pref.equipeJoueur) },
-      connexionEnCours: false,
-      effectifIdx: salon?.effectif ?? rejointe?.effectif ?? this.pref.effectif,
-      dureeIdx: salon?.duree ?? rejointe?.duree ?? this.pref.duree,
-      code: c?.code ?? null,
-      latenceMs: c?.latenceMs ?? null,
+      etape: e.phase,
+      moi,
+      cotes: [cote(a), cote(b)],
+      maillotPris: e.phase === 'maillots' && autre.pret && maillotsIdentiques(e),
+      onPrecedent: () => this.tourneEquipeLan(-1),
+      onSuivant: () => this.tourneEquipeLan(1),
+      onToggleMaillot: () => this.tourneEquipeLan(1),
+      onPret: (pret) => this.agitLan({ a: 'pret', pret }),
+      onQuitter: () => this.ouvreLan(),
+    };
+  }
+
+  private finLanProps(state: MatchState, e: EtatPartieLan): EtatFinLan {
+    const moi = this.placeLan;
+    const eux = moi === 0 ? 1 : 0;
+    return {
+      score: state.score,
+      tirs: state.tirs,
+      prolong: state.prolong,
+      moi,
+      couleurAdverse: this.equipesActuelles[eux].maillot,
+      monVote: e.joueurs[moi]?.vote ?? null,
+      voteAdverse: e.joueurs[eux]?.vote ?? null,
+      nomAdverse: e.joueurs[eux]?.nom ?? '',
+      onVote: (vote) => this.agitLan({ a: 'vote', vote }),
+      onQuitter: () => this.ouvreLan(),
     };
   }
 
   private pause(oui: boolean): void {
+    if (this.jeuReseau) {
+      if (oui) this.demandePauseLan();
+      return;
+    }
     if (this.ecranUI !== 'jeu' && this.ecranUI !== 'pause') return;
     this.enPause = oui;
     this.ecranUI = oui ? 'pause' : 'jeu';
@@ -672,7 +814,7 @@ export class GameApp {
         if (e.pointerType === 'mouse') this.pleinEcran.tente();
         const p = this.versLogique(e);
         if (this.portrait) return;
-        if (this.ecranUI === 'jeu' && !this.enPause) {
+        if (this.ecranUI === 'jeu' && !this.enPause && !this.pauseLan) {
           if (this.entrees.pointeSurPause(p, this.W)) {
             this.pause(true);
             return;
@@ -715,10 +857,11 @@ export class GameApp {
       if (e.code === 'Enter') {
         if (this.ecranUI === 'menu') this.ouvreSelectionEquipe();
         else if (this.ecranUI === 'lan') this.actualiseLan();
-        else if (this.ecranUI === 'salon') this.lanceMatchHote();
-        else if (this.ecranUI === 'fin' && this.jeuReseau) {
-          if (this.jeuReseau.role === 'hote') this.lanceMatchHote();
-        }
+        else if (this.ecranUI === 'lanConfig') this.creePartieLan();
+        else if (this.ecranUI === 'salon') this.agitLan({ a: 'lancer' });
+        else if (this.ecranUI === 'lanChoix') this.basculePretLan();
+        else if (this.ecranUI === 'fin' && this.jeuReseau) this.agitLan({ a: 'vote', vote: 'rejouer' });
+        else if (this.ecranUI === 'jeu' && this.pauseLan) this.agitLan({ a: 'pause', on: false });
         else if (this.ecranUI === 'equipes') this.confirmeSelection();
         else if (this.ecranUI === 'maillots') this.confirmeMaillots();
         else if (this.ecranUI === 'fin') this.rejoue();
@@ -728,10 +871,10 @@ export class GameApp {
       if (e.code === 'Escape' && this.ecranUI === 'maillots') this.retourChoixEquipes();
       if (e.code === 'Escape' && this.ecranUI === 'avance') this.fermeAvance();
       if (e.code === 'Escape' && this.ecranUI === 'lan') this.quitteLan();
-      else if (e.code === 'Escape' && this.ecranUI === 'salon') this.ouvreLan();
-      if (this.ecranUI === 'salon' && !e.repeat) {
-        if (e.code === 'ArrowLeft') this.tourneEquipeSalon(-1);
-        else if (e.code === 'ArrowRight') this.tourneEquipeSalon(1);
+      else if (e.code === 'Escape' && (this.ecranUI === 'salon' || this.ecranUI === 'lanConfig')) this.ouvreLan();
+      if (this.ecranUI === 'lanChoix' && !e.repeat) {
+        if (e.code === 'ArrowLeft') this.tourneEquipeLan(-1);
+        else if (e.code === 'ArrowRight') this.tourneEquipeLan(1);
       }
       if (this.ecranUI === 'equipes' && !e.repeat) {
         // pensé « manette » : gauche/droite pour votre équipe, haut/bas pour l'adversaire
@@ -751,7 +894,8 @@ export class GameApp {
     window.addEventListener('resize', () => this.dispose());
     window.addEventListener('orientationchange', () => setTimeout(() => this.dispose(), 120));
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden && this.ecranUI === 'jeu' && !this.jeuReseau) this.pause(true);
+      // téléphone verrouillé ou appli en arrière-plan : pause (partagée en réseau)
+      if (document.hidden && this.ecranUI === 'jeu') this.pause(true);
     });
     // onglet fermé : on retire l'annonce et on prévient l'autre joueur tout de suite
     window.addEventListener('pagehide', () => this.fermeReseau());
@@ -772,7 +916,9 @@ export class GameApp {
       const maintenant = performance.now() / 1000;
       const entree = (eq: TeamId): InputIntent =>
         eq === 0 ? this.entrees.consomme() : hote ? hote.entreeInvite(maintenant) : INTENT_VIDE;
-      this.cumul += dt;
+      if (hote) hote.avance(dt);
+      // pause partagée : la simulation est figée pour les deux joueurs
+      this.cumul = this.pauseLan ? 0 : this.cumul + dt;
       while (this.cumul >= PAS_FIXE) {
         pas(this.rink, state, PAS_FIXE, entree);
         this.cumul -= PAS_FIXE;
@@ -783,15 +929,14 @@ export class GameApp {
         this.effets.traite(state.evenements);
         state.evenements.length = 0;
       }
-      if (hote && reseau?.role === 'hote' && t - reseau.dernierEnvoi >= 12) {
+      // ~60 instantanés/s en jeu ; 4/s suffisent pendant une pause (rien ne bouge)
+      if (hote && reseau?.role === 'hote' && t - reseau.dernierEnvoi >= (this.pauseLan ? 250 : 12)) {
         hote.envoieJeu(encodeInstantane(state, this.rink, ++this.seqInstantane));
         reseau.dernierEnvoi = t;
       }
       this.effets.maj(dt);
       if (state.phase === 'fin' && state.mode === 'match' && this.ecranUI !== 'fin') {
-        this.ecranUI = 'fin';
-        this.enPause = false;
-        this.entrees.reinitialise();
+        this.surFinMatch();
         if (!reseau) this.persisteFinMatch(state.score[0] > state.score[1]);
       }
     }
@@ -828,12 +973,28 @@ export class GameApp {
         dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
       }
       if (this.jeuReseau && !ECRANS_MENU.includes(this.ecranUI)) this.dessineEtatReseau(g, tempsUI);
-      if (this.ecranUI === 'jeu') {
+      const partie = this.partieLan;
+      if (this.ecranUI === 'jeu' && partie && this.jeuReseau && partie.pause !== null) {
+        dessinePauseLan(g, this.boutons, this.W, this.H, {
+          par: partie.joueurs[partie.pause]?.nom ?? '',
+          onReprendre: () => this.agitLan({ a: 'pause', on: false }),
+          onQuitter: () => this.ouvreLan(),
+        });
+      } else if (this.ecranUI === 'jeu' && this.pauseLan) {
+        dessineRepriseLan(g, this.W, this.H, this.repriseRestante());
+      } else if (this.ecranUI === 'jeu') {
         dessineCommandes(g, this.W, this.H, state.temps, state.controles[this.eqLocal], this.entrees.instantaneUI());
       } else if (this.ecranUI === 'lan') {
         dessineLan(g, this.boutons, this.W, this.H, tempsUI, this.lanProps());
-      } else if (this.ecranUI === 'salon') {
-        dessineSalon(g, this.boutons, this.W, this.H, tempsUI, this.salonProps());
+      } else if (this.ecranUI === 'lanConfig') {
+        dessineConfigLan(g, this.boutons, this.W, this.H, this.configLanProps());
+      } else if (this.ecranUI === 'salon' && partie) {
+        dessineSalon(g, this.boutons, this.W, this.H, tempsUI, this.salonProps(partie));
+      } else if (this.ecranUI === 'lanChoix' && partie) {
+        const props = this.choixLanProps(partie);
+        if (props) dessineChoixLan(g, this.boutons, this.sprites, this.W, this.H, tempsUI, props);
+      } else if (this.ecranUI === 'fin' && partie && this.jeuReseau) {
+        dessineFinLan(g, this.boutons, this.W, this.H, tempsUI, this.finLanProps(state, partie));
       } else if (this.ecranUI === 'menu') {
         dessineMenu(g, this.boutons, this.W, this.H, tempsUI, this.menuProps());
       } else if (this.ecranUI === 'avance') {
@@ -843,7 +1004,7 @@ export class GameApp {
       } else if (this.ecranUI === 'maillots') {
         dessineChoixMaillots(g, this.boutons, this.sprites, this.W, this.H, this.maillotsProps());
       } else if (this.ecranUI === 'pause') {
-        dessinePause(g, this.boutons, this.W, this.H, () => this.pause(false), () => (this.jeuReseau ? this.ouvreLan() : this.retourMenu()), !!this.jeuReseau);
+        dessinePause(g, this.boutons, this.W, this.H, () => this.pause(false), () => this.retourMenu());
       } else if (this.ecranUI === 'fin') {
         dessineFin(g, this.boutons, this.W, this.H, tempsUI, this.finProps(state));
       }
@@ -954,10 +1115,8 @@ export class GameApp {
       victoires: this.pref.victoires[this.pref.niveau] ?? 0,
       matchs: this.pref.matchs[this.pref.niveau] ?? 0,
       equipes: this.equipesActuelles,
-      eqLocal: this.eqLocal,
-      reseau: this.jeuReseau?.role,
-      onRejouer: () => (this.jeuReseau ? this.lanceMatchHote() : this.rejoue()),
-      onMenu: () => (this.jeuReseau?.role === 'hote' ? this.retourSalonHote() : this.jeuReseau ? this.ouvreLan() : this.retourMenu()),
+      onRejouer: () => this.rejoue(),
+      onMenu: () => this.retourMenu(),
     };
   }
 }

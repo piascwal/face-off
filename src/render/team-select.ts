@@ -161,7 +161,7 @@ export interface EtatChoixMaillots {
   onConfirmer: () => void;
 }
 
-function dessinePanneauMaillot(
+export function dessinePanneauMaillot(
   g: CanvasRenderingContext2D,
   boutons: ZoneBouton[],
   sprites: BanqueSprites,
@@ -171,7 +171,7 @@ function dessinePanneauMaillot(
   titre: string,
   cote: CoteMaillot,
   faceDroite: boolean,
-  onToggle: () => void,
+  onToggle: (() => void) | null,
 ): void {
   const cx = x + w / 2;
   titrePanneau(g, titre, x, w);
@@ -193,7 +193,8 @@ function dessinePanneauMaillot(
   }
 
   const label = cote.variante === 'interieur' ? 'DOMICILE' : 'EXTERIEUR';
-  bouton(g, boutons, `< ${label} >`, cx - 48, sy + sh + 8, 96, 14, onToggle, { couleur: '#232a58' });
+  if (onToggle) bouton(g, boutons, `< ${label} >`, cx - 48, sy + sh + 8, 96, 14, onToggle, { couleur: '#232a58' });
+  else texte(g, label, cx, sy + sh + 11, C.gris, 1, 'c');
   px(g, cx - 30, sy + sh + 26, 60, 2, pal.maillot);
 }
 

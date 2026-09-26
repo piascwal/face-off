@@ -163,10 +163,12 @@ describe('protocole de jeu', () => {
   });
 
   it('valide les messages de contrôle et les évènements', () => {
-    expect(lisCtrl({ t: 'equipe', equipe: 'nice' })).toEqual({ t: 'equipe', equipe: 'nice' });
-    expect(lisCtrl({ t: 'equipe', equipe: '../../x' })).toBeNull();
+    expect(lisCtrl({ t: 'action', x: { a: 'equipe', equipe: 'nice' } })).toEqual({ t: 'action', x: { a: 'equipe', equipe: 'nice' } });
+    expect(lisCtrl({ t: 'action', x: { a: 'equipe', equipe: '../../x' } })).toBeNull();
+    // « lancer » est réservé à l'hôte : jamais accepté venant du réseau
+    expect(lisCtrl({ t: 'action', x: { a: 'lancer' } })).toBeNull();
     expect(lisCtrl({ t: 'inconnu' })).toBeNull();
-    expect(lisCtrl({ t: 'salon', hote: { nom: 'A', equipe: 'nice' }, invite: null, effectif: 1, duree: 1 })).not.toBeNull();
+    expect(lisCtrl({ t: 'debut', s0: 12 })).toEqual({ t: 'debut', s0: 12 });
     const id = (x: number, y: number): [number, number] => [x + 10, y];
     expect(lisEvenement({ type: 'etincelles', x: 1, y: 2, n: 3 }, id, [1, 1])).toEqual({ type: 'etincelles', x: 11, y: 2, n: 3 });
     expect(lisEvenement({ type: 'eval', x: 1 }, id, [1, 1])).toBeNull();

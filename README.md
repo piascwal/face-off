@@ -264,15 +264,32 @@ voir `core/rules.ts::creePartie`) :
 
 ### 8. Multijoueur Wi-Fi : l'hôte est le serveur
 
-Menu → **MULTI WIFI**. Un appareil (téléphone, tablette ou ordinateur) choisit
-**CRÉER UNE PARTIE** : il devient le serveur de la partie. Sur un autre
-appareil du même Wi-Fi, la partie apparaît toute seule dans la liste (bouton
-**ACTUALISER** pour relancer la recherche) — aucune adresse IP à saisir.
-Le client qui rejoint arrive dans une **salle d'attente** où chacun choisit
-son équipe (les flèches ne pilotent que sa propre équipe, l'autre écran suit
-en direct). Il y reste jusqu'à ce que l'hôte appuie sur **LANCER**. À la fin, l'hôte
-propose une revanche ou le retour au salon, et il peut exclure un joueur à
-tout moment.
+Menu → **MULTI WIFI**. L'appareil qui fait **CRÉER UNE PARTIE** (téléphone,
+tablette ou ordinateur) devient le serveur. Il règle d'abord le format du
+match : 2, 3 ou 5 contre 5, durée et assistances, pour les deux joueurs.
+Sur un autre appareil du même Wi-Fi, la partie apparaît toute seule dans la
+liste, sans adresse IP à saisir ; le bouton **ACTUALISER** relance la
+recherche. Le joueur qui rejoint attend dans la **salle d'attente** que
+l'hôte appuie sur **LANCER**.
+
+Le déroulé est ensuite une machine d'états arbitrée par l'hôte
+(`net/partie.ts`, testée dans `tests/partie-lan.test.ts`). **On ne passe à
+l'étape suivante que quand les deux joueurs ont validé.**
+
+1. **Choix des équipes**, en simultané. Chacun ne règle que son côté, **PRÊT**
+   verrouille son choix et **MODIFIER** le déverrouille.
+2. **Choix des maillots**, même principe. Si les deux ont pris le même club,
+   l'invité démarre en extérieur, et deux maillots identiques ne peuvent pas
+   être validés.
+3. **Match**. La **pause est partagée** : n'importe lequel des deux la
+   déclenche (bouton, Échap, ou téléphone verrouillé), l'hôte fige la
+   simulation pour les deux. À la reprise, un compte à rebours de 3 s évite de
+   surprendre l'autre joueur.
+4. **Fin** : chacun vote **REJOUER** ou **CHANGER D'ÉQUIPES**. On ne relance que
+   quand les deux votes concordent.
+
+L'hôte peut **exclure** le joueur ; si l'un des deux quitte ou perd la
+connexion, l'autre est ramené au bon écran avec un message.
 
 **Pourquoi c'est un peu plus subtil qu'il n'y paraît.** Une page web (même
 installée en PWA) n'a pas le droit d'ouvrir un port d'écoute, de faire du
@@ -317,6 +334,9 @@ classique, ni découvrir seule les appareils voisins. D'où le montage :
   finies — `net/protocole.ts`, testé dans `tests/net.test.ts`).
 - Une seule place par partie : l'annonce est retirée dès qu'un joueur est
   entré, et l'hôte peut **exclure** le joueur.
+- Le client n'envoie que des *actions* sur ses propres choix (équipe, maillot,
+  prêt, vote, pause). L'hôte les applique selon les règles de
+  `net/partie.ts` ; « lancer » ne vient jamais du réseau.
 
 **Fiabilité et fluidité.**
 
