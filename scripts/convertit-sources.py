@@ -485,7 +485,8 @@ def chutes():
 # (coordonnées du dessin pixelisé) : casque, visage, gants, culotte et crosse
 # (segments du manche, palette comprise).
 # `ext` : extension de la source ; `periode` : grille du dessin (les sources
-# plus grandes sont un peu plus fines) ; `rayon` : demi-épaisseur de la crosse.
+# plus grandes sont un peu plus fines) ; `rayon` : demi-épaisseur de la crosse
+# (un segment peut avoir la sienne en 5e valeur).
 CELEBRATIONS = [
     {'nom': 'celebration-1', 'casque': (24, 22, 46, 34), 'visage': (27, 33, 44, 47),
      'gants': [(1, 15, 18, 33), (60, 19, 76, 34)], 'culotte': (29, 69, 69, 87),
@@ -505,6 +506,14 @@ CELEBRATIONS = [
      'casque': (47, 24, 69, 38), 'visage': (50, 34, 69, 56),
      'gants': [(0, 31, 20, 52), (100, 34, 124, 55)], 'culotte': (44, 82, 78, 104),
      'crosse': [(119, 1, 126, 14), (123, 14, 106, 78)]},
+    # la crosse jouée comme une guitare (le manche traverse le maillot : tracé fin)
+    {'nom': 'celebration-5', 'casque': (10, 0, 26, 15), 'visage': (12, 3, 36, 31),
+     'gants': [(13, 33, 43, 54), (55, 31, 75, 49)], 'culotte': (13, 58, 45, 80),
+     'crosse': [(32, 37, 92, 37, 1.6), (90, 37, 100, 20, 3.5)]},
+    # la main sur le cœur, crosse levée
+    {'nom': 'celebration-6', 'casque': (10, 0, 26, 22), 'visage': (12, 3, 36, 31),
+     'gants': [(13, 32, 36, 50), (58, 37, 80, 53)], 'culotte': (13, 62, 50, 82),
+     'crosse': [(76, 18, 74, 85, 2.8), (65, 1, 77, 15, 3.5)]},
 ]
 
 
@@ -548,11 +557,13 @@ def celebrations():
                 rouge = r == R['maillot']
                 if r == R['contour']:
                     pass
-                elif any(dist_seg(x, y, *seg) <= z.get('rayon', 2.5) for seg in z['crosse']) and (
+                elif any(dist_seg(x, y, *seg[:4]) <= (seg[4] if len(seg) > 4 else z.get('rayon', 2.5)) for seg in z['crosse']) and (
                         r == R['bande'] or not any(dans(x, y, g) for g in z['gants'])):
                     r = R['garde']  # la crosse garde ses couleurs
                 elif dans(x, y, z['casque']):
-                    r = R['casque'] if rouge else R['casque-bande'] if r == R['bande'] else R['garde']
+                    # vrai rouge seulement : la peau orangée du front (tête renversée) reste telle quelle
+                    vrai_rouge = rouge and (h >= 330 or h <= 12)
+                    r = R['casque'] if vrai_rouge else R['casque-bande'] if r == R['bande'] else R['garde']
                 elif dans(x, y, z['visage']):
                     # visage (peau, barbe, bouche) tel quel ; le col du maillot garde son rôle
                     bas = y >= z['visage'][3] - 5  # le col est en bas du visage (la bouche, plus haut)

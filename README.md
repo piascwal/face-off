@@ -527,9 +527,10 @@ célébration en direct dure au moins le temps de la traversée. Pour ajouter un
 dessin : fond magenta, joueur entier ; l'ajouter à `CELEBRATIONS` dans
 `scripts/convertit-sources.py` avec les zones du casque, du visage, des gants,
 de la culotte et de la crosse (et la grille du dessin si la source n'a pas la
-même taille), puis relancer la conversion et `npm run sprites`. Quatre
+même taille), puis relancer la conversion et `npm run sprites`. Six
 dessins pour l'instant : jambe levée, à genou poing levé, crosse brandie
-au-dessus de la tête, bras écartés. Tous gardent la même échelle (calée sur
+au-dessus de la tête, bras écartés, crosse jouée comme une guitare, main sur
+le cœur. Tous gardent la même échelle (calée sur
 le premier dessin) : un joueur à genou reste plus petit qu'un joueur debout.
 
 **Joueur au sol.** Le défenseur esquivé a ses propres dessins
