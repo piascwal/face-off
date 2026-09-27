@@ -67,6 +67,8 @@ export async function chargeSources(dossier) {
     gardienRoles: await lis('gardien-roles.png'),
     portrait: await lis('portrait.png'),
     portraitRoles: await lis('portrait-roles.png'),
+    chute: await lis('chute.png'),
+    chuteRoles: await lis('chute-roles.png'),
   };
 }
 
@@ -250,6 +252,12 @@ export function feuilleJoueur(S, eq, logo) {
 export function feuillePortrait(S, eq, logo) {
   const { tileW, tileH } = S.meta.portrait;
   return feuilleDeuxSens(repeint(S.portrait, S.portraitRoles, S.meta.roles, eq, logo, tileW, 1), tileW, tileH, 1);
+}
+
+/** Défenseur esquivé : plongeon puis allongé (tête vers la droite), puis les mêmes en miroir. */
+export function feuilleChute(S, eq) {
+  const { tileW, tileH, images } = S.meta.chute;
+  return feuilleDeuxSens(repeint(S.chute, S.chuteRoles, S.meta.roles, eq, null, tileW, images), tileW, tileH, images);
 }
 
 export function feuilleGardien(S, eq, logo) {

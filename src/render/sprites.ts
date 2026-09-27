@@ -28,6 +28,11 @@ export interface MetaSprites {
   gardien: { tileW: number; tileH: number; pied: Point; echelle: number; decalage: number };
   /** Joueur de face de l'écran des maillots (crosse à droite, puis en miroir). */
   portrait: { tileW: number; tileH: number };
+  /**
+   * Défenseur esquivé, au sol : plongeon puis allongé (tête vers la droite,
+   * puis en miroir). `pied` : centre du corps ; `tete` : centre du casque, par image.
+   */
+  chute: { tileW: number; tileH: number; images: number; pied: Point; tete: Point[]; echelle: number };
   /** Nombre de variantes de visage dans visages.png. */
   visages: number;
   teamIds: string[];
@@ -37,6 +42,7 @@ const META_DEFAUT: MetaSprites = {
   joueur: { tileW: 133, tileH: 105, images: 4, arret: 0, pied: { x: 52, y: 101 }, tete: 0, echelle: 0.28, decalage: 10 },
   gardien: { tileW: 132, tileH: 115, pied: { x: 71, y: 113 }, echelle: 0.2, decalage: -41 },
   portrait: { tileW: 92, tileH: 116 },
+  chute: { tileW: 176, tileH: 102, images: 2, pied: { x: 88, y: 43 }, tete: [{ x: 114, y: 31 }, { x: 125, y: 39 }], echelle: 0.22 },
   visages: 1,
   teamIds: [],
 };
@@ -62,6 +68,7 @@ export class BanqueSprites {
   private skaters = new Map<string, HTMLImageElement>();
   private goalies = new Map<string, HTMLImageElement>();
   private portraits = new Map<string, HTMLImageElement>();
+  private chutes = new Map<string, HTMLImageElement>();
   private visages: HTMLImageElement | null = null;
   private enCours = new Map<string, Promise<void>>();
   pret = false;
@@ -82,14 +89,16 @@ export class BanqueSprites {
     const enCours = this.enCours.get(teamId);
     if (enCours) return enCours;
     const p = (async () => {
-      const [s, g, p] = await Promise.all([
+      const [s, g, p, c] = await Promise.all([
         chargeImage(`${this.base}/skater-${teamId}.png`),
         chargeImage(`${this.base}/goalie-${teamId}.png`),
         chargeImage(`${this.base}/portrait-${teamId}.png`),
+        chargeImage(`${this.base}/chute-${teamId}.png`),
       ]);
       this.skaters.set(teamId, s);
       this.goalies.set(teamId, g);
       this.portraits.set(teamId, p);
+      this.chutes.set(teamId, c);
     })();
     this.enCours.set(teamId, p);
     return p;
@@ -121,6 +130,15 @@ export class BanqueSprites {
     if (!img) return null;
     const { tileW, tileH } = this.meta.portrait;
     return { img, rect: { sx: 0, sy: (miroir ? 1 : 0) * tileH, sw: tileW, sh: tileH } };
+  }
+
+  /** Joueur au sol : image 0 plongeon, 1 allongé ; `gauche` : tête vers la gauche. */
+  spriteChute(teamId: string, frame: number, gauche: boolean): { img: HTMLImageElement; rect: Rect } | null {
+    const img = this.chutes.get(teamId);
+    if (!img) return null;
+    const { tileW, tileH, images } = this.meta.chute;
+    const col = Math.min(images - 1, Math.max(0, frame));
+    return { img, rect: { sx: col * tileW, sy: (gauche ? 1 : 0) * tileH, sw: tileW, sh: tileH } };
   }
 
   spriteGardien(teamId: string, gauche: boolean): { img: HTMLImageElement; rect: Rect } | null {

@@ -320,12 +320,20 @@ change selon qu'on a le palet ou non :
   porteur humain, l'IA prépare sa charge au moins 0,45 s (`ECHEC_PREPA` : le
   défenseur tremble, un anneau rouge clignote sous lui) avant de s'élancer,
   sans quoi l'élan ne laissait que 0,03 s pour réagir. Un appui pendant la
-  préparation ou l'élan (défenseur à moins de 56 px) fait un pas de côté : le défenseur passe à côté et reste sonné 1,2 s (contre
-  0,8 s pour un joueur mis en échec), avec image fantôme, bulle « ESQUIVÉ ! »
-  et un court arrêt sur image. Un appui hors fenêtre bloque l'esquive
+  préparation ou l'élan (défenseur à moins de 56 px) fait un pas de côté : le
+  défenseur passe à côté, tombe et reste au sol 1,2 s (contre 0,8 s de
+  sonnerie pour un joueur mis en échec), avec image fantôme, bulle
+  « ESQUIVÉ ! » et un court arrêt sur image. Au sol, il glisse d'environ
+  35 px dans le sens de sa charge (`CHUTE_GLISSE`, `CHUTE_FROTTEMENT`) : en
+  plongeon pendant 0,4 s (`CHUTE_PLONGEON`), puis allongé, sans bousculer
+  personne, avant de se relever. Un appui hors fenêtre bloque l'esquive
   0,35 s : matraquer le bouton ne marche pas. L'IA esquive aussi, selon son
   niveau (10 % en Facile, 25 % en Normal, 45 % en Pro). Contre un porteur IA,
   la charge part sans délai : l'équilibre IA contre IA ne bouge pas.
+- **Impacts** : le joueur touché (mis en échec, ou défenseur esquivé) passe
+  en blanc 0,1 s (`FLASH_T`), comme dans les jeux d'arcade ; une mise en
+  échec réussie fige aussi l'action 0,07 s (`ECHEC_FIGE`), avec secousse et
+  étincelles — plus besoin de la bulle « ÉCHEC ! ».
 - **CROSSE** : coup de crosse sûr, qui ne s'esquive pas — la crosse vole le
   palet de plus loin et bien plus souvent pendant 0,3 s, puis se recharge.
 
@@ -506,6 +514,13 @@ défaite du point de vue de chaque joueur — en Wi-Fi, chacun voit la sienne.
 Elle reste seule 2 s (`IMAGE_FIN_S`), ou jusqu'à un appui (ou Entrée), puis
 les statistiques s'affichent par-dessus, l'image restant en fond. Elle est
 calée en bas de l'écran pour toujours montrer les joueurs.
+
+**Joueur au sol.** Le défenseur esquivé a ses propres dessins
+(`chute-<id>.png` : plongeon puis allongé, convertis depuis
+`assets/sprites-src/chute-plongeon.jpg` et `chute-allonge.jpg`), repeints aux
+couleurs de chaque équipe comme les autres ; le dessin est deux fois moins fin
+que la planche de patinage, d'où son échelle de 0,22 (casque de la même
+taille qu'en patinant).
 
 **Écran des maillots.** Le joueur y est vu de face (`portrait-<id>.png`,
 converti depuis `assets/sprites-src/portrait.jpg` comme les autres dessins),

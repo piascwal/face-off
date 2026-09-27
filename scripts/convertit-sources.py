@@ -18,8 +18,9 @@ d'image, avec du flou. Le script :
    peau, barbe, écusson, contour, à garder tel quel) : c'est ce qui permet de
    repeindre le joueur aux couleurs de chaque équipe.
 
-Sorties, dans assets/sprites-src/ : joueur.png, gardien.png et portrait.png
-(le joueur de face de l'écran des maillots), leurs cartes *-roles.png (un
+Sorties, dans assets/sprites-src/ : joueur.png, gardien.png, portrait.png
+(le joueur de face de l'écran des maillots) et chute.png (plongeon puis
+joueur allongé, pour le défenseur esquivé), leurs cartes *-roles.png (un
 rôle par pixel, voir ROLES) et
 sprites.json (tailles de case et ancrages). Elles sont committées : `npm run
 sprites` n'a besoin ni de Python ni de ce script. À relancer seulement si
@@ -398,6 +399,85 @@ def portrait():
     return a, roles
 
 
+# --- Chutes (défenseur esquivé) -------------------------------------------------
+
+# Plongeon puis joueur allongé, tête à droite, crosse lâchée au sol (une
+# composante à part dans la source).
+CHUTES = ['chute-plongeon', 'chute-allonge']
+# Par image (coordonnées du dessin pixelisé) : casque, visage, gants et culotte.
+ZONES_CHUTE = [
+    {'casque': (85, 16, 114, 39), 'visage': (86, 32, 116, 62),
+     'gants': [(131, 41, 158, 63), (61, 58, 97, 82)], 'culotte': (27, 23, 57, 45)},
+    {'casque': (111, 12, 137, 40), 'visage': (107, 30, 130, 54),
+     'gants': [(147, 27, 173, 50), (76, 45, 111, 73)], 'culotte': (37, 12, 67, 40)},
+]
+
+
+def detoure_violet(a):
+    """Le halo violet du fond, accroché au bord du dessin (les contours sombres restent)."""
+    H, W = a.shape[:2]
+    hv = np.array([[hsv(a[y, x, :3]) for x in range(W)] for y in range(H)])
+    violet = (hv[..., 0] > 255) & (hv[..., 0] < 335) & (hv[..., 1] > 0.3) & (hv[..., 2] > 0.28)
+    while True:
+        vide = np.pad(a[..., 3] == 0, 1, constant_values=True)
+        bord = ndimage.binary_dilation(vide)[1:-1, 1:-1] & (a[..., 3] > 0) & violet
+        if not bord.any():
+            return
+        a[bord, 3] = 0
+
+
+def chutes():
+    dessins = []
+    for nom in CHUTES:
+        im = np.asarray(Image.open(SRC / f'{nom}.jpg').convert('RGB')).astype(float)
+        fond = np.median(im[:30, :30].reshape(-1, 3), 0)
+        fg = ndimage.binary_opening(np.linalg.norm(im - fond, axis=2) > 70, iterations=1)
+        lab, n = ndimage.label(fg)
+        tailles = ndimage.sum(fg, lab, range(1, n + 1))
+        fg = ndimage.binary_fill_holes(np.isin(lab, [i + 1 for i, t in enumerate(tailles) if t > 1000]))
+        dessins.append(pixelise(im, fg, PERIODE_GARDIEN))
+    dessins = quantifie(dessins)
+    sorties = []
+    dans = lambda x, y, b: b[0] <= x <= b[2] and b[1] <= y <= b[3]  # noqa: E731
+    for a, z in zip(dessins, ZONES_CHUTE):
+        detoure_violet(a)
+        comp, n = ndimage.label(a[..., 3] > 0)
+        tailles = ndimage.sum(np.ones_like(comp), comp, range(1, n + 1))
+        corps = comp == (np.argmax(tailles) + 1)
+        H, W = a.shape[:2]
+        roles = np.zeros((H, W), np.uint8)
+        for y in range(H):
+            for x in range(W):
+                if not a[y, x, 3]:
+                    continue
+                h, s, v = hsv(a[y, x, :3])
+                r = role_couleur(h, s, v, False)
+                rouge = r == R['maillot']
+                if not corps[y, x]:
+                    r = R['garde']  # la crosse lâchée
+                elif r == R['contour']:
+                    pass
+                elif dans(x, y, z['casque']):
+                    # casque rouge et doré ; visière et peau telles quelles
+                    r = R['casque'] if rouge else R['casque-bande'] if r == R['bande'] else R['garde']
+                elif dans(x, y, z['visage']):
+                    r = R['garde']  # visage (peau, barbe, bouche) tel quel
+                elif any(dans(x, y, g) for g in z['gants']) and r != R['bande'] and (
+                        (8 <= h <= 35 and v < 0.72) or (rouge and v < 0.55)):
+                    r = R['gants']
+                elif dans(x, y, z['culotte']):
+                    if rouge and (v < 0.5 or h > 12):
+                        r = R['garde']  # ombres de la culotte brune
+                elif r == R['blanc'] and 160 <= h <= 230:
+                    r = R['garde']  # lames des patins, gris bleuté
+                elif r == R['garde'] and (h <= 26 or h >= 330) and s > 0.45:
+                    r = R['maillot']  # ombres brun-rouge du maillot (dos, épaules)
+                roles[y, x] = r
+        nettoie(roles)
+        sorties.append((a, roles, corps))
+    return sorties
+
+
 # --- Assemblage ---------------------------------------------------------------
 
 
@@ -443,6 +523,27 @@ def main():
     Image.fromarray(pa, 'RGBA').save(SRC / 'portrait.png')
     Image.fromarray(proles, 'L').save(SRC / 'portrait-roles.png')
     meta['portrait'] = {'tileW': pa.shape[1], 'tileH': pa.shape[0]}
+    # chutes : les deux images calées sur le centre du corps (là où le joueur est sur la glace)
+    ch = chutes()
+    ancres = [np.argwhere(c).mean(0)[::-1] for _, _, c in ch]
+    ax = int(np.ceil(max(x for x, _ in ancres))) + 1
+    ay = int(np.ceil(max(y for _, y in ancres))) + 1
+    cw = max(ax - int(round(x)) + a.shape[1] for (a, _, _), (x, _) in zip(ch, ancres)) + 1
+    chh = max(ay - int(round(y)) + a.shape[0] for (a, _, _), (_, y) in zip(ch, ancres)) + 1
+    feuille = np.zeros((chh, cw * len(ch), 4), np.uint8)
+    carte = np.zeros((chh, cw * len(ch)), np.uint8)
+    tetes = []
+    for i, ((a, lab, _), (x, y)) in enumerate(zip(ch, ancres)):
+        ox, oy = i * cw + ax - int(round(x)), ay - int(round(y))
+        m = a[..., 3] > 0
+        feuille[oy:oy + a.shape[0], ox:ox + a.shape[1]][m] = a[m]
+        carte[oy:oy + a.shape[0], ox:ox + a.shape[1]][m] = lab[m]
+        ty, tx = np.argwhere(lab == R['casque']).mean(0)
+        tetes.append((tx + ox - i * cw, ty + oy))
+    Image.fromarray(feuille, 'RGBA').save(SRC / 'chute.png')
+    Image.fromarray(carte, 'L').save(SRC / 'chute-roles.png')
+    meta['chute'] = {'tileW': cw, 'tileH': chh, 'images': len(ch), 'pied': {'x': ax, 'y': ay},
+                     'tete': [{'x': round(float(x), 1), 'y': round(float(y), 1)} for x, y in tetes]}
     (SRC / 'sprites.json').write_text(json.dumps(meta, indent=2) + '\n')
     print(f'planche : grille {P:.2f} px, {len(dessins)} images en cases de {tw}×{th}')
     print(f'gardien : {g.shape[1]}×{g.shape[0]}')

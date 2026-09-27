@@ -80,6 +80,19 @@ export const ESQUIVE_SONNE = 1.2;
 export const ESQUIVE_VERROU = 0.35;
 /** Arrêt sur image au moment de l'esquive (s). */
 export const ESQUIVE_FIGE = 0.12;
+/**
+ * Défenseur esquivé : il tombe (pendant tout `ESQUIVE_SONNE`) et glisse sur
+ * la glace dans le sens de sa charge — d'abord en plongeon (`CHUTE_PLONGEON`
+ * s), puis allongé. Vitesse de départ (px/s) et frottement (/s) : environ
+ * 35 px de glissade.
+ */
+export const CHUTE_PLONGEON = 0.4;
+export const CHUTE_GLISSE = 170;
+export const CHUTE_FROTTEMENT = 4.5;
+/** Impact : le joueur touché passe en blanc un instant (s)… */
+export const FLASH_T = 0.1;
+/** …et une mise en échec réussie fige l'action un court instant (s). */
+export const ECHEC_FIGE = 0.07;
 /** Coup de crosse : durée (s), puis recharge (s) avant le suivant. */
 export const POKE_T = 0.3;
 export const POKE_RECHARGE = 0.35;

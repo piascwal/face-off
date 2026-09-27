@@ -11,7 +11,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detoure } from './logo-cutout.mjs';
-import { chargeSources, feuilleGardien, feuilleJoueur, feuillePortrait, feuilleVisages, VISAGES } from './sprites-illustres.mjs';
+import { chargeSources, feuilleChute, feuilleGardien, feuilleJoueur, feuillePortrait, feuilleVisages, VISAGES } from './sprites-illustres.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_SPRITES = path.join(__dirname, '..', 'public', 'sprites');
@@ -116,6 +116,8 @@ await traiteLogos();
  */
 const ECHELLE_JOUEUR = 0.28;
 const ECHELLE_GARDIEN = 0.2;
+/** Le joueur au sol (dessin deux fois moins fin que la planche) : casque de la même taille qu'en patinant. */
+const ECHELLE_CHUTE = 0.22;
 /**
  * Décalage de dessin (px de sprite) par rapport au point d'ancrage : le
  * patineur est dessiné un peu en arrière pour que la palette de sa crosse
@@ -131,10 +133,11 @@ for (const eq of EQUIPES) {
   writeFileSync(path.join(OUT_SPRITES, `skater-${eq.id}.png`), feuilleJoueur(sources, eq, logo).toBuffer('image/png'));
   writeFileSync(path.join(OUT_SPRITES, `goalie-${eq.id}.png`), feuilleGardien(sources, eq, logo).toBuffer('image/png'));
   writeFileSync(path.join(OUT_SPRITES, `portrait-${eq.id}.png`), feuillePortrait(sources, eq, logo).toBuffer('image/png'));
+  writeFileSync(path.join(OUT_SPRITES, `chute-${eq.id}.png`), feuilleChute(sources, eq).toBuffer('image/png'));
 }
 writeFileSync(path.join(OUT_SPRITES, 'visages.png'), feuilleVisages(sources).toBuffer('image/png'));
 
-const { joueur, gardien, portrait } = sources.meta;
+const { joueur, gardien, portrait, chute } = sources.meta;
 writeFileSync(
   path.join(OUT_SPRITES, 'meta.json'),
   JSON.stringify(
@@ -142,6 +145,7 @@ writeFileSync(
       joueur: { ...joueur, echelle: ECHELLE_JOUEUR, decalage: DECALAGE_JOUEUR },
       gardien: { ...gardien, echelle: ECHELLE_GARDIEN, decalage: DECALAGE_GARDIEN },
       portrait,
+      chute: { ...chute, echelle: ECHELLE_CHUTE },
       visages: VISAGES.length,
       teamIds: EQUIPES_LOGO.map((e) => e.id),
       variants: VARIANTES,

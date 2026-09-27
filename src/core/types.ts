@@ -43,6 +43,10 @@ export interface Skater {
   esquiveVerrou: number;
   /** IA : mise en échec en préparation (s restantes avant de charger le porteur). */
   prepaEchecT: number;
+  /** Au sol après une esquive (s restantes) : plongeon puis allongé, en glissant. */
+  chuteT: number;
+  /** Flash blanc d'impact (s restantes). */
+  flashT: number;
   anim: number;
   humain: boolean;
   ex: number;

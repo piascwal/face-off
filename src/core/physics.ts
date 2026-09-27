@@ -3,6 +3,9 @@ import {
   ACCEL,
   BUT_DEMI,
   BUT_PROF,
+  CHUTE_FROTTEMENT,
+  ECHEC_FIGE,
+  FLASH_T,
   GARDIEN_PASSE_LENTEUR,
   INTERCEPTION_RAYON,
   PASSE_AIMANT,
@@ -96,6 +99,8 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
   s.esquiveVerrou = Math.max(0, s.esquiveVerrou - dt);
   s.elanT -= dt;
   if (s.sonne > 0) s.sonne -= dt;
+  s.chuteT = Math.max(0, s.chuteT - dt);
+  s.flashT = Math.max(0, s.flashT - dt);
   let ix = s.ex;
   let iy = s.ey;
   if (s.sonne > 0 || state.phase === 'engagement' || state.phase === 'fin') ix = iy = 0;
@@ -125,17 +130,18 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
       }
     }
   }
-  const fr = m > 0.08 ? 1.1 : 2.4;
+  // au sol, on glisse longtemps : la glace freine peu un joueur couché
+  const fr = s.chuteT > 0 ? CHUTE_FROTTEMENT : m > 0.08 ? 1.1 : 2.4;
   s.vx *= Math.exp(-fr * dt);
   s.vy *= Math.exp(-fr * dt);
   const sp = Math.hypot(s.vx, s.vy);
   const lim = vmax * (s.elanT > 0 ? 1.9 : 1);
-  if (sp > lim) {
+  if (sp > lim && s.chuteT <= 0) {
     const k = Math.max(lim / sp, Math.exp(-5 * dt));
     s.vx *= k;
     s.vy *= k;
   }
-  if (s.sonne > 0) s.face += 14 * dt;
+  if (s.sonne > 0 && s.chuteT <= 0) s.face += 14 * dt;
   s.x += s.vx * dt;
   s.y += s.vy * dt;
   const vn = heurteBande(rink, s, s.r, 0.35);
@@ -163,6 +169,8 @@ export function collisionsPatineurs(state: MatchState): void {
     for (let j = i + 1; j < L.length; j++) {
       const a = L[i]!;
       const b = L[j]!;
+      // un joueur au sol glisse sous les autres sans les gêner
+      if (a.chuteT > 0 || b.chuteT > 0) continue;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const d = Math.hypot(dx, dy);
@@ -205,6 +213,8 @@ export function collisionsPatineurs(state: MatchState): void {
         p.qualite = 0;
       }
       o.sonne = o.tient ? 0.8 : 0.45;
+      o.flashT = FLASH_T;
+      state.figeT = Math.max(state.figeT, ECHEC_FIGE);
       o.vx += nx * 130;
       o.vy += ny * 130;
       s.vx *= 0.4;
@@ -213,7 +223,6 @@ export function collisionsPatineurs(state: MatchState): void {
       state.evenements.push({ type: 'secousse', force: 3 });
       state.evenements.push({ type: 'charge' });
       state.evenements.push({ type: 'etincelles', x: (s.x + o.x) / 2, y: (s.y + o.y) / 2 - 4, n: 10, c: '#ffffff' });
-      state.evenements.push({ type: 'bulle', txt: 'ÉCHEC !', x: (s.x + o.x) / 2, y: o.y - 18, c: '#ffd35c' });
       state.stats.checks[s.eq]++;
       if (s.humain || o.humain) state.evenements.push({ type: 'vibre', ms: 35 });
       break;

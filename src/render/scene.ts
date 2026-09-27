@@ -42,7 +42,8 @@ export function dessineScene(
   dessineCage(g, rink, 1);
 
   // ombres puis entités triées par profondeur
-  for (const s of state.patineurs) ellipseOmbre(g, s.x, s.y + 3.5, 10, 1.8, 0.28);
+  // un joueur au sol : ombre allongée sous tout son corps
+  for (const s of state.patineurs) ellipseOmbre(g, s.x, s.y + 3.5, s.chuteT > 0 ? 17 : 10, s.chuteT > 0 ? 3 : 1.8, 0.28);
 
   // en match, on repère ses coéquipiers et le receveur que viserait une passe
   if (state.mode === 'match' && ecranUI === 'jeu') {

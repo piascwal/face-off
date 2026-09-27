@@ -26,6 +26,26 @@
     "tileW": 92,
     "tileH": 116
   },
+  "chute": {
+    "tileW": 176,
+    "tileH": 102,
+    "images": 2,
+    "pied": {
+      "x": 88,
+      "y": 43
+    },
+    "tete": [
+      {
+        "x": 111.6,
+        "y": 31
+      },
+      {
+        "x": 123.8,
+        "y": 37.7
+      }
+    ],
+    "echelle": 0.22
+  },
   "visages": 6,
   "teamIds": [
     "toulouse",

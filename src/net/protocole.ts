@@ -151,7 +151,7 @@ export function lisEvenement(o: unknown, versLocal: (x: number, y: number) => [n
 const TYPE_INSTANTANE = 1;
 const TYPE_ENTREE = 2;
 const PHASES: GamePhase[] = ['engagement', 'jeu', 'but', 'fin'];
-const F_PATINEUR = 15;
+const F_PATINEUR = 17;
 const TAILLE_PATINEUR = F_PATINEUR * 4 + 1;
 const TAILLE_GARDIEN = 5 * 4;
 // … + statistiques (passes, mises en échec, meilleure combo, possession)
@@ -174,6 +174,8 @@ export interface EtatPatineur {
   ey: number;
   esquiveT: number;
   prepaEchecT: number;
+  chuteT: number;
+  flashT: number;
   vise: number | null;
   tient: boolean;
   arme: boolean;
@@ -282,7 +284,7 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
   u8(n);
   for (let i = 0; i < n; i++) {
     const s = state.patineurs[i]!;
-    for (const v of [s.x, s.y, s.vx, s.vy, s.face, s.charge, s.elanT, s.elanCd, s.sonne, s.anim, s.ex, s.ey, s.esquiveT, s.prepaEchecT]) f(v);
+    for (const v of [s.x, s.y, s.vx, s.vy, s.face, s.charge, s.elanT, s.elanCd, s.sonne, s.anim, s.ex, s.ey, s.esquiveT, s.prepaEchecT, s.chuteT, s.flashT]) f(v);
     f(s.vise ?? NaN);
     u8((s.tient ? 1 : 0) | (s.arme ? 2 : 0) | (s.humain ? 4 : 0));
   }
@@ -348,7 +350,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
   if (buf.byteLength !== TAILLE_ENTETE + n * TAILLE_PATINEUR + 2 * TAILLE_GARDIEN + TAILLE_PALET) return null;
   const patineurs: EtatPatineur[] = [];
   for (let i = 0; i < n; i++) {
-    const [x, y, vx, vy, face, charge, elanT, elanCd, sonne, anim, ex, ey, esquiveT, prepaEchecT] = Array.from({ length: 14 }, f) as number[];
+    const [x, y, vx, vy, face, charge, elanT, elanCd, sonne, anim, ex, ey, esquiveT, prepaEchecT, chuteT, flashT] = Array.from({ length: 16 }, f) as number[];
     const vise = fNul();
     const b = u8();
     patineurs.push({
@@ -366,6 +368,8 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
       ey: ey!,
       esquiveT: esquiveT!,
       prepaEchecT: prepaEchecT!,
+      chuteT: chuteT!,
+      flashT: flashT!,
       vise,
       tient: (b & 1) !== 0,
       arme: (b & 2) !== 0,
@@ -452,6 +456,8 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
     s.ey = sb.ey;
     s.esquiveT = sb.esquiveT;
     s.prepaEchecT = sb.prepaEchecT;
+    s.chuteT = sb.chuteT;
+    s.flashT = sb.flashT;
     s.vise = sb.vise;
     s.tient = sb.tient;
     s.arme = sb.arme;

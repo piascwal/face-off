@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { menaceEchec, passeVers, prendPalet, surReception, tir } from '../src/core/actions';
-import { COMBO_BONUS, ECHEC_PREPA, ECHEC_PREPA_MAX, UNE_TOUCHE_BONUS, UNE_TOUCHE_S } from '../src/core/constants';
+import { COMBO_BONUS, ECHEC_PREPA, ECHEC_PREPA_MAX, ESQUIVE_SONNE, UNE_TOUCHE_BONUS, UNE_TOUCHE_S } from '../src/core/constants';
 import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
 import { pointDeSoutien } from '../src/core/ai';
@@ -178,6 +178,38 @@ describe('esquive et coup de crosse', () => {
     expect(st.figeT).toBeGreaterThan(0);
     for (let i = 0; i < 30; i++) pas(rink, st, 1 / 60);
     expect(a.tient).toBe(true);
+  });
+
+  it('le défenseur esquivé tombe et glisse dans le sens de sa charge, sans bousculer personne', () => {
+    const { st, a, d } = echecEnApproche();
+    const x0 = d.x;
+    appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
+    expect(d.chuteT).toBeCloseTo(ESQUIVE_SONNE, 5);
+    expect(d.flashT).toBeGreaterThan(0);
+    expect(Math.cos(d.face)).toBeLessThan(-0.99); // tête vers la gauche, comme sa charge
+    // un coéquipier du porteur couché sur la trajectoire : on lui glisse dessous
+    const m = st.patineurs.find((q) => q.eq === 0 && q !== a)!;
+    Object.assign(m, { x: d.x - 20, y: d.y, vx: 0, vy: 0 });
+    Object.assign(m.ia, { tx: m.x, ty: m.y });
+    const mx = m.x;
+    for (let i = 0; i < 90; i++) pas(rink, st, 1 / 60);
+    const glisse = x0 - d.x;
+    expect(glisse).toBeGreaterThan(25);
+    expect(glisse).toBeLessThan(50);
+    expect(Math.abs(m.x - mx)).toBeLessThan(1);
+    for (let i = 0; i < 30; i++) pas(rink, st, 1 / 60);
+    expect(d.chuteT).toBe(0);
+  });
+
+  it('une mise en échec réussie : flash blanc et court arrêt sur image, sans bulle de texte', () => {
+    const { st, a, d } = echecEnApproche();
+    st.nivEq[0].esquive = 0;
+    Object.assign(d, { x: a.x + 8 });
+    pas(rink, st, 1 / 60);
+    expect(a.tient).toBe(false);
+    expect(a.flashT).toBeGreaterThan(0);
+    expect(st.figeT).toBeGreaterThan(0);
+    expect(st.evenements.some((e) => e.type === 'bulle')).toBe(false);
   });
 
   it('matraquer le bouton ne marche pas : un appui hors fenêtre bloque l’esquive un instant', () => {

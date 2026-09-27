@@ -1,7 +1,8 @@
 import { pointCrosse } from '@core/actions';
+import { CHUTE_PLONGEON, ESQUIVE_SONNE } from '@core/constants';
 import type { Goalie, Puck, Skater } from '@core/types';
 import { px } from './primitives';
-import type { BanqueSprites } from './sprites';
+import type { BanqueSprites, Rect } from './sprites';
 import { C, MARQUE } from './theme';
 import type { EquipeVisuelle } from './team-visuals';
 
@@ -55,6 +56,71 @@ function flecheControle(g: CanvasRenderingContext2D, x: number, y: number, coule
   g.globalAlpha = 1;
 }
 
+let tamponFlash: HTMLCanvasElement | null = null;
+
+/**
+ * Silhouette blanche d'un sprite : le flash d'impact (mise en échec, esquive),
+ * comme dans les jeux d'arcade — se lit d'un coup d'œil, sans texte.
+ */
+function dessineBlanc(g: CanvasRenderingContext2D, img: CanvasImageSource, r: Rect, dx: number, dy: number, dw: number, dh: number): void {
+  tamponFlash ??= document.createElement('canvas');
+  if (tamponFlash.width < r.sw || tamponFlash.height < r.sh) {
+    tamponFlash.width = Math.max(tamponFlash.width, r.sw);
+    tamponFlash.height = Math.max(tamponFlash.height, r.sh);
+  }
+  const t = tamponFlash.getContext('2d');
+  if (!t) return;
+  t.clearRect(0, 0, r.sw, r.sh);
+  t.drawImage(img, r.sx, r.sy, r.sw, r.sh, 0, 0, r.sw, r.sh);
+  t.globalCompositeOperation = 'source-in';
+  t.fillStyle = '#ffffff';
+  t.fillRect(0, 0, r.sw, r.sh);
+  t.globalCompositeOperation = 'source-over';
+  g.drawImage(tamponFlash, 0, 0, r.sw, r.sh, dx, dy, dw, dh);
+}
+
+/** Étoiles qui tournent au-dessus d'un joueur sonné. */
+function etoiles(g: CanvasRenderingContext2D, x: number, y: number, temps: number): void {
+  for (let i = 0; i < 3; i++) {
+    const a = temps * 6 + i * 2.1;
+    px(g, x + Math.cos(a) * 6, y + Math.sin(a) * 2, 1, 1, C.or);
+  }
+}
+
+/**
+ * Défenseur esquivé, au sol : plongeon puis allongé, tête dans le sens de sa
+ * glissade (voir `esquive` dans core/actions).
+ */
+function dessineAuSol(
+  g: CanvasRenderingContext2D,
+  sprites: BanqueSprites,
+  s: Skater,
+  temps: number,
+  estControle: boolean,
+  equipes: [EquipeVisuelle, EquipeVisuelle],
+): void {
+  const M = sprites.meta.chute;
+  const e = M.echelle;
+  const gauche = Math.cos(s.face) < 0;
+  const frame = ESQUIVE_SONNE - s.chuteT < CHUTE_PLONGEON ? 0 : 1;
+  const sprite = sprites.spriteChute(equipes[s.eq].id, frame, gauche);
+  const miroir = (x: number) => (gauche ? M.tileW - x : x);
+  const bx = s.x - miroir(M.pied.x) * e;
+  const by = s.y + 2 - M.pied.y * e;
+  if (estControle) haloSol(g, s.x, s.y + 4, 12, COULEUR_CONTROLE, 0.5 + 0.25 * Math.sin(temps * 6));
+  if (sprite) {
+    const { img, rect: r } = sprite;
+    if (s.flashT > 0) dessineBlanc(g, img, r, bx, by, M.tileW * e, M.tileH * e);
+    else g.drawImage(img, r.sx, r.sy, r.sw, r.sh, bx, by, M.tileW * e, M.tileH * e);
+  }
+  const t = M.tete[frame] ?? M.pied;
+  const hx = bx + miroir(t.x) * e;
+  const hy = by + t.y * e;
+  if (frame === 1) etoiles(g, hx, hy - 5, temps);
+  if (estControle) flecheControle(g, Math.round(hx), Math.round(hy) - 8 + Math.round(Math.sin(temps * 6)));
+  else if (s.humain) flecheControle(g, Math.round(hx), Math.round(hy) - 8, equipes[s.eq].clair, true);
+}
+
 /** Pas de patinage : distance parcourue (px logiques) par image du cycle. */
 const PAS_ANIM = 8;
 export function dessinePatineur(
@@ -67,6 +133,10 @@ export function dessinePatineur(
   specialPret: boolean,
   menace = false,
 ): void {
+  if (s.chuteT > 0) {
+    dessineAuSol(g, sprites, s, temps, estControle, equipes);
+    return;
+  }
   const M = sprites.meta.joueur;
   const e = M.echelle;
   // taille des repères au sol, proportionnelle au joueur
@@ -90,6 +160,11 @@ export function dessinePatineur(
   const teteY = by + M.tete * e + 2;
   const sp = pointCrosse(s);
   const corps = (dx = 0, dy = 0) => {
+    // impact : silhouette blanche (le visage est dans la silhouette)
+    if (sprite && s.flashT > 0 && dx === 0 && dy === 0) {
+      dessineBlanc(g, sprite.img, sprite.rect, bx, by, tw, th);
+      return;
+    }
     if (sprite) g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, bx + dx, by + dy, tw, th);
     if (visage) g.drawImage(visage.img, visage.rect.sx, visage.rect.sy, visage.rect.sw, visage.rect.sh, bx + dx, by + dy, tw, th);
   };
@@ -124,12 +199,7 @@ export function dessinePatineur(
 
   corps();
 
-  if (s.sonne > 0) {
-    for (let i = 0; i < 3; i++) {
-      const a = temps * 6 + i * 2.1;
-      px(g, s.x + Math.cos(a) * 6, teteY - 1 + Math.sin(a) * 2, 1, 1, C.or);
-    }
-  }
+  if (s.sonne > 0) etoiles(g, s.x, teteY - 1, temps);
   if (s.elanT > 0) {
     g.globalAlpha = 0.35;
     corps(-s.vx * 0.04, -s.vy * 0.04);

@@ -3,11 +3,13 @@ import {
   CHANGEMENT_AUTO_SEUIL,
   COMBO_BONUS,
   COMBO_SEUIL,
+  CHUTE_GLISSE,
   ELAN_CD_PALET,
   ESQUIVE_FIGE,
   ESQUIVE_PORTEE,
   ESQUIVE_SONNE,
   ESQUIVE_T,
+  FLASH_T,
   POKE_RECHARGE,
   POKE_T,
   UNE_TOUCHE_BONUS,
@@ -309,13 +311,16 @@ export function menaceEchec(state: MatchState, s: Skater): Skater | null {
 
 /**
  * Esquive : le porteur fait un pas de côté, à l'opposé de la trajectoire du
- * défenseur, qui passe à côté et trébuche. Un court arrêt sur image souligne
- * le moment.
+ * défenseur, qui passe à côté, tombe et glisse sur la glace dans le sens de
+ * sa charge. Un court arrêt sur image et un flash blanc soulignent le moment.
  */
 export function esquive(state: MatchState, s: Skater, o: Skater): void {
-  const v = Math.hypot(o.vx, o.vy) || 1;
-  const ux = o.vx / v;
-  const uy = o.vy / v;
+  // sens de la charge : sa vitesse, ou vers le porteur s'il la préparait encore
+  const v = Math.hypot(o.vx, o.vy);
+  const [ax, ay] = v > 30 ? [o.vx, o.vy] : [s.x - o.x, s.y - o.y];
+  const n = Math.hypot(ax, ay) || 1;
+  const ux = ax / n;
+  const uy = ay / n;
   // de quel côté de la trajectoire est le porteur : on s'en écarte encore
   const cote = Math.sign((s.x - o.x) * -uy + (s.y - o.y) * ux) || 1;
   s.vx += -uy * cote * 120;
@@ -326,8 +331,11 @@ export function esquive(state: MatchState, s: Skater, o: Skater): void {
   o.elanT = 0;
   o.prepaEchecT = 0;
   o.sonne = ESQUIVE_SONNE;
-  o.vx *= 0.7;
-  o.vy *= 0.7;
+  o.chuteT = ESQUIVE_SONNE;
+  o.flashT = FLASH_T;
+  o.face = Math.atan2(uy, ux);
+  o.vx = ux * CHUTE_GLISSE;
+  o.vy = uy * CHUTE_GLISSE;
   state.figeT = ESQUIVE_FIGE;
   state.evenements.push({ type: 'elan' });
   state.evenements.push({ type: 'secousse', force: 1.5 });
