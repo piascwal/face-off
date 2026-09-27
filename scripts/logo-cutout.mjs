@@ -95,8 +95,13 @@ function retireFondUni(data, w, h, fonds) {
   // enfermé dans un logo sur fond blanc fait partie du dessin (et une simple
   // taille de poche ne suffit pas à trancher : une texture d'écailles peut
   // légitimement dessiner de petites facettes de la couleur du fond).
+  // …sauf sur un fond très saturé (magenta, vert vif) : aucun dessin n'emploie
+  // cette couleur, et les poches enfermées entre deux traits (les plumes
+  // d'Ottawa) sont bien du fond.
+  const f0 = fonds[0];
+  const fondVif = chroma(f0.r, f0.g, f0.b) >= 150;
   for (const c of composantes(masque, w, h)) {
-    if (!c.bord) continue;
+    if (!c.bord && !fondVif) continue;
     for (const idx of c.pixels) data[idx * 4 + 3] = 0;
   }
   // Liseré : la compression JPEG (et, sur fond saturé, la fuite de

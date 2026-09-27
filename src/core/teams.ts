@@ -28,6 +28,10 @@ export const EQUIPES_JOUABLES: TeamProfile[] = [
   { id: 'valence', vit: 1.15, tir: 1.1, defense: 0.88, gardien: 0.9 },
   { id: 'annecy', vit: 0.98, tir: 0.98, defense: 1.05, gardien: 1.02 },
   { id: 'colorado', vit: 1.12, tir: 1.1, defense: 0.98, gardien: 0.95 },
+  // renards de Roanne : vifs et malins, gardien solide
+  { id: 'roanne', vit: 1.08, tir: 0.97, defense: 0.98, gardien: 1.05 },
+  // Senators d'Ottawa : physiques, solides en défense
+  { id: 'ottawa', vit: 0.95, tir: 1.02, defense: 1.1, gardien: 1.0 },
 ];
 
 export function trouveEquipe(id: string): TeamProfile {

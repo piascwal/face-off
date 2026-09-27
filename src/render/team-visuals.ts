@@ -122,6 +122,22 @@ const INTERIEURS: Omit<TeamDef, 'exterieur'>[] = [
     logo: 'logos/colorado.png',
     interieur: { maillot: '#6f263d', fonce: '#236192', clair: '#ffffff', casque: '#6f263d' },
   },
+  {
+    id: 'roanne',
+    nom: 'Renards',
+    ville: 'Roanne',
+    code: 'ROANNE',
+    logo: 'logos/roanne.png',
+    interieur: { maillot: '#141414', fonce: '#f2c200', clair: '#ffffff', casque: '#141414' },
+  },
+  {
+    id: 'ottawa',
+    nom: 'Senators',
+    ville: 'Ottawa',
+    code: 'OTTAWA',
+    logo: 'logos/ottawa.png',
+    interieur: { maillot: '#c8102e', fonce: '#141414', clair: '#ffffff', casque: '#141414' },
+  },
 ];
 
 export const EQUIPES_JOUABLES: TeamDef[] = INTERIEURS.map((def) => ({
