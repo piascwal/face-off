@@ -8,6 +8,10 @@ import { C, MARQUE } from './theme';
 import type { EquipeVisuelle } from './team-visuals';
 
 export interface EtatMenu {
+  /** Mode solo : match simple ou coupe (tableau à élimination directe). */
+  coupe: boolean;
+  /** Tour de la coupe en cours (null : pas de coupe en cours). */
+  tourCoupe: string | null;
   niveauIdx: number;
   dureeIdx: number;
   effectifIdx: number;
@@ -17,6 +21,7 @@ export interface EtatMenu {
   tactile: boolean;
   /** Numéro de version de l'app, en petit en bas à droite. */
   version: string;
+  onMode: () => void;
   onNiveau: () => void;
   onDuree: () => void;
   onEffectif: () => void;
@@ -44,21 +49,22 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
   texte(g, 'HOCKEY ARCADE', cx, ty + 7 * e + 5, C.or, 1, 'c');
 
   const pw = 186;
-  const ph = 122;
+  const ph = 123;
   const py = ty + 7 * e + 16;
   panneau(g, cx - pw / 2, py, pw, ph);
   const lignes: [string, string, () => void][] = [
+    ['MODE', menu.coupe ? 'COUPE' : 'CLASSIQUE', menu.onMode],
     ['NIVEAU', NIVEAUX[menu.niveauIdx]!.nom, menu.onNiveau],
     ['DUREE', `${DUREES[menu.dureeIdx]! / 60} MIN`, menu.onDuree],
     ['EQUIPES', `${EFFECTIFS[menu.effectifIdx]} CONTRE ${EFFECTIFS[menu.effectifIdx]}`, menu.onEffectif],
     ['SON', menu.son ? 'OUI' : 'NON', menu.onSon],
   ];
   lignes.forEach(([k, v, act], i) => {
-    const y = py + 5 + i * 15;
-    texte(g, k, cx - pw / 2 + 10, y + 4, C.gris, 1, 'g');
-    bouton(g, boutons, `< ${v} >`, cx - 14, y, 98, 13, act, { couleur: '#232a58' });
+    const y = py + 5 + i * 14;
+    texte(g, k, cx - pw / 2 + 10, y + 3, i === 0 && menu.coupe ? C.or : C.gris, 1, 'g');
+    bouton(g, boutons, `< ${v} >`, cx - 14, y, 98, 12, act, { couleur: i === 0 ? '#2d3a8c' : '#232a58', texte: i === 0 && menu.coupe ? C.or : undefined });
   });
-  const jy = py + 68;
+  const jy = py + 77;
   const pulse = Math.sin(t * 5) > 0;
   bouton(g, boutons, 'JOUER', cx - 88, jy, 84, 22, menu.onJouer, {
     e: 2,
@@ -70,7 +76,14 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
   bouton(g, boutons, 'REGLAGES AVANCES', cx - 60, jy + 28, 120, 13, menu.onAvance, { couleur: '#232a58' });
   const bas = py + ph + 6;
   texte(g, menu.version, W - 3, H - 9, '#4a5380', 1, 'd');
-  if (bas + 8 < H) texte(g, menu.matchs ? `VICTOIRES ${menu.victoires} / ${menu.matchs}` : 'PREMIER MATCH ?', cx, bas, C.gris, 1, 'c');
+  const bilan = menu.coupe
+    ? menu.tourCoupe
+      ? `COUPE EN COURS : ${menu.tourCoupe}`
+      : 'NOUVELLE COUPE : 8 EQUIPES, 3 TOURS'
+    : menu.matchs
+      ? `VICTOIRES ${menu.victoires} / ${menu.matchs}`
+      : 'PREMIER MATCH ?';
+  if (bas + 8 < H) texte(g, bilan, cx, bas, menu.coupe ? C.or : C.gris, 1, 'c');
   if (bas + 20 < H) {
     texte(
       g,
@@ -176,6 +189,10 @@ export interface EtatFin {
   equipes: [EquipeVisuelle, EquipeVisuelle];
   onRejouer: () => void;
   onMenu: () => void;
+  /** Libellé du bouton principal (REJOUER, ou TABLEAU en coupe). */
+  libelleRejouer?: string;
+  /** Ligne du bas (niveau et bilan, ou tour de la coupe). */
+  pied?: string;
 }
 
 export function dessineFin(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, fin: EtatFin): void {
@@ -195,9 +212,9 @@ export function dessineFin(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
   texte(g, titre, cx, cy - 75 + Math.round(Math.sin(t * 4) * 1.5), gagne ? C.or : '#ff6b6b', 3, 'c');
   texte(g, `${fin.score[0]} - ${fin.score[1]}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 50, C.blanc, 2, 'c');
   dessineStatsFin(g, cx, cy - 31, fin.tirs, fin.stats);
-  bouton(g, boutons, 'REJOUER', cx - 108, cy + 17, 100, 20, fin.onRejouer, { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' });
+  bouton(g, boutons, fin.libelleRejouer ?? 'REJOUER', cx - 108, cy + 17, 100, 20, fin.onRejouer, { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' });
   bouton(g, boutons, 'MENU', cx + 8, cy + 17, 100, 20, fin.onMenu);
-  texte(g, `NIVEAU ${fin.niveauNom}   VICTOIRES ${fin.victoires} / ${fin.matchs}`, cx, cy + 45, '#6f7aa6', 1, 'c');
+  texte(g, fin.pied ?? `NIVEAU ${fin.niveauNom}   VICTOIRES ${fin.victoires} / ${fin.matchs}`, cx, cy + 45, '#6f7aa6', 1, 'c');
 }
 
 export function dessineBanniere(g: CanvasRenderingContext2D, W: number, rink: Rink, banniere: Banniere | null, ecranUI: string): void {

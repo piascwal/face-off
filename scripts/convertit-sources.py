@@ -586,6 +586,22 @@ def celebrations():
     return sorties
 
 
+# --- Trophée (mode coupe) ---------------------------------------------------------
+
+
+def coupe():
+    """La coupe du tableau (mode coupe) : détourée, pixelisée, 64 couleurs, telle quelle."""
+    im = np.asarray(Image.open(SRC / 'coupe.jpg').convert('RGB')).astype(float)
+    fond = np.median(im[:30, :30].reshape(-1, 3), 0)
+    fg = ndimage.binary_opening(np.linalg.norm(im - fond, axis=2) > 70, iterations=1)
+    lab, n = ndimage.label(fg)
+    tailles = ndimage.sum(fg, lab, range(1, n + 1))
+    fg = ndimage.binary_fill_holes(np.isin(lab, [i + 1 for i, t in enumerate(tailles) if t > 1000]))
+    a = quantifie([pixelise(im, fg, periode(im, fg))])[0]
+    detoure_violet(a, s_min=0.15)
+    return a
+
+
 # --- Assemblage ---------------------------------------------------------------
 
 
@@ -668,6 +684,8 @@ def main():
     # `reference` : hauteur du premier dessin, celle que vise le réglage de taille en jeu
     meta['celebration'] = {'tileW': cw, 'tileH': chh, 'images': len(ce), 'reference': int(ce[0][0].shape[0])}
     (SRC / 'sprites.json').write_text(json.dumps(meta, indent=2) + '\n')
+    # trophée du mode coupe : directement dans public/ (il n'est pas repeint)
+    Image.fromarray(coupe(), 'RGBA').save(SRC.parent.parent / 'public' / 'coupe.png', optimize=True)
     print(f'planche : grille {P:.2f} px, {len(dessins)} images en cases de {tw}×{th}')
     print(f'gardien : {g.shape[1]}×{g.shape[0]}')
 

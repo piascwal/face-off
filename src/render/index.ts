@@ -17,3 +17,4 @@ export * from './team-visuals';
 export * from './theme';
 export * from './widgets';
 export * from './lan-screens';
+export * from './coupe';

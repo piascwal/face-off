@@ -1,3 +1,5 @@
+import { lisCoupe, type EtatCoupe } from '../core/coupe';
+
 const CLE = 'face-off-v1';
 
 export interface Preferences {
@@ -22,6 +24,10 @@ export interface Preferences {
   ralentiButs: boolean;
   /** Bilan des duels Wi-Fi, par appareil adverse. */
   duels: Record<string, BilanDuel>;
+  /** Mode de jeu solo choisi à l'accueil. */
+  mode: 'classique' | 'coupe';
+  /** Coupe en cours (reprise au prochain lancement), ou null. */
+  coupe: EtatCoupe | null;
 }
 
 export interface BilanDuel {
@@ -49,6 +55,8 @@ const DEFAUT: Preferences = {
   appareil: '',
   ralentiButs: true,
   duels: {},
+  mode: 'classique',
+  coupe: null,
 };
 
 const SURNOMS = ['LYNX', 'ORQUE', 'AIGLE', 'LOUP', 'OURS', 'PUMA', 'FAUCON', 'BISON', 'RENARD', 'TIGRE', 'COBRA', 'HIBOU', 'REQUIN', 'ZEBRE'];
@@ -75,6 +83,8 @@ export function chargePreferences(): Preferences {
     modifie = true;
   }
   if (!pref.duels || typeof pref.duels !== 'object') pref.duels = {};
+  if (pref.mode !== 'coupe') pref.mode = 'classique';
+  pref.coupe = lisCoupe(pref.coupe);
   if (modifie) sauvePreferences(pref);
   return pref;
 }

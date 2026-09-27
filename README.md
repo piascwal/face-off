@@ -519,6 +519,40 @@ joueurs. Protocole réseau v10.
   - Désactivable dans les réglages avancés (solo) et dans la configuration de
     la partie Wi-Fi.
 
+### 10. Mode coupe
+
+Sur l'accueil, la ligne **MODE** passe de **CLASSIQUE** (un match) à
+**COUPE** : un tableau à élimination directe de 8 équipes (quarts,
+demi-finales, finale).
+
+- **JOUER** ouvre le choix de votre équipe et de son maillot. Les 7
+  adversaires sont tirés au sort.
+- **Le tableau** est symétrique, avec la finale et le trophée au centre.
+  Votre équipe est encadrée en or.
+- **Après chaque match**, les résultats du tour se dévoilent un par un, en
+  commençant par le vôtre. Les vainqueurs avancent ensuite dans le tableau.
+  Un appui passe l'animation.
+- **Difficulté.** Elle monte d'un cran à chaque tour, à partir du niveau
+  choisi au menu, sans dépasser PRO.
+- **Pas de match nul.** Chaque match se termine par un vainqueur (prolongation
+  au but en or).
+- **Les autres matchs** sont simulés d'après les notes des équipes. Les buts
+  sont tirés selon une loi de Poisson : l'attaque (tir, vitesse) contre la
+  défense (défense, gardien).
+- **Sauvegarde.** La coupe est sauvegardée sur l'appareil et reprend au
+  prochain JOUER.
+- **Fin de la coupe.** Si vous êtes éliminé, le tableau se termine en
+  simulation et affiche le vainqueur.
+- **Boutons.**
+  - ABANDONNER (deux appuis) efface la coupe.
+  - Abandonner un match depuis la pause ramène au tableau sans compter le
+    match.
+- Code :
+  - `core/coupe.ts` (module pur, testé dans `tests/coupe.test.ts`) ;
+  - `render/coupe.ts` (écrans) ;
+  - le trophée `public/coupe.png` est converti depuis
+    `assets/sprites-src/coupe.jpg` par `scripts/convertit-sources.py`.
+
 ## Licence
 
 Apache-2.0, voir [LICENSE](./LICENSE).

@@ -4,6 +4,7 @@ import { calculeRink, reprojette } from '@core/rink';
 import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
 import { pas } from '@core/simulation';
 import { trouveEquipe } from '@core/teams';
+import { coupeTerminee, creeCoupe, enregistreResultat, matchDuJoueur, niveauDuTour, NOMS_TOURS } from '@core/coupe';
 import { BONUS_EQUIPE, INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from '@core/types';
 import type { AnnoncePartie } from '@net/annuaire';
 import {
@@ -54,6 +55,13 @@ import {
   dessineSelectionEquipe,
   dessineJaugeTir,
   dessineTableau,
+  dessineChoixCoupe,
+  dessineTableauCoupe,
+  etapesRevelation,
+  etapesVues,
+  palette,
+  varianteAdverse,
+  type Revelation,
   CODES_REACTIONS,
   EQUIPES_JOUABLES,
   REACTION_VIE_S,
@@ -94,10 +102,10 @@ const PAS_FIXE = 1 / 120;
 /** Durée d'affichage de l'image de victoire / défaite avant les statistiques (s). */
 const IMAGE_FIN_S = 2;
 
-type EcranUI = 'menu' | 'avance' | 'equipes' | 'maillots' | 'lan' | 'lanConfig' | 'salon' | 'lanChoix' | 'lanSpect' | 'jeu' | 'pause' | 'fin';
+type EcranUI = 'menu' | 'avance' | 'equipes' | 'maillots' | 'coupeChoix' | 'coupe' | 'lan' | 'lanConfig' | 'salon' | 'lanChoix' | 'lanSpect' | 'jeu' | 'pause' | 'fin';
 
 /** Écrans de menu plein cadre : ni tableau d'affichage ni bandeau par-dessus. */
-const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'equipes', 'maillots', 'lan', 'lanConfig', 'salon', 'lanChoix', 'lanSpect'];
+const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'equipes', 'maillots', 'coupeChoix', 'coupe', 'lan', 'lanConfig', 'salon', 'lanChoix', 'lanSpect'];
 
 /**
  * Match en réseau local : l'hôte simule (équipe 0), le client affiche et
@@ -175,6 +183,15 @@ export class GameApp {
   private indexSelectionAdversaire = 0;
   private varianteJoueur: Variante = 'interieur';
   private varianteAdversaire: Variante = 'interieur';
+  /** Le match en cours est un match de la coupe (son résultat va au tableau). */
+  private matchCoupe = false;
+  /** Niveau de difficulté du match en cours (en coupe, il monte à chaque tour). */
+  private niveauMatch = 1;
+  /** Résultats de la coupe à dévoiler sur le tableau. */
+  private revelation: Revelation | null = null;
+  private etapesSonnees = 0;
+  /** Abandon de la coupe à confirmer (jusqu'à cet instant, en s). */
+  private confirmeAbandonJusqua = 0;
 
   private state: MatchState | null = null;
   private ecranUI: EcranUI = 'menu';
@@ -361,15 +378,17 @@ export class GameApp {
     this.lanceMatch(resoutEquipe(defJoueur, this.varianteJoueur), resoutEquipe(defAdverse, this.varianteAdversaire));
   }
 
-  private lanceMatch(equipeJoueur: EquipeVisuelle, equipeAdverse: EquipeVisuelle): void {
+  private lanceMatch(equipeJoueur: EquipeVisuelle, equipeAdverse: EquipeVisuelle, niveau = this.pref.niveau, sousTitre?: string): void {
     this.audio.init();
+    this.matchCoupe = false;
+    this.niveauMatch = niveau;
     void demandePleinEcranPaysage();
     this.equipesActuelles = [equipeJoueur, equipeAdverse];
     this.effets.definitEquipes(this.equipesActuelles);
     this.construitDecor();
     const options: OptionsPartie = {
       mode: 'match',
-      niveauIdx: this.pref.niveau,
+      niveauIdx: niveau,
       dureeIdx: this.pref.duree,
       effectifIdx: this.pref.effectif,
       equipeJoueur: trouveEquipe(equipeJoueur.teamId),
@@ -384,7 +403,7 @@ export class GameApp {
     this.effets.reinitialise();
     this.ecranUI = 'jeu';
     this.enPause = false;
-    this.effets.annonce('PRETS ?', NIVEAUX[this.pref.niveau]!.nom, C.blanc, 1.5);
+    this.effets.annonce('PRETS ?', sousTitre ?? NIVEAUX[niveau]!.nom, C.blanc, 1.5);
   }
 
   /** Rejoue immédiatement avec les deux mêmes équipes et maillots (pas de repassage par la sélection). */
@@ -392,7 +411,101 @@ export class GameApp {
     this.lanceMatch(this.equipesActuelles[0], this.equipesActuelles[1]);
   }
 
+  // ------------------------------------------------------------ mode coupe
+
+  /** JOUER en mode coupe : reprend la coupe en cours, sinon choix de l'équipe. */
+  private ouvreCoupe(): void {
+    this.audio.init();
+    if (this.pref.coupe) this.ouvreTableau();
+    else this.ouvreChoixCoupe();
+  }
+
+  private ouvreChoixCoupe(): void {
+    this.indexSelectionJoueur = Math.max(0, EQUIPES_JOUABLES.findIndex((e) => e.id === this.pref.equipeJoueur));
+    this.varianteJoueur = 'interieur';
+    this.ecranUI = 'coupeChoix';
+  }
+
+  private lanceCoupe(): void {
+    this.audio.clic();
+    const def = EQUIPES_JOUABLES[this.indexSelectionJoueur]!;
+    this.pref.equipeJoueur = def.id;
+    this.pref.coupe = creeCoupe(def.id, this.varianteJoueur, this.pref.niveau);
+    sauvePreferences(this.pref);
+    this.revelation = null;
+    this.ouvreTableau();
+  }
+
+  private ouvreTableau(): void {
+    if (this.state?.mode === 'match') this.creeDemo();
+    this.matchCoupe = false;
+    this.enPause = false;
+    this.effets.reinitialise();
+    this.imageFin = null;
+    this.ecranUI = 'coupe';
+    if (this.revelation && this.revelation.t0 === null) {
+      this.revelation.t0 = performance.now() / 1000;
+      this.etapesSonnees = 0;
+    }
+  }
+
+  /** Match du tour contre l'adversaire du tableau, au niveau du tour. */
+  private joueMatchCoupe(): void {
+    const c = this.pref.coupe;
+    const mj = c && matchDuJoueur(c);
+    if (!c || !mj) return;
+    const defJ = trouveTeamDef(c.equipe);
+    const defA = trouveTeamDef(mj.adversaire);
+    const eqJ = resoutEquipe(defJ, c.variante);
+    const eqA = resoutEquipe(defA, varianteAdverse(palette(defJ, c.variante), defA));
+    const niveau = niveauDuTour(c);
+    this.revelation = null;
+    this.lanceMatch(eqJ, eqA, niveau, `${NOMS_TOURS[c.tour]} - ${NIVEAUX[niveau]!.nom}`);
+    this.matchCoupe = true;
+  }
+
+  /** Match de coupe terminé : le résultat entre au tableau, les autres matchs du tour se jouent. */
+  private noteMatchCoupe(state: MatchState): void {
+    const c = this.pref.coupe;
+    if (!this.matchCoupe || !c) return;
+    const tours = enregistreResultat(c, state.score[0], state.score[1], state.prolong);
+    sauvePreferences(this.pref);
+    this.revelation = { etapes: etapesRevelation(c, tours), t0: null };
+  }
+
+  private abandonneCoupe(): void {
+    const t = performance.now() / 1000;
+    if (t > this.confirmeAbandonJusqua) {
+      this.confirmeAbandonJusqua = t + 3;
+      return;
+    }
+    this.pref.coupe = null;
+    sauvePreferences(this.pref);
+    this.retourMenu();
+  }
+
+  /** Quitte le tableau : une coupe terminée est rangée (la prochaine partie en ouvre une nouvelle). */
+  private quitteTableau(): void {
+    if (this.pref.coupe && coupeTerminee(this.pref.coupe)) {
+      this.pref.coupe = null;
+      sauvePreferences(this.pref);
+    }
+    this.retourMenu();
+  }
+
+  private nouvelleCoupe(): void {
+    this.pref.coupe = null;
+    sauvePreferences(this.pref);
+    this.ouvreChoixCoupe();
+  }
+
+  private passeRevelation(): void {
+    const r = this.revelation;
+    if (r?.t0 != null) r.t0 = -1e6;
+  }
+
   private retourMenu(): void {
+    this.matchCoupe = false;
     this.creeDemo();
     this.ecranUI = 'menu';
     this.enPause = false;
@@ -787,6 +900,7 @@ export class GameApp {
       const moi = this.eqLocal;
       this.imageFin = { gagne: sc[moi] > sc[moi === 0 ? 1 : 0], t0: performance.now() / 1000, stats: false };
     }
+    if (!this.jeuReseau && sc && this.state) this.noteMatchCoupe(this.state);
     if (this.jeuReseau?.role === 'hote') this.hote?.finMatch();
     if (this.jeuReseau) this.phaseVue = 'fin';
     // bilan des duels Wi-Fi, gardé sur chaque appareil
@@ -1040,7 +1154,7 @@ export class GameApp {
   }
 
   private persisteFinMatch(gagne: boolean): void {
-    const n = this.pref.niveau;
+    const n = this.niveauMatch;
     this.pref.matchs[n] = (this.pref.matchs[n] ?? 0) + 1;
     if (gagne) this.pref.victoires[n] = (this.pref.victoires[n] ?? 0) + 1;
     sauvePreferences(this.pref);
@@ -1127,7 +1241,9 @@ export class GameApp {
       }
       if (e.code === 'Enter') {
         if (this.ecranUI === 'fin' && this.imageFinSeule()) this.imageFin!.stats = true;
-        else if (this.ecranUI === 'menu') this.ouvreSelectionEquipe();
+        else if (this.ecranUI === 'menu') this.jouer();
+        else if (this.ecranUI === 'coupeChoix') this.lanceCoupe();
+        else if (this.ecranUI === 'coupe') this.entreeTableau();
         else if (this.ecranUI === 'lan') this.actualiseLan();
         else if (this.ecranUI === 'lanConfig') this.creePartieLan();
         else if (this.ecranUI === 'salon') this.agitLan({ a: 'lancer' });
@@ -1137,6 +1253,7 @@ export class GameApp {
         else if (this.ecranUI === 'jeu' && this.ralenti.actif) this.passeRalenti();
         else if (this.ecranUI === 'equipes') this.confirmeSelection();
         else if (this.ecranUI === 'maillots') this.confirmeMaillots();
+        else if (this.ecranUI === 'fin' && this.matchCoupe) this.ouvreTableau();
         else if (this.ecranUI === 'fin') this.rejoue();
         else if (this.ecranUI === 'avance') this.fermeAvance();
         else if (this.enPause) this.pause(false);
@@ -1146,6 +1263,13 @@ export class GameApp {
       if (chiffre && !e.repeat && this.barreReactionsVisible()) this.reagit(CODES_REACTIONS[Number(chiffre[2]) - 1]!);
       if (e.code === 'Escape' && this.ecranUI === 'lanSpect') this.ouvreLan();
       if (e.code === 'Escape' && this.ecranUI === 'maillots') this.retourChoixEquipes();
+      if (e.code === 'Escape' && this.ecranUI === 'coupeChoix') this.retourMenu();
+      if (e.code === 'Escape' && this.ecranUI === 'coupe') this.quitteTableau();
+      if (this.ecranUI === 'coupeChoix' && !e.repeat) {
+        if (e.code === 'ArrowLeft') this.tourneJoueur(-1);
+        else if (e.code === 'ArrowRight') this.tourneJoueur(1);
+        else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') this.toggleVarianteJoueur();
+      }
       if (e.code === 'Escape' && this.ecranUI === 'avance') this.fermeAvance();
       if (e.code === 'Escape' && this.ecranUI === 'lan') this.quitteLan();
       else if (e.code === 'Escape' && (this.ecranUI === 'salon' || this.ecranUI === 'lanConfig')) this.ouvreLan();
@@ -1339,8 +1463,19 @@ export class GameApp {
         dessineSelectionEquipe(g, this.boutons, this.W, this.H, this.selectionProps());
       } else if (this.ecranUI === 'maillots') {
         dessineChoixMaillots(g, this.boutons, this.sprites, this.W, this.H, this.maillotsProps());
+      } else if (this.ecranUI === 'coupeChoix') {
+        dessineChoixCoupe(g, this.boutons, this.sprites, this.W, this.H, this.choixCoupeProps());
+      } else if (this.ecranUI === 'coupe' && this.pref.coupe) {
+        dessineTableauCoupe(g, this.boutons, this.W, this.H, performance.now() / 1000, this.tableauProps());
+        // un petit bruit à chaque résultat dévoilé
+        const r = this.revelation;
+        const n = r ? etapesVues(r, performance.now() / 1000) : 0;
+        if (n > this.etapesSonnees) {
+          if (n - this.etapesSonnees === 1) this.audio.clic();
+          this.etapesSonnees = n;
+        }
       } else if (this.ecranUI === 'pause') {
-        dessinePause(g, this.boutons, this.W, this.H, () => this.pause(false), () => this.retourMenu());
+        dessinePause(g, this.boutons, this.W, this.H, () => this.pause(false), () => (this.matchCoupe ? this.ouvreTableau() : this.retourMenu()));
       } else if (this.ecranUI === 'fin') {
         dessineFin(g, this.boutons, this.W, this.H, tempsUI, this.finProps(state));
       }
@@ -1359,7 +1494,14 @@ export class GameApp {
   }
 
   private menuProps(): EtatMenu {
+    const c = this.pref.coupe;
     return {
+      coupe: this.pref.mode === 'coupe',
+      tourCoupe: c && !coupeTerminee(c) ? NOMS_TOURS[c.tour]! : null,
+      onMode: () => {
+        this.pref.mode = this.pref.mode === 'coupe' ? 'classique' : 'coupe';
+        sauvePreferences(this.pref);
+      },
       niveauIdx: this.pref.niveau,
       dureeIdx: this.pref.duree,
       effectifIdx: this.pref.effectif,
@@ -1385,9 +1527,49 @@ export class GameApp {
         this.audio.muet(!this.pref.son);
         sauvePreferences(this.pref);
       },
-      onJouer: () => this.ouvreSelectionEquipe(),
+      onJouer: () => this.jouer(),
       onReseau: () => this.ouvreLan(),
       onAvance: () => this.ouvreAvance(),
+    };
+  }
+
+  private jouer(): void {
+    if (this.pref.mode === 'coupe') this.ouvreCoupe();
+    else this.ouvreSelectionEquipe();
+  }
+
+  /** Entrée sur le tableau : passe le dévoilement, sinon joue le match du tour (ou relance une coupe). */
+  private entreeTableau(): void {
+    const r = this.revelation;
+    const c = this.pref.coupe;
+    if (r && r.t0 !== null && etapesVues(r, performance.now() / 1000) < r.etapes.length) this.passeRevelation();
+    else if (c && coupeTerminee(c)) this.nouvelleCoupe();
+    else this.joueMatchCoupe();
+  }
+
+  private choixCoupeProps() {
+    const def = EQUIPES_JOUABLES[this.indexSelectionJoueur]!;
+    return {
+      carte: this.carte(this.indexSelectionJoueur),
+      maillot: { def, variante: this.varianteJoueur },
+      onPrecedent: () => this.tourneJoueur(-1),
+      onSuivant: () => this.tourneJoueur(1),
+      onMaillot: () => this.toggleVarianteJoueur(),
+      onRetour: () => this.retourMenu(),
+      onLancer: () => this.lanceCoupe(),
+    };
+  }
+
+  private tableauProps() {
+    return {
+      coupe: this.pref.coupe!,
+      revelation: this.revelation,
+      confirmeAbandon: performance.now() / 1000 < this.confirmeAbandonJusqua,
+      onJouer: () => this.joueMatchCoupe(),
+      onAbandonner: () => this.abandonneCoupe(),
+      onNouvelle: () => this.nouvelleCoupe(),
+      onMenu: () => this.quitteTableau(),
+      onPasser: () => this.passeRevelation(),
     };
   }
 
@@ -1458,12 +1640,14 @@ export class GameApp {
       tirs: state.tirs,
       stats: state.stats,
       prolong: state.prolong,
-      niveauNom: NIVEAUX[this.pref.niveau]!.nom,
-      victoires: this.pref.victoires[this.pref.niveau] ?? 0,
-      matchs: this.pref.matchs[this.pref.niveau] ?? 0,
+      niveauNom: NIVEAUX[this.niveauMatch]!.nom,
+      victoires: this.pref.victoires[this.niveauMatch] ?? 0,
+      matchs: this.pref.matchs[this.niveauMatch] ?? 0,
       equipes: this.equipesActuelles,
-      onRejouer: () => this.rejoue(),
+      onRejouer: () => (this.matchCoupe ? this.ouvreTableau() : this.rejoue()),
       onMenu: () => this.retourMenu(),
+      libelleRejouer: this.matchCoupe ? 'TABLEAU >' : undefined,
+      pied: this.matchCoupe ? `COUPE FACE-OFF  -  NIVEAU ${NIVEAUX[this.niveauMatch]!.nom}` : undefined,
     };
   }
 }
