@@ -42,6 +42,31 @@ npm run build      # build de prod dans dist/
 npm run preview    # sert le build de prod localement
 ```
 
+### Tests de bout en bout (navigateur)
+
+```bash
+npm run e2e                       # tous
+npm run e2e -- spectateur coupe   # certains
+```
+
+Les scénarios de `e2e/` pilotent le vrai jeu dans Chromium (Playwright).
+Chaque appareil est un contexte de navigateur séparé : on joue à 2 ou 3
+« téléphones » sans matériel. Un courtier MQTT local remplace les serveurs
+publics de découverte, et le serveur Vite est lancé automatiquement. Les
+captures d'écran vont dans `e2e/captures/` (ignoré par git). La CI les lance à
+chaque push (job `e2e`) et joint les captures en cas d'échec.
+
+| Scénario | Ce qu'il vérifie |
+|---|---|
+| `coupe` | Mode coupe : choix, tableau, dévoilement, élimination, titre |
+| `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
+
+En local, Chromium doit être installé une fois : `npx playwright install chromium`.
+Pour écrire un scénario, `e2e/outils.mjs` fournit `appareil()`,
+`attendsQue()`, `verifie()` et les raccourcis Wi-Fi (`lan.connecte`,
+`lan.lanceMatch`). L'application est accessible en `window.faceOff` en mode
+développement.
+
 `npm run sprites` doit être relancé après toute modification de
 `scripts/generate-sprites.mjs`. Les PNG générés sont committés dans
 `public/sprites/` (voir [Sprites](#sprites-pixel-art) pour les remplacer par
