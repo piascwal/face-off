@@ -178,7 +178,14 @@ export function dessinePanneauMaillot(
 
   const def = cote.def;
   const pal = palette(def, cote.variante);
-  texte(g, def.code, cx, 16, def.interieur.clair, 2, 'c');
+  // le bloc (nom, joueur, bouton du maillot) est centré verticalement entre
+  // le bandeau du haut et les boutons RETOUR / JOUER
+  const hautBloc = 16;
+  const hauteurBloc = 144;
+  const zoneHaut = 12;
+  const zoneBas = H - 26;
+  const dy = Math.max(0, Math.round(zoneHaut + (zoneBas - zoneHaut - hauteurBloc) / 2 - hautBloc));
+  texte(g, def.code, cx, hautBloc + dy, def.interieur.clair, 2, 'c');
 
   // le joueur porte le maillot choisi, tourné vers le centre de l'écran
   const spriteId = `${def.id}-${cote.variante}`;
@@ -188,7 +195,7 @@ export function dessinePanneauMaillot(
   const echelle = 96 / M.tileH;
   const sw = M.tileW * echelle;
   const sh = M.tileH * echelle;
-  const sy = 36;
+  const sy = 36 + dy;
   const piedX = faceDroite ? M.pied.x : M.tileW - M.pied.x;
   if (sprite) {
     g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, cx - piedX * echelle, sy, sw, sh);
