@@ -1,4 +1,4 @@
-import { NIVEAUX } from '@core/constants';
+import { niveauInterpole } from '@core/constants';
 import { champion, coupeTerminee, NB_TOURS, niveauDuTour, NOMS_TOURS, vainqueur, type EtatCoupe, type MatchCoupe } from '@core/coupe';
 import { obtientLogo } from './logos';
 import { largeurTexte, texte } from './pixel-font';
@@ -220,7 +220,7 @@ export function dessineTableauCoupe(g: CanvasRenderingContext2D, boutons: ZoneBo
     const et = rev!.etapes[Math.min(n, rev!.etapes.length - 1)]!;
     sous = et.k === 'score' ? `RESULTATS : ${NOMS_TOURS[et.t]}` : `TIRAGE : ${NOMS_TOURS[et.t]}`;
   } else if (!coupeTerminee(c)) {
-    sous = `${NOMS_TOURS[c.tour]}  -  NIVEAU ${NIVEAUX[niveauDuTour(c)]!.nom}`;
+    sous = `${NOMS_TOURS[c.tour]}  -  NIVEAU ${niveauInterpole(niveauDuTour(c)).nom}`;
   } else if (ch === c.equipe) {
     sous = 'CHAMPION DE LA COUPE !';
     colSous = Math.sin(temps * 6) > 0 ? C.or : C.blanc;

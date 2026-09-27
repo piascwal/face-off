@@ -532,8 +532,12 @@ demi-finales, finale).
 - **Après chaque match**, les résultats du tour se dévoilent un par un, en
   commençant par le vôtre. Les vainqueurs avancent ensuite dans le tableau.
   Un appui passe l'animation.
-- **Difficulté.** Elle monte d'un cran à chaque tour, à partir du niveau
-  choisi au menu, sans dépasser PRO.
+- **Difficulté.** Elle monte un peu à chaque tour, à partir du niveau choisi
+  au menu : d'un quart de niveau par tour (`MONTEE_PAR_TOUR` dans
+  `core/coupe.ts`). En partant de FACILE, la finale se joue à mi-chemin entre
+  FACILE et NORMAL (affiché « FACILE+ »). Les réglages de l'IA sont
+  interpolés entre les deux niveaux (`niveauInterpole`, `core/constants.ts`),
+  sans dépasser PRO.
 - **Pas de match nul.** Chaque match se termine par un vainqueur (prolongation
   au but en or).
 - **Les autres matchs** sont simulés d'après les notes des équipes. Les buts

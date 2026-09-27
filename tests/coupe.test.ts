@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NIVEAUX } from '../src/core/constants';
+import { NIVEAUX, niveauInterpole } from '../src/core/constants';
 import {
   champion,
   coupeTerminee,
@@ -7,6 +7,7 @@ import {
   enregistreResultat,
   lisCoupe,
   matchDuJoueur,
+  MONTEE_PAR_TOUR,
   NB_TOURS,
   niveauDuTour,
   simuleMatch,
@@ -34,15 +35,29 @@ describe('mode coupe', () => {
     expect(matchDuJoueur(c)?.adversaire).toBe(c.tours[0]![0]!.b);
   });
 
-  it('la difficulté monte d’un cran par tour, plafonnée', () => {
+  it('la difficulté monte doucement à chaque tour, plafonnée', () => {
     const c = creeCoupe('nice', 'interieur', 0, graine(2));
     expect(niveauDuTour(c)).toBe(0);
     c.tour = 1;
-    expect(niveauDuTour(c)).toBe(1);
+    expect(niveauDuTour(c)).toBeCloseTo(MONTEE_PAR_TOUR);
     c.tour = 2;
-    expect(niveauDuTour(c)).toBe(Math.min(2, NIVEAUX.length - 1));
+    expect(niveauDuTour(c)).toBeCloseTo(2 * MONTEE_PAR_TOUR);
+    expect(niveauDuTour(c)).toBeLessThan(1);
     c.niveau = NIVEAUX.length - 1;
     expect(niveauDuTour(c)).toBe(NIVEAUX.length - 1);
+  });
+
+  it('un niveau intermédiaire se place entre les deux niveaux voisins', () => {
+    const f = niveauInterpole(0);
+    const n = niveauInterpole(1);
+    const m = niveauInterpole(0.5);
+    expect(f).toEqual(NIVEAUX[0]);
+    expect(n).toEqual(NIVEAUX[1]);
+    expect(m.vit).toBeCloseTo((NIVEAUX[0]!.vit + NIVEAUX[1]!.vit) / 2);
+    expect(m.gk).toBeCloseTo((NIVEAUX[0]!.gk + NIVEAUX[1]!.gk) / 2);
+    expect(m.nom).toBe('FACILE+');
+    expect(niveauInterpole(2).nom).toBe('PRO');
+    expect(niveauInterpole(9)).toEqual(NIVEAUX[2]);
   });
 
   it('trois victoires font un champion', () => {

@@ -17,6 +17,34 @@ export const NIVEAUX: LevelConfig[] = [
   { nom: 'PRO', vit: 1.03, reac: 0.11, err: 0.028, poke: 1.35, check: 1.9, gk: 2.4, antic: 0.4, portee: 155, esquive: 0.45 },
 ];
 
+/**
+ * Niveau intermédiaire (mode coupe) : `x` fractionnaire entre deux niveaux,
+ * chaque réglage de l'IA est interpolé (1,5 = à mi-chemin entre NORMAL et
+ * PRO). Un niveau entier renvoie une copie du niveau tel quel.
+ */
+export function niveauInterpole(x: number): LevelConfig {
+  const v = Math.min(NIVEAUX.length - 1, Math.max(0, x));
+  if (Number.isInteger(v)) return { ...NIVEAUX[v]! };
+  const i = Math.min(NIVEAUX.length - 2, Math.floor(v));
+  const u = v - i;
+  const a = NIVEAUX[i]!;
+  const b = NIVEAUX[i + 1]!;
+  const m = (k: Exclude<keyof LevelConfig, 'nom'>) => a[k] + (b[k] - a[k]) * u;
+  // un « + » signale un niveau un peu au-dessus de celui qu'on nomme
+  return {
+    nom: `${NIVEAUX[Math.floor(v)]!.nom}+`,
+    vit: m('vit'),
+    reac: m('reac'),
+    err: m('err'),
+    poke: m('poke'),
+    check: m('check'),
+    gk: m('gk'),
+    antic: m('antic'),
+    portee: m('portee'),
+    esquive: m('esquive'),
+  };
+}
+
 export const DUREES = [120, 180, 300];
 export const EFFECTIFS = [2, 3, 5];
 

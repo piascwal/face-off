@@ -2,10 +2,17 @@
  * Mode coupe : un tableau à élimination directe de 8 équipes (quarts,
  * demi-finales, finale). Le joueur joue ses matchs ; les autres se jouent en
  * simulation rapide, selon le profil des équipes (voir teams.ts). La
- * difficulté monte d'un cran à chaque tour. Module pur (aucun DOM) : l'état
+ * difficulté monte un peu à chaque tour (MONTEE_PAR_TOUR). Module pur (aucun DOM) : l'état
  * se sauvegarde tel quel (JSON) pour reprendre la coupe plus tard.
  */
 import { NIVEAUX } from './constants';
+
+/**
+ * Montée de la difficulté à chaque tour, en fraction de niveau : 0,25 donne
+ * des demies un quart de cran plus dures, une finale à mi-chemin du niveau
+ * suivant (FACILE -> finale entre FACILE et NORMAL). 0 = même niveau partout.
+ */
+export const MONTEE_PAR_TOUR = 0.25;
 import { EQUIPES_JOUABLES, trouveEquipe } from './teams';
 
 export interface MatchCoupe {
@@ -80,9 +87,12 @@ export function matchDuJoueur(c: EtatCoupe): { m: MatchCoupe; adversaire: string
   return { m, adversaire: m.a === c.equipe ? m.b : m.a };
 }
 
-/** Difficulté du match du joueur : un cran de plus à chaque tour (plafonnée au niveau le plus dur). */
+/**
+ * Difficulté du match du joueur (fractionnaire, voir `niveauInterpole`) : un
+ * peu plus à chaque tour, plafonnée au niveau le plus dur.
+ */
 export function niveauDuTour(c: EtatCoupe): number {
-  return Math.min(NIVEAUX.length - 1, c.niveau + Math.min(c.tour, NB_TOURS - 1));
+  return Math.min(NIVEAUX.length - 1, c.niveau + MONTEE_PAR_TOUR * Math.min(c.tour, NB_TOURS - 1));
 }
 
 /** Tirage de Poisson (nombre de buts d'une équipe en un match). */

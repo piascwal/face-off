@@ -1,5 +1,5 @@
 import { controle } from './actions';
-import { ANNONCE_BUT_S, DUREES, EFFECTIFS, NIVEAUX } from './constants';
+import { ANNONCE_BUT_S, DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from './constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from './entities';
 import { PROFIL_NEUTRE, type TeamProfile } from './teams';
 import { statsVides, type BonusEquipe, type GameMode, type LevelConfig, type MatchState, type Rink, type TeamId } from './types';
@@ -7,7 +7,10 @@ import { clamp, decalageRang } from './utils';
 
 export interface OptionsPartie {
   mode: GameMode;
-  /** Index dans NIVEAUX ; ignoré en mode démo (utilise toujours NORMAL). Règle le CPU. */
+  /**
+   * Index dans NIVEAUX (fractionnaire en coupe : niveau interpolé) ; ignoré en
+   * mode démo (utilise toujours NORMAL). Règle le CPU.
+   */
   niveauIdx: number;
   /** Index dans DUREES ; ignoré en mode démo. */
   dureeIdx: number;
@@ -56,7 +59,7 @@ function combineProfil(niveau: LevelConfig, equipe: TeamProfile): LevelConfig {
 }
 
 export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
-  const niveauAdverse = opts.mode === 'demo' ? NIVEAUX[1]! : NIVEAUX[opts.niveauIdx]!;
+  const niveauAdverse = opts.mode === 'demo' ? NIVEAUX[1]! : niveauInterpole(opts.niveauIdx);
   const nb = opts.mode === 'demo' ? 3 : EFFECTIFS[opts.effectifIdx]!;
   const profilJoueur = opts.equipeJoueur ?? PROFIL_NEUTRE;
   const profilAdverse = opts.equipeAdverse ?? PROFIL_NEUTRE;

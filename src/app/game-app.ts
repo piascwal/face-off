@@ -1,5 +1,5 @@
 import { menaceEchec } from '@core/actions';
-import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
+import { DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from '@core/constants';
 import { calculeRink, reprojette } from '@core/rink';
 import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
 import { pas } from '@core/simulation';
@@ -185,7 +185,7 @@ export class GameApp {
   private varianteAdversaire: Variante = 'interieur';
   /** Le match en cours est un match de la coupe (son résultat va au tableau). */
   private matchCoupe = false;
-  /** Niveau de difficulté du match en cours (en coupe, il monte à chaque tour). */
+  /** Niveau de difficulté du match en cours (en coupe, fractionnaire : il monte un peu à chaque tour). */
   private niveauMatch = 1;
   /** Résultats de la coupe à dévoiler sur le tableau. */
   private revelation: Revelation | null = null;
@@ -403,7 +403,7 @@ export class GameApp {
     this.effets.reinitialise();
     this.ecranUI = 'jeu';
     this.enPause = false;
-    this.effets.annonce('PRETS ?', sousTitre ?? NIVEAUX[niveau]!.nom, C.blanc, 1.5);
+    this.effets.annonce('PRETS ?', sousTitre ?? niveauInterpole(niveau).nom, C.blanc, 1.5);
   }
 
   /** Rejoue immédiatement avec les deux mêmes équipes et maillots (pas de repassage par la sélection). */
@@ -460,7 +460,7 @@ export class GameApp {
     const eqA = resoutEquipe(defA, varianteAdverse(palette(defJ, c.variante), defA));
     const niveau = niveauDuTour(c);
     this.revelation = null;
-    this.lanceMatch(eqJ, eqA, niveau, `${NOMS_TOURS[c.tour]} - ${NIVEAUX[niveau]!.nom}`);
+    this.lanceMatch(eqJ, eqA, niveau, `${NOMS_TOURS[c.tour]} - ${niveauInterpole(niveau).nom}`);
     this.matchCoupe = true;
   }
 
@@ -1154,7 +1154,8 @@ export class GameApp {
   }
 
   private persisteFinMatch(gagne: boolean): void {
-    const n = this.niveauMatch;
+    // bilan rangé sous le niveau de base (FACILE+ compte comme FACILE)
+    const n = Math.floor(this.niveauMatch);
     this.pref.matchs[n] = (this.pref.matchs[n] ?? 0) + 1;
     if (gagne) this.pref.victoires[n] = (this.pref.victoires[n] ?? 0) + 1;
     sauvePreferences(this.pref);
@@ -1640,14 +1641,14 @@ export class GameApp {
       tirs: state.tirs,
       stats: state.stats,
       prolong: state.prolong,
-      niveauNom: NIVEAUX[this.niveauMatch]!.nom,
-      victoires: this.pref.victoires[this.niveauMatch] ?? 0,
-      matchs: this.pref.matchs[this.niveauMatch] ?? 0,
+      niveauNom: niveauInterpole(this.niveauMatch).nom,
+      victoires: this.pref.victoires[Math.floor(this.niveauMatch)] ?? 0,
+      matchs: this.pref.matchs[Math.floor(this.niveauMatch)] ?? 0,
       equipes: this.equipesActuelles,
       onRejouer: () => (this.matchCoupe ? this.ouvreTableau() : this.rejoue()),
       onMenu: () => this.retourMenu(),
       libelleRejouer: this.matchCoupe ? 'TABLEAU >' : undefined,
-      pied: this.matchCoupe ? `COUPE FACE-OFF  -  NIVEAU ${NIVEAUX[this.niveauMatch]!.nom}` : undefined,
+      pied: this.matchCoupe ? `COUPE FACE-OFF  -  NIVEAU ${niveauInterpole(this.niveauMatch).nom}` : undefined,
     };
   }
 }
