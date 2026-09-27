@@ -2,6 +2,7 @@ export * from './celebration';
 export * from './controls-overlay';
 export * from './effects';
 export * from './entities-render';
+export * from './fins';
 export * from './hud';
 export * from './hud-zones';
 export * from './pixel-font';

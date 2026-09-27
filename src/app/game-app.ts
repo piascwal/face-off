@@ -29,6 +29,7 @@ import {
   construitGlace,
   dessineBanniere,
   dessineCelebration,
+  repeintImageFin,
   dessineLogoBut,
   dessineAvance,
   dessineChoixMaillots,
@@ -154,6 +155,10 @@ export class GameApp {
   private readonly sprites = new BanqueSprites();
   /** Image de fin de match (victoire / défaite), affichée juste avant les statistiques. */
   private readonly imagesFin = { victoire: new Image(), defaite: new Image() };
+  /** Cartes de rôles des images de fin (maillot, bandes, empiècements), pour les repeindre. */
+  private readonly rolesFin = { victoire: new Image(), defaite: new Image() };
+  /** Image de fin repeinte aux couleurs de l'équipe du joueur (calculée à la fin du match). */
+  private imageFinRepeinte: { cle: string; c: HTMLCanvasElement } | null = null;
   private imageFin: { gagne: boolean; t0: number; stats: boolean } | null = null;
   private readonly audio = new MoteurAudio();
   private readonly effets = new SystemeEffets();
@@ -216,6 +221,8 @@ export class GameApp {
     void this.sprites.charge().then(() => this.prechargeTouteLaSelection());
     this.imagesFin.victoire.src = `${import.meta.env.BASE_URL}fins/victoire.jpg`;
     this.imagesFin.defaite.src = `${import.meta.env.BASE_URL}fins/defaite.jpg`;
+    this.rolesFin.victoire.src = `${import.meta.env.BASE_URL}fins/victoire-roles.png`;
+    this.rolesFin.defaite.src = `${import.meta.env.BASE_URL}fins/defaite-roles.png`;
     this.effets.definitEquipes(this.equipesActuelles);
     this.effets.intensiteEcran = this.pref.secoussesReduites ? 0.4 : 1;
 
@@ -738,13 +745,15 @@ export class GameApp {
     const f = this.imageFin;
     if (!f) return false;
     const t = performance.now() / 1000 - f.t0;
-    const img = f.gagne ? this.imagesFin.victoire : this.imagesFin.defaite;
-    if (!img.complete || img.naturalWidth === 0) return false;
+    const brute = f.gagne ? this.imagesFin.victoire : this.imagesFin.defaite;
+    if (!brute.complete || brute.naturalWidth === 0) return false;
+    // aux couleurs de l'équipe du joueur (l'image d'origine tant que ce n'est pas prêt)
+    const img: CanvasImageSource = this.imageFinEquipe(f.gagne) ?? brute;
     g.fillStyle = '#05060d';
     g.fillRect(0, 0, this.W, this.H);
-    const k = Math.max(this.W / img.naturalWidth, this.H / img.naturalHeight);
-    const w = img.naturalWidth * k;
-    const h = img.naturalHeight * k;
+    const k = Math.max(this.W / brute.naturalWidth, this.H / brute.naturalHeight);
+    const w = brute.naturalWidth * k;
+    const h = brute.naturalHeight * k;
     g.save();
     g.globalAlpha = Math.min(1, t / 0.15);
     g.imageSmoothingEnabled = true;
@@ -753,6 +762,17 @@ export class GameApp {
     g.drawImage(img, (this.W - w) / 2, this.H - h, w, h);
     g.restore();
     return true;
+  }
+
+  /** Image de victoire / défaite repeinte aux couleurs de l'équipe de ce joueur (mise en cache). */
+  private imageFinEquipe(gagne: boolean): HTMLCanvasElement | null {
+    const nom = gagne ? 'victoire' : 'defaite';
+    const eq = this.equipesActuelles[this.eqLocal];
+    const cle = `${nom}:${eq.id}`;
+    if (this.imageFinRepeinte?.cle === cle) return this.imageFinRepeinte.c;
+    const c = repeintImageFin(nom, this.imagesFin[nom], this.rolesFin[nom], eq);
+    if (c) this.imageFinRepeinte = { cle, c };
+    return c;
   }
 
   /** Match terminé (détecté dans l'état de jeu) : écran de fin, et vote côté hôte. */

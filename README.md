@@ -529,7 +529,11 @@ Apache-2.0, voir [LICENSE](./LICENSE).
 défaite du point de vue de chaque joueur — en Wi-Fi, chacun voit la sienne.
 Elle reste seule 2 s (`IMAGE_FIN_S`), ou jusqu'à un appui (ou Entrée), puis
 les statistiques s'affichent par-dessus, l'image restant en fond. Elle est
-calée en bas de l'écran pour toujours montrer les joueurs.
+calée en bas de l'écran pour toujours montrer les joueurs, et repeinte aux
+couleurs de l'équipe du joueur (maillot, bandes, empiècements) comme les
+sprites : `scripts/roles-fins.py` prépare une carte de rôles par image (seul
+le rouge des maillots compte, pas les lignes de la glace ni la cage), et
+`src/render/fins.ts` repeint l'image à la fin du match.
 
 **Célébration du buteur.** Pendant l'écran de but, un joueur de l'équipe qui
 marque, tiré au sort parmi les dessins `assets/sprites-src/celebration-<n>.jpg`
