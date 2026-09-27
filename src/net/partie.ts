@@ -19,6 +19,17 @@ export type VoteFin = 'rejouer' | 'equipes';
 /** 0 = l'hôte (équipe de gauche), 1 = l'invité. */
 export type Place = 0 | 1;
 
+/** Spectateurs au plus par partie : c'est l'appareil de l'hôte qui leur envoie le match. */
+export const SPECTATEURS_MAX = 4;
+
+/**
+ * Réactions des spectateurs (et des joueurs sur l'écran de fin) : les deux
+ * logos des équipes du match, toujours présents, puis quatre icônes.
+ */
+export const REACTIONS = ['logo0', 'logo1', 'feu', 'gyro', 'coeur', 'ouf'] as const;
+export type Reaction = (typeof REACTIONS)[number];
+export const estReaction = (x: unknown): x is Reaction => REACTIONS.includes(x as Reaction);
+
 export interface JoueurLan {
   nom: string;
   /** Identifiant stable de l'appareil (historique des duels), jamais publié hors de la liaison chiffrée. */
@@ -51,6 +62,8 @@ export interface EtatPartieLan {
   bonus: [BonusEquipe, BonusEquipe];
   /** Qui a demandé à passer le ralenti du but en cours (il s'arrête quand les deux ont passé). */
   ralentiPasse: [boolean, boolean];
+  /** Nombre de spectateurs connectés. */
+  spect: number;
 }
 
 export type ActionLan =
@@ -75,6 +88,7 @@ export function nouvellePartie(config: ConfigLan, nom: string, equipe: string, a
     reprise: 0,
     bonus: ['aucun', 'aucun'],
     ralentiPasse: [false, false],
+    spect: 0,
   };
 }
 
@@ -260,6 +274,7 @@ export function lisEtatPartie(o: unknown): EtatPartieLan | null {
   const rp = e.ralentiPasse;
   if (!Array.isArray(b) || b.length !== 2 || !b.every(estBonus)) return null;
   if (!Array.isArray(rp) || rp.length !== 2 || !rp.every((x) => typeof x === 'boolean')) return null;
+  if (!entier(e.spect, SPECTATEURS_MAX)) return null;
   return {
     phase: e.phase as PhaseLan,
     config,
@@ -268,6 +283,7 @@ export function lisEtatPartie(o: unknown): EtatPartieLan | null {
     reprise: e.reprise,
     bonus: [b[0] as BonusEquipe, b[1] as BonusEquipe],
     ralentiPasse: [rp[0] as boolean, rp[1] as boolean],
+    spect: e.spect,
   };
 }
 

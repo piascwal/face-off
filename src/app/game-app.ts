@@ -7,6 +7,7 @@ import { trouveEquipe } from '@core/teams';
 import { BONUS_EQUIPE, INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from '@core/types';
 import type { AnnoncePartie } from '@net/annuaire';
 import {
+  estReaction,
   maillotsIdentiques,
   type ActionLan,
   type ConfigLan,
@@ -34,8 +35,12 @@ import {
   dessineCommandes,
   dessineChoixLan,
   dessineConfigLan,
+  dessineAttenteSpectateur,
+  dessineBarreReactions,
   dessineFinLan,
+  dessineFinSpectateur,
   dessineLan,
+  dessineReactions,
   dessinePauseLan,
   dessineRepriseLan,
   dessineSalon,
@@ -48,7 +53,10 @@ import {
   dessineSelectionEquipe,
   dessineJaugeTir,
   dessineTableau,
+  CODES_REACTIONS,
   EQUIPES_JOUABLES,
+  REACTION_VIE_S,
+  REACTIONS_MAX,
   resoutEquipe,
   SystemeEffets,
   TracesGlace,
@@ -66,6 +74,7 @@ import {
   type EtatFinLan,
   type EtatLan,
   type EtatSalon,
+  type ReactionAffichee,
   type ResumeConfig,
   type StatutLan,
   type EtatMenu,
@@ -84,19 +93,26 @@ const PAS_FIXE = 1 / 120;
 /** Durée d'affichage de l'image de victoire / défaite avant les statistiques (s). */
 const IMAGE_FIN_S = 2;
 
-type EcranUI = 'menu' | 'avance' | 'equipes' | 'maillots' | 'lan' | 'lanConfig' | 'salon' | 'lanChoix' | 'jeu' | 'pause' | 'fin';
+type EcranUI = 'menu' | 'avance' | 'equipes' | 'maillots' | 'lan' | 'lanConfig' | 'salon' | 'lanChoix' | 'lanSpect' | 'jeu' | 'pause' | 'fin';
 
 /** Écrans de menu plein cadre : ni tableau d'affichage ni bandeau par-dessus. */
-const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'equipes', 'maillots', 'lan', 'lanConfig', 'salon', 'lanChoix'];
+const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'equipes', 'maillots', 'lan', 'lanConfig', 'salon', 'lanChoix', 'lanSpect'];
 
-/** Match en réseau local : l'hôte simule (équipe 0), le client affiche et envoie ses entrées (équipe 1). */
-type JeuReseau = { role: 'hote'; eqLocal: 0; dernierEnvoi: number } | { role: 'client'; eqLocal: 1; synchro: SynchroClient };
+/**
+ * Match en réseau local : l'hôte simule (équipe 0), le client affiche et
+ * envoie ses entrées (équipe 1) ; un spectateur affiche comme le client,
+ * sans rien piloter.
+ */
+type JeuReseau =
+  | { role: 'hote'; eqLocal: 0; dernierEnvoi: number }
+  | { role: 'client'; eqLocal: 1; synchro: SynchroClient; spectateur: boolean };
 
 function messageErreurReseau(e: unknown): string {
   const m = e instanceof Error ? e.message : '';
   if (m === 'reseau') return 'WIFI NON DETECTE - VERIFIEZ LA CONNEXION';
   if (m.startsWith('aucun serveur')) return 'DECOUVERTE INDISPONIBLE - REESSAYEZ';
   if (m === 'complet') return 'CETTE PARTIE EST DEJA COMPLETE';
+  if (m === 'spectateurs') return 'DEJA 4 SPECTATEURS SUR CETTE PARTIE';
   if (m === 'version') return "VERSIONS DIFFERENTES : METTEZ LE JEU A JOUR";
   if (m === 'injoignable') return "L'HOTE NE REPOND PAS";
   if (m === 'connexion impossible') return 'CONNEXION DIRECTE IMPOSSIBLE SUR CE WIFI';
@@ -177,6 +193,8 @@ export class GameApp {
   private phaseVue: PhaseLan | null = null;
   /** Client : instant (s) de fin du compte à rebours de reprise en cours. */
   private finReprise: number | null = null;
+  /** Réactions (spectateurs, joueurs à la fin) qui montent le long du bord droit. */
+  private reactions: ReactionAffichee[] = [];
 
   // ------------------------------------------------ ralenti des buts
   private readonly ralenti = new Ralenti();
@@ -389,8 +407,14 @@ export class GameApp {
     return this.hote ? 0 : 1;
   }
 
+  /** Cet appareil regarde la partie sans y jouer. */
+  private get spectateur(): boolean {
+    return !this.hote && !!this.client?.spectateur;
+  }
+
   /** Toute action de partie passe par l'hôte, y compris celles de l'hôte lui-même. */
   private agitLan(x: ActionLan): void {
+    if (this.spectateur) return;
     if (this.hote) this.hote.agit(x);
     else this.client?.agit(x);
   }
@@ -418,6 +442,7 @@ export class GameApp {
     this.jeuReseau = null;
     this.phaseVue = null;
     this.finReprise = null;
+    this.reactions = [];
   }
 
   /** Écran de la liste des parties : détecte le réseau et écoute les annonces. */
@@ -503,6 +528,11 @@ export class GameApp {
         this.hote = h;
         h.onChange = () => this.suitPhaseLan();
         h.onDebut = () => this.lanceMatchHote();
+        h.onReaction = (r, de) => this.ajouteReaction(r, de);
+        // un spectateur arrive en plein match : il le prend en route
+        h.onSpectateur = (envoie) => {
+          if (this.jeuReseau?.role === 'hote' && h.partie.phase === 'match') envoie({ t: 'debut', s0: this.seqInstantane + 1 });
+        };
         h.onInviteParti = (raison, nom) => {
           this.salonMessage = {
             txt: raison === 'quitte' ? `${nom} A QUITTE LA PARTIE` : `CONNEXION PERDUE AVEC ${nom}`,
@@ -520,13 +550,14 @@ export class GameApp {
     );
   }
 
-  private rejoinsLan(p: AnnoncePartie): void {
+  /** Rejoint une partie annoncée, comme joueur ou comme spectateur (`spect`). */
+  private rejoinsLan(p: AnnoncePartie, spect = false): void {
     const c = this.client;
     if (!c || this.lanStatut !== 'pret') return;
     this.lanStatut = 'connexion';
-    this.lanMessage = `CONNEXION A ${p.nom}`;
+    this.lanMessage = spect ? `CONNEXION AU MATCH DE ${p.nom}` : `CONNEXION A ${p.nom}`;
     const gen = this.lanGeneration;
-    c.rejoins(p, this.pref.pseudo, this.pref.equipeJoueur, this.pref.appareil).then(
+    c.rejoins(p, this.pref.pseudo, this.pref.equipeJoueur, this.pref.appareil, spect).then(
       () => {
         if (gen !== this.lanGeneration) return;
         this.lanStatut = 'pret';
@@ -558,8 +589,11 @@ export class GameApp {
         this.creeDemo();
         this.effets.reinitialise();
       }
-      this.ecranUI = e.phase === 'attente' ? 'salon' : 'lanChoix';
+      this.ecranUI = this.spectateur ? 'lanSpect' : e.phase === 'attente' ? 'salon' : 'lanChoix';
       this.enPause = false;
+    } else if (e.phase === 'fin' && this.spectateur && !this.jeuReseau) {
+      // arrivé entre deux matchs : on attend le prochain
+      this.ecranUI = 'lanSpect';
     }
   }
 
@@ -637,11 +671,46 @@ export class GameApp {
 
   private surCtrlClient(m: MsgCtrl): void {
     if (m.t === 'debut') {
-      const e = this.client?.partie;
-      if (e) this.demarreMatchReseau(e, { role: 'client', eqLocal: 1, synchro: new SynchroClient(m.s0) });
+      const c = this.client;
+      const e = c?.partie;
+      if (c && e) this.demarreMatchReseau(e, { role: 'client', eqLocal: 1, synchro: new SynchroClient(m.s0), spectateur: c.spectateur });
+    } else if (m.t === 'reaction') {
+      this.ajouteReaction(m.r, m.de);
     } else if (m.t === 'ev') {
       if (this.jeuReseau?.role === 'client') this.jeuReseau.synchro.recoitEvenements(m.k, m.l);
     }
+  }
+
+  // ------------------------------------------------ réactions (mode spectateur)
+
+  /** Une réaction reçue (ou émise ici, côté hôte) : elle monte le long du bord droit. */
+  private ajouteReaction(r: string, de: string): void {
+    const t = performance.now() / 1000;
+    this.reactions = this.reactions.filter((a) => t - a.t0 < REACTION_VIE_S);
+    const couloir = this.reactions.length ? (this.reactions[this.reactions.length - 1]!.couloir + 1) % 3 : 0;
+    this.reactions.push({ r, de, t0: t, couloir });
+    if (this.reactions.length > REACTIONS_MAX) this.reactions.shift();
+  }
+
+  /** Envoie une réaction (l'hôte la relaie à tous, y compris à cet écran). */
+  private reagit(r: string): void {
+    if (!estReaction(r)) return;
+    if (this.hote) this.hote.reagit(r);
+    else this.client?.reagit(r);
+  }
+
+  /** Barre de réactions : pour le spectateur en match et à la fin, pour les joueurs à la fin. */
+  private barreReactionsVisible(): boolean {
+    if (!this.jeuReseau) return false;
+    if (this.spectateur) return this.ecranUI === 'jeu' || this.ecranUI === 'fin';
+    return this.ecranUI === 'fin' && !this.imageFinSeule();
+  }
+
+  /** Écussons des deux équipes de la partie Wi-Fi (réactions « logo »). */
+  private logosLan(): [string, string] {
+    const e = this.partieLan;
+    if (!e) return [this.equipesActuelles[0].teamId, this.equipesActuelles[1].teamId];
+    return [e.joueurs[0].equipe, e.joueurs[1]?.equipe ?? e.joueurs[0].equipe];
   }
 
   /** Pause en réseau : elle vaut pour les deux joueurs (l'hôte fige la simulation). */
@@ -694,7 +763,7 @@ export class GameApp {
     // victoire ou défaite, vue de ce joueur-ci (en Wi-Fi, chacun voit la sienne)
     this.imageFin = null;
     const sc = this.state?.score;
-    if (sc && sc[0] !== sc[1]) {
+    if (sc && sc[0] !== sc[1] && !this.spectateur) {
       const moi = this.eqLocal;
       this.imageFin = { gagne: sc[moi] > sc[moi === 0 ? 1 : 0], t0: performance.now() / 1000, stats: false };
     }
@@ -704,7 +773,7 @@ export class GameApp {
     const e = this.partieLan;
     const s = this.state;
     const adv = e?.joueurs[this.placeLan === 0 ? 1 : 0];
-    if (this.jeuReseau && adv && s) {
+    if (this.jeuReseau && adv && s && !this.spectateur) {
       const moi = this.eqLocal;
       const eux = moi === 0 ? 1 : 0;
       noteDuel(this.pref, adv.appareil, adv.nom, s.score[moi] > s.score[eux] ? 'v' : s.score[moi] < s.score[eux] ? 'd' : 'n');
@@ -762,7 +831,7 @@ export class GameApp {
     const c = this.client;
     if (!state || !rink || !c) return;
     const maintenant = performance.now() / 1000;
-    let intent = this.ecranUI === 'jeu' && !this.pauseLan ? this.entrees.consomme() : INTENT_VIDE;
+    let intent = this.ecranUI === 'jeu' && !this.pauseLan && !this.spectateur ? this.entrees.consomme() : INTENT_VIDE;
     const r = synchro.rinkHote;
     if (r) {
       const kx = r.w / rink.w;
@@ -787,6 +856,10 @@ export class GameApp {
     const j = this.jeuReseau;
     const ms = (j?.role === 'hote' ? this.hote?.latenceMs : this.client?.latenceMs) ?? null;
     if (ms !== null) texte(g, `WIFI ${Math.max(1, Math.round(ms))} MS`, 4, 4, ms < 60 ? '#6f7aa6' : '#ff9a5c', 1, 'g');
+    // spectateurs connectés (et, chez eux, le rappel qu'ils regardent seulement)
+    const nb = this.partieLan?.spect ?? 0;
+    if (this.spectateur) texte(g, 'SPECTATEUR', 4, 13, '#8fe3ff', 1, 'g');
+    else if (nb > 0) texte(g, `${nb} SPECT.`, 4, 13, '#6f7aa6', 1, 'g');
     if (j?.role === 'client' && !this.pauseLan && j.synchro.silence(performance.now() / 1000) > 1) {
       const cy = Math.round(this.H / 2);
       g.fillStyle = 'rgba(7,9,20,0.6)';
@@ -811,7 +884,12 @@ export class GameApp {
         equipe: trouveTeamDef(p.equipe),
         effectifIdx: p.effectif,
         dureeIdx: p.duree,
+        plein: p.plein,
+        adverse: p.adverse ? trouveTeamDef(p.adverse) : null,
+        score: p.score,
+        spect: p.spect,
         onRejoindre: () => this.rejoinsLan(p),
+        onRegarder: () => this.rejoinsLan(p, true),
       })),
       pseudo: this.pref.pseudo,
       onRetour: () => this.quitteLan(),
@@ -976,6 +1054,12 @@ export class GameApp {
             return;
           }
         }
+        if (this.ecranUI === 'jeu' && this.spectateur) {
+          // le spectateur ne pilote rien : ses appuis vont aux réactions (ou au bouton QUITTER de la pause)
+          const b = clicSurBouton(this.boutons, p.x, p.y);
+          if (b) b.act();
+          return;
+        }
         if (this.ecranUI === 'jeu' && !this.enPause && !this.pauseLan) {
           if (this.entrees.pointeSurPause(p, this.W)) {
             this.pause(true);
@@ -1037,6 +1121,10 @@ export class GameApp {
         else if (this.ecranUI === 'avance') this.fermeAvance();
         else if (this.enPause) this.pause(false);
       }
+      // réactions au clavier : touches 1 à 6
+      const chiffre = /^(Digit|Numpad)([1-6])$/.exec(e.code);
+      if (chiffre && !e.repeat && this.barreReactionsVisible()) this.reagit(CODES_REACTIONS[Number(chiffre[2]) - 1]!);
+      if (e.code === 'Escape' && this.ecranUI === 'lanSpect') this.ouvreLan();
       if (e.code === 'Escape' && this.ecranUI === 'maillots') this.retourChoixEquipes();
       if (e.code === 'Escape' && this.ecranUI === 'avance') this.fermeAvance();
       if (e.code === 'Escape' && this.ecranUI === 'lan') this.quitteLan();
@@ -1085,7 +1173,10 @@ export class GameApp {
       const maintenant = performance.now() / 1000;
       const entree = (eq: TeamId): InputIntent =>
         eq === 0 ? this.entrees.consomme() : hote ? hote.entreeInvite(maintenant) : INTENT_VIDE;
-      if (hote) hote.avance(dt);
+      if (hote) {
+        hote.avance(dt);
+        hote.majScore(state.score);
+      }
       // pause partagée : la simulation est figée pour les deux joueurs
       this.cumul = this.pauseLan ? 0 : this.cumul + dt;
       while (this.cumul >= PAS_FIXE) {
@@ -1136,7 +1227,17 @@ export class GameApp {
       const sy = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
       g.setTransform(E, 0, 0, E, sx * E, sy * E);
       const ralenti = this.ralenti.actif && !!this.etatRalenti && this.ecranUI === 'jeu';
-      dessineScene(g, this.rink, ralenti ? this.etatRalenti! : state, this.decor, this.sprites, this.effets, this.ecranUI, this.equipesActuelles, this.eqLocal);
+      dessineScene(
+        g,
+        this.rink,
+        ralenti ? this.etatRalenti! : state,
+        this.decor,
+        this.sprites,
+        this.effets,
+        this.ecranUI,
+        this.equipesActuelles,
+        this.spectateur ? null : this.eqLocal,
+      );
       g.setTransform(E, 0, 0, E, 0, 0);
       // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
       if (!ECRANS_MENU.includes(this.ecranUI)) {
@@ -1155,7 +1256,7 @@ export class GameApp {
       if (this.ecranUI === 'jeu' && partie && this.jeuReseau && partie.pause !== null) {
         dessinePauseLan(g, this.boutons, this.W, this.H, {
           par: partie.joueurs[partie.pause]?.nom ?? '',
-          onReprendre: () => this.agitLan({ a: 'pause', on: false }),
+          onReprendre: this.spectateur ? undefined : () => this.agitLan({ a: 'pause', on: false }),
           onQuitter: () => this.ouvreLan(),
         });
       } else if (this.ecranUI === 'jeu' && this.pauseLan) {
@@ -1166,9 +1267,12 @@ export class GameApp {
         const autre = partie?.joueurs[this.placeLan === 0 ? 1 : 0];
         dessineRalenti(g, this.boutons, this.W, this.H, tempsUI, {
           progression: this.ralenti.progression,
-          attente: passe ? `EN ATTENTE DE ${autre?.nom ?? ''}` : null,
+          // le spectateur ne passe pas le ralenti : les joueurs décident
+          attente: this.spectateur ? 'RALENTI DU BUT' : passe ? `EN ATTENTE DE ${autre?.nom ?? ''}` : null,
           onPasser: () => this.passeRalenti(),
         });
+      } else if (this.ecranUI === 'jeu' && this.spectateur) {
+        // pas de commandes : la barre de réactions est dessinée plus bas
       } else if (this.ecranUI === 'jeu') {
         const pilote = state.controles[this.eqLocal];
         dessineCommandes(g, this.W, this.H, state.temps, pilote, this.entrees.instantaneUI(), !!pilote && menaceEchec(state, pilote) !== null);
@@ -1177,6 +1281,18 @@ export class GameApp {
         dessineLan(g, this.boutons, this.W, this.H, tempsUI, this.lanProps());
       } else if (this.ecranUI === 'lanConfig') {
         dessineConfigLan(g, this.boutons, this.W, this.H, this.configLanProps());
+      } else if (this.ecranUI === 'lanSpect' && partie) {
+        dessineAttenteSpectateur(g, this.boutons, this.W, this.H, tempsUI, {
+          joueurs: [partie.joueurs[0].nom, partie.joueurs[1]?.nom ?? null],
+          sous:
+            partie.phase === 'attente'
+              ? 'LES JOUEURS SE PREPARENT'
+              : partie.phase === 'fin'
+                ? 'LES JOUEURS VOTENT POUR LA SUITE'
+                : 'LES JOUEURS CHOISISSENT LEURS EQUIPES',
+          spect: partie.spect,
+          onQuitter: () => this.ouvreLan(),
+        });
       } else if (this.ecranUI === 'salon' && partie) {
         dessineSalon(g, this.boutons, this.W, this.H, tempsUI, this.salonProps(partie));
       } else if (this.ecranUI === 'lanChoix' && partie) {
@@ -1184,6 +1300,15 @@ export class GameApp {
         if (props) dessineChoixLan(g, this.boutons, this.sprites, this.W, this.H, tempsUI, props);
       } else if (this.ecranUI === 'fin' && this.dessineImageFin(g) && this.imageFinSeule()) {
         // image de victoire / défaite seule, avant que les statistiques s'y superposent
+      } else if (this.ecranUI === 'fin' && partie && this.jeuReseau && this.spectateur) {
+        dessineFinSpectateur(g, this.boutons, this.W, this.H, tempsUI, {
+          score: state.score,
+          tirs: state.tirs,
+          stats: state.stats,
+          prolong: state.prolong,
+          noms: [partie.joueurs[0].nom, partie.joueurs[1]?.nom ?? ''],
+          onQuitter: () => this.ouvreLan(),
+        });
       } else if (this.ecranUI === 'fin' && partie && this.jeuReseau) {
         dessineFinLan(g, this.boutons, this.W, this.H, tempsUI, this.finLanProps(state, partie));
       } else if (this.ecranUI === 'menu') {
@@ -1198,6 +1323,13 @@ export class GameApp {
         dessinePause(g, this.boutons, this.W, this.H, () => this.pause(false), () => this.retourMenu());
       } else if (this.ecranUI === 'fin') {
         dessineFin(g, this.boutons, this.W, this.H, tempsUI, this.finProps(state));
+      }
+      // mode spectateur : barre de réactions, puis les réactions qui montent (sur tous les écrans)
+      if (this.barreReactionsVisible()) {
+        dessineBarreReactions(g, this.boutons, Math.round(this.W / 2), this.H - 13, this.logosLan(), (r) => this.reagit(r), 10);
+      }
+      if (this.reactions.length && (this.jeuReseau || this.ecranUI === 'lanSpect')) {
+        dessineReactions(g, this.W, this.H, this.reactions, tempsUI, this.logosLan());
       }
       if (this.effets.flash > 0) {
         g.fillStyle = `rgba(255,255,255,${this.effets.flash * 0.5})`;

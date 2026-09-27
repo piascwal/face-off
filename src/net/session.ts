@@ -8,10 +8,12 @@ import {
   inviteArrive,
   invitePart,
   nouvellePartie,
+  SPECTATEURS_MAX,
   versFin,
   type ActionLan,
   type ConfigLan,
   type EtatPartieLan,
+  type Reaction,
 } from './partie';
 import { bonjour, EmetteurEntrees, EntreeDistante, lisCtrl, type MsgCtrl } from './protocole';
 import { detecteReseaux, salonPour, VERSION_PROTOCOLE, type Salon } from './reseau-local';
@@ -30,6 +32,16 @@ export type RaisonFin = 'quitte' | 'exclu' | 'perdu' | 'complet' | 'version' | '
 
 const PING_MS = 1000;
 const SILENCE_MAX_MS = 6000;
+/** Une réaction au plus toutes les 0,4 s par appareil (anti-matraquage). */
+const REACTION_MIN_MS = 400;
+
+/** Un spectateur branché sur l'hôte : il reçoit tout le match, et n'envoie que des réactions. */
+interface Spectateur {
+  l: Liaison;
+  veille: Veille | null;
+  /** Connu une fois son « bonjour » reçu. */
+  nom: string | null;
+}
 
 /** Options de développement (jamais actives en production) : réseau et serveur de découverte locaux. */
 function reglagesDev(): { reseau: string | null; courtiers: string[] | null } {
@@ -108,8 +120,19 @@ export class SessionHote {
   /** Les deux joueurs ont validé (maillots, ou vote « rejouer ») : l'app lance le match. */
   onDebut: () => void = () => {};
   onInviteParti: (raison: RaisonFin, nom: string) => void = () => {};
+  /** Réaction relayée à tous (spectateur, ou joueur sur l'écran de fin) : à afficher ici aussi. */
+  onReaction: (r: Reaction, de: string) => void = () => {};
+  /**
+   * Un spectateur vient d'arriver (état de la partie déjà envoyé) : si un match
+   * est en cours, l'app lui envoie `debut` pour qu'il le prenne en route.
+   */
+  onSpectateur: (envoie: (m: MsgCtrl) => void) => void = () => {};
 
   private liaison: Liaison | null = null;
+  private spectateurs: Spectateur[] = [];
+  private score: [number, number] = [0, 0];
+  /** Dernière réaction de chaque auteur (anti-matraquage). */
+  private dernieresReactions = new Map<string, number>();
   /** Entrées du joueur invité, reconstruites pas à pas (une par invité, pas par match). */
   private entree = new EntreeDistante();
   private veille: Veille | null = null;
@@ -141,17 +164,64 @@ export class SessionHote {
     return this.partie.joueurs[1] !== null;
   }
 
-  private annonce(): void {
-    if (this.ferme_) return;
-    const j = this.partie.joueurs[0];
-    const c = this.partie.config;
-    this.annuaire.annonce({ nom: j.nom, equipe: j.equipe, effectif: c.effectif, duree: c.duree });
+  /** Spectateurs présentés (bonjour reçu). */
+  private get presents(): Spectateur[] {
+    return this.spectateurs.filter((s) => s.nom !== null);
   }
 
-  /** Envoie l'état de la partie à l'invité et prévient l'app. */
+  /**
+   * Annonce la partie sur le réseau, y compris quand elle est pleine : on
+   * peut toujours venir la regarder (score et nombre de spectateurs à jour).
+   */
+  private annonce(): void {
+    if (this.ferme_) return;
+    const [j, invite] = this.partie.joueurs;
+    const c = this.partie.config;
+    this.annuaire.annonce({
+      nom: j.nom,
+      equipe: j.equipe,
+      effectif: c.effectif,
+      duree: c.duree,
+      plein: !!invite,
+      spect: this.presents.length,
+      adverse: invite?.equipe ?? '',
+      score: [...this.score],
+    });
+  }
+
+  /** Score du match en cours, repris dans l'annonce (liste des parties des spectateurs). */
+  majScore(score: [number, number]): void {
+    if (score[0] === this.score[0] && score[1] === this.score[1]) return;
+    this.score = [score[0], score[1]];
+    this.annonce();
+  }
+
+  get nbSpectateurs(): number {
+    return this.presents.length;
+  }
+
+  /** Envoie l'état de la partie à l'invité et aux spectateurs, et prévient l'app. */
   private diffuse(): void {
-    this.liaison?.envoieCtrl({ t: 'etat', e: this.partie } satisfies MsgCtrl);
+    this.partie.spect = this.presents.length;
+    const m: MsgCtrl = { t: 'etat', e: this.partie };
+    this.liaison?.envoieCtrl(m);
+    for (const s of this.presents) s.l.envoieCtrl(m);
     this.onChange();
+  }
+
+  /** Réaction d'un joueur de l'hôte (écran de fin seulement). */
+  reagit(r: Reaction): void {
+    if (this.partie.phase === 'fin') this.relaieReaction(r, this.partie.joueurs[0].nom);
+  }
+
+  private relaieReaction(r: Reaction, de: string): void {
+    const t = performance.now();
+    if (t - (this.dernieresReactions.get(de) ?? -Infinity) < REACTION_MIN_MS) return;
+    this.dernieresReactions.set(de, t);
+    const m: MsgCtrl = { t: 'reaction', r, de };
+    this.liaison?.envoieCtrl(m);
+    for (const s of this.presents) s.l.envoieCtrl(m);
+    this.onReaction(r, de);
   }
 
   /** Applique une action de l'hôte lui-même (même règles que pour l'invité). */
@@ -180,6 +250,10 @@ export class SessionHote {
 
   private async surSignal(de: string, salon: number, sig: Signal): Promise<void> {
     if (sig.type !== 'offre' || this.ferme_) return;
+    if (sig.spect) {
+      await this.accepteSpectateur(de, salon, sig.sdp);
+      return;
+    }
     if (this.liaison) {
       await this.annuaire.signale(de, salon, { type: 'refus', raison: 'complet' });
       return;
@@ -220,17 +294,86 @@ export class SessionHote {
         l.ferme();
         return;
       }
+      if (m.spect) {
+        l.ferme();
+        return;
+      }
       inviteArrive(this.partie, m.nom, this.equipeConnue(m.equipe) ? m.equipe : this.partie.joueurs[0].equipe, m.appareil);
       this.connexionEnCours = false;
-      // la partie est pleine : on la retire de la liste des autres appareils
-      this.annuaire.retireAnnonce();
+      this.score = [0, 0];
+      // la partie est pleine : elle reste annoncée, mais seulement pour la regarder
+      this.annonce();
       this.diffuse();
     } else if (m.t === 'action' && this.aUnInvite) {
       const debut = appliqueAction(this.partie, 1, m.x, this.equipeConnue);
       this.diffuse();
       if (debut) this.onDebut();
+    } else if (m.t === 'reaction' && this.aUnInvite && this.partie.phase === 'fin') {
+      // les joueurs ne réagissent que sur l'écran de fin (pendant le match, les doigts sont pris)
+      this.relaieReaction(m.r, this.partie.joueurs[1]!.nom);
     } else if (m.t === 'quitte') {
       this.parti(l, 'quitte');
+    }
+  }
+
+  // -------------------------------------------------------------- spectateurs
+
+  private async accepteSpectateur(de: string, salon: number, offre: string): Promise<void> {
+    if (this.spectateurs.length >= SPECTATEURS_MAX) {
+      await this.annuaire.signale(de, salon, { type: 'refus', raison: 'spectateurs' });
+      return;
+    }
+    const l = new Liaison();
+    const s: Spectateur = { l, veille: null, nom: null };
+    this.spectateurs.push(s);
+    try {
+      const sdp = await l.accepteOffre(offre);
+      await this.annuaire.signale(de, salon, { type: 'reponse', sdp });
+      await l.ouverte();
+    } catch {
+      this.retireSpectateur(s);
+      return;
+    }
+    if (!this.spectateurs.includes(s)) return;
+    l.onCtrl = (o) => this.surCtrlSpectateur(s, o);
+    l.onJeu = () => {};
+    l.onFerme = () => this.retireSpectateur(s);
+    s.veille = new Veille(l, () => l.ferme());
+    setTimeout(() => {
+      if (s.nom === null) this.retireSpectateur(s);
+    }, 10_000);
+  }
+
+  private surCtrlSpectateur(s: Spectateur, o: unknown): void {
+    if (!this.spectateurs.includes(s)) return;
+    const m = lisCtrl(o);
+    if (!m || s.veille?.recu(m)) return;
+    if (m.t === 'bonjour') {
+      if (m.v !== VERSION_PROTOCOLE || !m.spect || s.nom !== null) {
+        this.retireSpectateur(s);
+        return;
+      }
+      s.nom = m.nom;
+      this.diffuse();
+      this.onSpectateur((x) => s.l.envoieCtrl(x));
+      this.annonce();
+    } else if (m.t === 'reaction' && s.nom !== null) {
+      this.relaieReaction(m.r, s.nom);
+    } else if (m.t === 'quitte') {
+      this.retireSpectateur(s);
+    }
+  }
+
+  private retireSpectateur(s: Spectateur): void {
+    const i = this.spectateurs.indexOf(s);
+    if (i < 0) return;
+    this.spectateurs.splice(i, 1);
+    s.l.onFerme = () => {};
+    s.l.ferme();
+    s.veille?.arrete();
+    if (s.nom !== null && !this.ferme_) {
+      this.diffuse();
+      this.annonce();
     }
   }
 
@@ -271,12 +414,15 @@ export class SessionHote {
     setTimeout(() => this.libere(l), 150);
   }
 
+  /** Message de match (début, évènements) : pour l'invité et les spectateurs. */
   envoieCtrl(m: MsgCtrl): void {
     this.liaison?.envoieCtrl(m);
+    for (const s of this.presents) s.l.envoieCtrl(m);
   }
 
   envoieJeu(data: ArrayBuffer): void {
     this.liaison?.envoieJeu(data);
+    for (const s of this.presents) s.l.envoieJeu(data);
   }
 
   ferme(): void {
@@ -288,6 +434,13 @@ export class SessionHote {
       l.onFerme = () => {};
       setTimeout(() => l.ferme(), 150);
     }
+    for (const s of this.spectateurs) {
+      s.l.envoieCtrl({ t: 'quitte' } satisfies MsgCtrl);
+      s.l.onFerme = () => {};
+      s.veille?.arrete();
+      setTimeout(() => s.l.ferme(), 150);
+    }
+    this.spectateurs = [];
     this.veille?.arrete();
     this.liaison = null;
     this.annuaire.ferme();
@@ -303,6 +456,8 @@ export class SessionClient {
   /** Dernier état de la partie diffusé par l'hôte. */
   partie: EtatPartieLan | null = null;
   code: string | null = null;
+  /** Partie rejointe pour la regarder seulement : pas d'entrées, des réactions. */
+  spectateur = false;
   onChange: () => void = () => {};
   onCtrl: (m: MsgCtrl) => void = () => {};
   onJeu: (data: ArrayBuffer) => void = () => {};
@@ -361,12 +516,14 @@ export class SessionClient {
     if (this.parties.length !== avant) this.onChange();
   }
 
-  async rejoins(partie: AnnoncePartie, nom: string, equipe: string, appareil: string): Promise<void> {
+  /** Rejoint une partie comme joueur, ou comme spectateur (`spect`). */
+  async rejoins(partie: AnnoncePartie, nom: string, equipe: string, appareil: string, spect = false): Promise<void> {
     const annuaire = this.annuaire;
     if (!annuaire || this.liaison) return;
     if (partie.v !== VERSION_PROTOCOLE) throw new Error('version');
     const l = new Liaison();
     this.liaison = l;
+    this.spectateur = spect;
     this.emetteur = new EmetteurEntrees();
     try {
       const sdp = await l.creeOffre();
@@ -377,7 +534,7 @@ export class SessionClient {
           resoudre(s);
         };
       });
-      await annuaire.signale(partie.id, partie.salon, { type: 'offre', sdp, nom });
+      await annuaire.signale(partie.id, partie.salon, { type: 'offre', sdp, nom, spect });
       const r = await reponse;
       this.attenteReponse = null;
       if (r.type === 'refus') throw new Error(r.raison);
@@ -411,7 +568,7 @@ export class SessionClient {
     };
     l.onFerme = () => this.termine('perdu');
     this.veille = new Veille(l, () => l.ferme());
-    l.envoieCtrl(bonjour(nom, equipe, appareil));
+    l.envoieCtrl(bonjour(nom, equipe, appareil, spect));
     // la liaison directe est établie : plus besoin des serveurs de découverte
     annuaire.ferme();
     this.annuaire = null;
@@ -420,12 +577,18 @@ export class SessionClient {
 
   /** Demande à l'hôte d'appliquer une action sur ses propres choix. */
   agit(x: ActionLan): void {
+    if (this.spectateur) return;
     this.liaison?.envoieCtrl({ t: 'action', x } satisfies MsgCtrl);
   }
 
   /** Envoie l'intention de cette image à l'hôte (à appeler à chaque image pendant un match). */
   envoieEntree(intent: InputIntent): void {
-    if (this.liaison) this.liaison.envoieJeu(this.emetteur.encode(intent));
+    if (this.liaison && !this.spectateur) this.liaison.envoieJeu(this.emetteur.encode(intent));
+  }
+
+  /** Réaction (l'hôte la relaie à tout le monde, avec notre nom). */
+  reagit(r: Reaction): void {
+    this.liaison?.envoieCtrl({ t: 'reaction', r, de: '' } satisfies MsgCtrl);
   }
 
   private termine(raison: RaisonFin): void {

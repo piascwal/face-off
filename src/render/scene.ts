@@ -25,8 +25,11 @@ export function dessineScene(
   effets: SystemeEffets,
   ecranUI: string,
   equipes: [EquipeVisuelle, EquipeVisuelle],
-  /** Équipe pilotée sur cet écran (1 pour le client d'une partie en réseau local). */
-  eqLocal: TeamId = 0,
+  /**
+   * Équipe pilotée sur cet écran (1 pour le client d'une partie en réseau
+   * local) ; null pour un spectateur, qui ne pilote personne.
+   */
+  eqLocal: TeamId | null = 0,
 ): void {
   const p = state.palet;
   p.trace.push({ x: p.x, y: p.y });
@@ -46,7 +49,7 @@ export function dessineScene(
   for (const s of state.patineurs) ellipseOmbre(g, s.x, s.y + 3.5, s.chuteT > 0 ? 17 : 10, s.chuteT > 0 ? 3 : 1.8, 0.28);
 
   // en match, on repère ses coéquipiers et le receveur que viserait une passe
-  if (state.mode === 'match' && ecranUI === 'jeu') {
+  if (state.mode === 'match' && ecranUI === 'jeu' && eqLocal !== null) {
     const c = state.controles[eqLocal];
     let rec = null;
     if (c && c.tient && state.phase === 'jeu') {
@@ -76,7 +79,7 @@ export function dessineScene(
     ...state.patineurs.map((s) => ({
       y: s.y,
       f: () => {
-        const pilote = s === state.controles[eqLocal];
+        const pilote = eqLocal !== null && s === state.controles[eqLocal];
         dessinePatineur(g, sprites, s, state.temps, pilote, equipes, state.tirSpecialPret[s.eq], pilote && menaceEchec(state, s) !== null);
       },
     })),

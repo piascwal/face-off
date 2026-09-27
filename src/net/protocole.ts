@@ -1,6 +1,6 @@
 import type { GameEvent, GamePhase, InputIntent, MatchState, Rink, StatsMatch, TeamId } from '@core/types';
 import { angDiff } from '@core/utils';
-import { APPAREIL_SUR, lisAction, lisEtatPartie, type ActionLan, type EtatPartieLan } from './partie';
+import { APPAREIL_SUR, estReaction, lisAction, lisEtatPartie, type ActionLan, type EtatPartieLan, type Reaction } from './partie';
 import { VERSION_PROTOCOLE } from './reseau-local';
 
 /**
@@ -19,7 +19,8 @@ import { VERSION_PROTOCOLE } from './reseau-local';
 export type { VarianteMaillot } from './partie';
 
 export type MsgCtrl =
-  | { t: 'bonjour'; v: number; nom: string; equipe: string; appareil: string }
+  /** `spect` : l'appareil se présente comme spectateur (il ne joue pas). */
+  | { t: 'bonjour'; v: number; nom: string; equipe: string; appareil: string; spect: boolean }
   /** État de la partie (salle d'attente, choix, votes, pause), diffusé par l'hôte à chaque changement. */
   | { t: 'etat'; e: EtatPartieLan }
   /** Action du client sur ses propres choix (équipe, maillot, prêt, vote, pause). */
@@ -30,6 +31,11 @@ export type MsgCtrl =
   | { t: 'ev'; k: number; l: unknown[] }
   | { t: 'ping'; k: number }
   | { t: 'pong'; k: number }
+  /**
+   * Réaction (logo d'une équipe, flamme, gyrophare...) : envoyée à l'hôte, qui
+   * la relaie à tout le monde avec le nom de son auteur (`de`, vide à l'envoi).
+   */
+  | { t: 'reaction'; r: Reaction; de: string }
   | { t: 'quitte' }
   | { t: 'exclu' };
 
@@ -48,8 +54,9 @@ export function lisCtrl(o: unknown): MsgCtrl | null {
         typeof m.equipe === 'string' &&
         EQUIPE_SURE.test(m.equipe) &&
         typeof m.appareil === 'string' &&
-        APPAREIL_SUR.test(m.appareil)
-        ? { t: 'bonjour', v: m.v, nom: m.nom, equipe: m.equipe, appareil: m.appareil }
+        APPAREIL_SUR.test(m.appareil) &&
+        typeof m.spect === 'boolean'
+        ? { t: 'bonjour', v: m.v, nom: m.nom, equipe: m.equipe, appareil: m.appareil, spect: m.spect }
         : null;
     case 'etat': {
       const e = lisEtatPartie(m.e);
@@ -66,6 +73,8 @@ export function lisCtrl(o: unknown): MsgCtrl | null {
     case 'ping':
     case 'pong':
       return typeof m.k === 'number' && Number.isFinite(m.k) ? { t: m.t, k: m.k } : null;
+    case 'reaction':
+      return estReaction(m.r) && typeof m.de === 'string' && (m.de === '' || NOM_SUR.test(m.de)) ? { t: 'reaction', r: m.r, de: m.de } : null;
     case 'quitte':
     case 'exclu':
       return { t: m.t };
@@ -74,8 +83,8 @@ export function lisCtrl(o: unknown): MsgCtrl | null {
   }
 }
 
-export function bonjour(nom: string, equipe: string, appareil: string): MsgCtrl {
-  return { t: 'bonjour', v: VERSION_PROTOCOLE, nom, equipe, appareil };
+export function bonjour(nom: string, equipe: string, appareil: string, spect = false): MsgCtrl {
+  return { t: 'bonjour', v: VERSION_PROTOCOLE, nom, equipe, appareil, spect };
 }
 
 // ------------------------------------------------------------ évènements --

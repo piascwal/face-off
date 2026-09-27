@@ -1,6 +1,6 @@
 import { DUREES, EFFECTIFS } from '@core/constants';
 import type { BonusEquipe, StatsMatch } from '@core/types';
-import { texte } from './pixel-font';
+import { largeurTexte, texte } from './pixel-font';
 import { px } from './primitives';
 import type { BanqueSprites } from './sprites';
 import { dessinePanneauEquipe, dessinePanneauMaillot, type CarteEquipe } from './team-select';
@@ -16,7 +16,13 @@ export interface LignePartie {
   equipe: TeamDef;
   effectifIdx: number;
   dureeIdx: number;
+  /** Les deux joueurs sont là : on ne peut plus que regarder le match. */
+  plein: boolean;
+  adverse: TeamDef | null;
+  score: [number, number];
+  spect: number;
   onRejoindre: () => void;
+  onRegarder: () => void;
 }
 
 export type StatutLan = 'recherche' | 'pret' | 'erreur' | 'connexion' | 'creation';
@@ -64,13 +70,26 @@ export function dessineLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
     px(g, x - 1, y - 1, w + 2, 18, C.contour);
     px(g, x, y, w, 16, '#1c2350');
     px(g, x, y, w, 1, '#3a4590');
-    px(g, x, y, 3, 16, p.equipe.interieur.maillot);
+    px(g, x, y, 3, 16, p.plein ? '#3fb4e8' : p.equipe.interieur.maillot);
     texte(g, p.nom, x + 8, y + 4, C.blanc, 1, 'g');
-    texte(g, p.equipe.code, x + 96, y + 4, p.equipe.interieur.clair, 1, 'g');
-    const n = EFFECTIFS[p.effectifIdx] ?? 3;
-    texte(g, `${n} C ${n}  ${(DUREES[p.dureeIdx] ?? 180) / 60} MIN`, x + 150, y + 4, C.gris, 1, 'g');
-    texte(g, 'REJOINDRE >', x + w - 6, y + 4, C.or, 1, 'd');
-    if (!occupe) boutons.push({ x, y, w, h: 16, act: p.onRejoindre });
+    if (p.plein) {
+      // partie complète : le match en cours, à regarder en spectateur ; les
+      // textes sont placés selon leur largeur (les noms d'équipe sont longs)
+      const regarder = 'REGARDER >';
+      const fin = x + w - 6 - largeurTexte(regarder) - 8;
+      const debut = x + 8 + largeurTexte(p.nom) + 8;
+      const match = `${p.equipe.code} ${p.score[0]}-${p.score[1]} ${p.adverse?.code ?? '?'}`;
+      texte(g, match, debut, y + 4, C.blanc, 1, 'g');
+      const nb = p.spect ? `${p.spect} SPECT.` : 'EN COURS';
+      if (debut + largeurTexte(match) + 8 + largeurTexte(nb) <= fin) texte(g, nb, fin, y + 4, C.gris, 1, 'd');
+      texte(g, regarder, x + w - 6, y + 4, '#3fb4e8', 1, 'd');
+    } else {
+      texte(g, p.equipe.code, x + 96, y + 4, p.equipe.interieur.clair, 1, 'g');
+      const n = EFFECTIFS[p.effectifIdx] ?? 3;
+      texte(g, `${n} C ${n}  ${(DUREES[p.dureeIdx] ?? 180) / 60} MIN`, x + 150, y + 4, C.gris, 1, 'g');
+      texte(g, 'REJOINDRE >', x + w - 6, y + 4, C.or, 1, 'd');
+    }
+    if (!occupe) boutons.push({ x, y, w, h: 16, act: p.plein ? p.onRegarder : p.onRejoindre });
   });
 
   const my = y0 + ph / 2 - 8;
@@ -353,7 +372,8 @@ export function dessineChoixLan(
 export interface EtatPauseLan {
   /** Nom du joueur qui a demandé la pause. */
   par: string;
-  onReprendre: () => void;
+  /** Absent pour un spectateur : seuls les joueurs relancent le match. */
+  onReprendre?: () => void;
   onQuitter: () => void;
 }
 
@@ -364,7 +384,7 @@ export function dessinePauseLan(g: CanvasRenderingContext2D, boutons: ZoneBouton
   const cy = Math.round(H / 2);
   texte(g, 'PAUSE', cx, cy - 52, C.blanc, 3, 'c');
   texte(g, `DEMANDEE PAR ${etat.par}`, cx, cy - 16, C.or, 1, 'c');
-  bouton(g, boutons, 'REPRENDRE', cx - 55, cy + 2, 110, 18, etat.onReprendre, BLEU);
+  if (etat.onReprendre) bouton(g, boutons, 'REPRENDRE', cx - 55, cy + 2, 110, 18, etat.onReprendre, BLEU);
   bouton(g, boutons, 'QUITTER LA PARTIE', cx - 55, cy + 26, 110, 18, etat.onQuitter);
 }
 
@@ -433,4 +453,58 @@ export function dessineFinLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[]
   }
   bouton(g, boutons, 'QUITTER', 4, H - 22, 66, 16, fin.onQuitter, { couleur: '#232a58' });
   if (fin.bilan) texte(g, fin.bilan, W - 6, H - 17, '#6f7aa6', 1, 'd');
+}
+
+// ============================================================ spectateur ==
+
+export interface EtatAttenteSpectateur {
+  /** Noms des deux joueurs (le second peut manquer si l'invité est parti). */
+  joueurs: [string, string | null];
+  /** Ce que font les joueurs en ce moment. */
+  sous: string;
+  spect: number;
+  onQuitter: () => void;
+}
+
+/** Spectateur hors match (salle d'attente, choix des équipes, entre deux matchs). */
+export function dessineAttenteSpectateur(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, etat: EtatAttenteSpectateur): void {
+  g.fillStyle = 'rgba(7,9,20,0.84)';
+  g.fillRect(0, 0, W, H);
+  const cx = Math.round(W / 2);
+  const cy = Math.round(H / 2);
+  texte(g, 'MODE SPECTATEUR', cx, cy - 58, '#8fe3ff', 2, 'c');
+  texte(g, `${etat.joueurs[0]}  VS  ${etat.joueurs[1] ?? '...'}`, cx, cy - 26, C.blanc, 1, 'c');
+  g.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(temps * 2.5));
+  texte(g, `${etat.sous}${points(temps)}`, cx, cy - 8, C.or, 1, 'c');
+  g.globalAlpha = 1;
+  texte(g, 'LE MATCH S\'AFFICHE DES QU\'IL COMMENCE', cx, cy + 8, '#6f7aa6', 1, 'c');
+  if (etat.spect > 1) texte(g, `${etat.spect} SPECTATEURS`, cx, cy + 22, '#6f7aa6', 1, 'c');
+  bouton(g, boutons, 'QUITTER', 4, H - 22, 66, 16, etat.onQuitter, { couleur: '#232a58' });
+}
+
+export interface EtatFinSpectateur {
+  score: [number, number];
+  tirs: [number, number];
+  stats: StatsMatch;
+  prolong: boolean;
+  noms: [string, string];
+  onQuitter: () => void;
+}
+
+/** Fin de match vue par un spectateur : le score et les statistiques, sans vote. */
+export function dessineFinSpectateur(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, fin: EtatFinSpectateur): void {
+  g.fillStyle = 'rgba(7,9,20,0.5)';
+  g.fillRect(0, 0, W, H);
+  const cx = Math.round(W / 2);
+  const cy = Math.round(H / 2);
+  g.fillStyle = 'rgba(7,9,20,0.72)';
+  g.fillRect(cx - 142, cy - 94, 284, 158);
+  const [a, b] = fin.score;
+  const vainqueur = a === b ? null : a > b ? fin.noms[0] : fin.noms[1];
+  texte(g, 'FIN DU MATCH', cx, cy - 75 + Math.round(Math.sin(temps * 4) * 1.5), C.or, 3, 'c');
+  texte(g, `${a} - ${b}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 50, C.blanc, 2, 'c');
+  dessineStatsFin(g, cx, cy - 31, fin.tirs, fin.stats);
+  texte(g, vainqueur ? `VICTOIRE DE ${vainqueur}` : 'MATCH NUL', cx, cy + 22, C.blanc, 1, 'c');
+  texte(g, `LES JOUEURS VOTENT POUR LA SUITE${points(temps)}`, cx, cy + 36, '#6f7aa6', 1, 'c');
+  bouton(g, boutons, 'QUITTER', 4, H - 22, 66, 16, fin.onQuitter, { couleur: '#232a58' });
 }

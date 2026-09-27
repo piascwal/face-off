@@ -7,6 +7,7 @@ import { valideAnnonce, valideSignal } from '../src/net/annuaire';
 import { correspond, encodeLongueur, LecteurMqtt, lisPublish, MQTT_PUBLISH, paquetPublish } from '../src/net/mqtt';
 import {
   appliqueInstantane,
+  bonjour,
   decodeInstantane,
   EmetteurEntrees,
   encodeInstantane,
@@ -82,13 +83,32 @@ describe('empreinte du réseau local', () => {
   });
 
   it('valide annonces et signaux reçus', () => {
-    const ok = { id: '0123456789abcdef', nom: 'LYNX 12', equipe: 'toulouse', effectif: 1, duree: 1, v: 1, t: 1 };
-    expect(valideAnnonce(ok, '0123456789abcdef', 0)).not.toBeNull();
+    const ok = {
+      id: '0123456789abcdef',
+      nom: 'LYNX 12',
+      equipe: 'toulouse',
+      effectif: 1,
+      duree: 1,
+      plein: true,
+      spect: 2,
+      adverse: 'nice',
+      score: [2, 1],
+      v: 1,
+      t: 1,
+    };
+    expect(valideAnnonce(ok, '0123456789abcdef', 0)).toMatchObject({ plein: true, spect: 2, adverse: 'nice', score: [2, 1] });
+    expect(valideAnnonce({ ...ok, adverse: '' }, ok.id, 0)?.adverse).toBe('');
+    expect(valideAnnonce({ ...ok, adverse: '../x' }, ok.id, 0)).toBeNull();
+    expect(valideAnnonce({ ...ok, score: [1, -3] }, ok.id, 0)).toBeNull();
+    expect(valideAnnonce({ ...ok, spect: 1.5 }, ok.id, 0)).toBeNull();
     expect(valideAnnonce(ok, 'fedcba9876543210', 0)).toBeNull();
     expect(valideAnnonce({ ...ok, nom: '<script>' }, ok.id, 0)).toBeNull();
     expect(valideAnnonce({ ...ok, effectif: 50 }, ok.id, 0)).toBeNull();
     expect(valideSignal({ type: 'offre', sdp: 'x'.repeat(20_000), nom: 'A' })).toBeNull();
     expect(valideSignal({ type: 'refus', raison: 'complet' })).toEqual({ type: 'refus', raison: 'complet' });
+    expect(valideSignal({ type: 'refus', raison: 'spectateurs' })).toEqual({ type: 'refus', raison: 'spectateurs' });
+    expect(valideSignal({ type: 'offre', sdp: 'x', nom: 'A', spect: true })).toEqual({ type: 'offre', sdp: 'x', nom: 'A', spect: true });
+    expect(valideSignal({ type: 'offre', sdp: 'x', nom: 'A', spect: 'oui' })).toMatchObject({ spect: false });
   });
 });
 
@@ -169,6 +189,14 @@ describe('protocole de jeu', () => {
     expect(lisCtrl({ t: 'action', x: { a: 'lancer' } })).toBeNull();
     expect(lisCtrl({ t: 'inconnu' })).toBeNull();
     expect(lisCtrl({ t: 'debut', s0: 12 })).toEqual({ t: 'debut', s0: 12 });
+    // spectateurs : présentation et réactions
+    const b = bonjour('LYNX 12', 'nice', '0123456789abcdef', true);
+    expect(lisCtrl(JSON.parse(JSON.stringify(b)))).toEqual(b);
+    expect(lisCtrl({ ...b, spect: undefined })).toBeNull();
+    expect(lisCtrl({ t: 'reaction', r: 'logo1', de: '' })).toEqual({ t: 'reaction', r: 'logo1', de: '' });
+    expect(lisCtrl({ t: 'reaction', r: 'gyro', de: 'OURS 22' })).toEqual({ t: 'reaction', r: 'gyro', de: 'OURS 22' });
+    expect(lisCtrl({ t: 'reaction', r: 'bombe', de: '' })).toBeNull();
+    expect(lisCtrl({ t: 'reaction', r: 'feu', de: '<b>' })).toBeNull();
     const id = (x: number, y: number): [number, number] => [x + 10, y];
     expect(lisEvenement({ type: 'etincelles', x: 1, y: 2, n: 3 }, id, [1, 1])).toEqual({ type: 'etincelles', x: 11, y: 2, n: 3 });
     expect(lisEvenement({ type: 'eval', x: 1 }, id, [1, 1])).toBeNull();

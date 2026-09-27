@@ -124,6 +124,8 @@ describe('partie Wi-Fi : on n’avance que quand les deux ont validé', () => {
     expect(lisEtatPartie(JSON.parse(JSON.stringify(e)))).toEqual(e);
     expect(lisEtatPartie({ ...e, phase: 'triche' })).toBeNull();
     expect(lisEtatPartie({ ...e, reprise: 99 })).toBeNull();
+    expect(lisEtatPartie({ ...e, spect: 3 })?.spect).toBe(3);
+    expect(lisEtatPartie({ ...e, spect: 12 })).toBeNull();
     expect(lisEtatPartie({ ...e, joueurs: [e.joueurs[0], { ...e.joueurs[1], nom: '<b>' }] })).toBeNull();
   });
 });

@@ -19,6 +19,14 @@ export interface AnnoncePartie {
   equipe: string;
   effectif: number;
   duree: number;
+  /** Les deux joueurs sont là : on ne peut plus que regarder (mode spectateur). */
+  plein: boolean;
+  /** Nombre de spectateurs connectés. */
+  spect: number;
+  /** Équipe de l'invité ('' tant qu'il n'y en a pas). */
+  adverse: string;
+  /** Score du match en cours (ou du dernier). */
+  score: [number, number];
   v: number;
   t: number;
   /** Index local du salon où l'annonce a été vue (non transmis). */
@@ -26,9 +34,10 @@ export interface AnnoncePartie {
 }
 
 export type Signal =
-  | { type: 'offre'; sdp: string; nom: string }
+  /** `spect` : l'appareil veut seulement regarder le match. */
+  | { type: 'offre'; sdp: string; nom: string; spect: boolean }
   | { type: 'reponse'; sdp: string }
-  | { type: 'refus'; raison: 'complet' | 'version' };
+  | { type: 'refus'; raison: 'complet' | 'version' | 'spectateurs' };
 
 const TEXTE_SUR = /^[A-Z0-9 ]{1,14}$/;
 const ID_SUR = /^[0-9a-f]{16}$/;
@@ -43,18 +52,35 @@ export function valideAnnonce(o: unknown, idTopic: string, salon: number): Annon
   if (typeof a.equipe !== 'string' || !/^[a-z]{2,16}$/.test(a.equipe)) return null;
   if (typeof a.effectif !== 'number' || !Number.isInteger(a.effectif) || a.effectif < 0 || a.effectif > 9) return null;
   if (typeof a.duree !== 'number' || !Number.isInteger(a.duree) || a.duree < 0 || a.duree > 9) return null;
+  if (typeof a.plein !== 'boolean' || typeof a.spect !== 'number' || !Number.isInteger(a.spect) || a.spect < 0 || a.spect > 9) return null;
+  if (typeof a.adverse !== 'string' || !/^([a-z]{2,16})?$/.test(a.adverse)) return null;
+  const sc = a.score;
+  if (!Array.isArray(sc) || sc.length !== 2 || !sc.every((x) => typeof x === 'number' && Number.isInteger(x) && x >= 0 && x < 100)) return null;
   if (typeof a.v !== 'number' || typeof a.t !== 'number' || !Number.isFinite(a.t)) return null;
-  return { id: a.id, nom: a.nom, equipe: a.equipe, effectif: a.effectif, duree: a.duree, v: a.v, t: a.t, salon };
+  return {
+    id: a.id,
+    nom: a.nom,
+    equipe: a.equipe,
+    effectif: a.effectif,
+    duree: a.duree,
+    plein: a.plein,
+    spect: a.spect,
+    adverse: a.adverse,
+    score: [sc[0] as number, sc[1] as number],
+    v: a.v,
+    t: a.t,
+    salon,
+  };
 }
 
 export function valideSignal(o: unknown): Signal | null {
   if (!o || typeof o !== 'object') return null;
   const s = o as Record<string, unknown>;
   if (s.type === 'offre' && typeof s.sdp === 'string' && s.sdp.length < SDP_MAX && typeof s.nom === 'string' && TEXTE_SUR.test(s.nom)) {
-    return { type: 'offre', sdp: s.sdp, nom: s.nom };
+    return { type: 'offre', sdp: s.sdp, nom: s.nom, spect: s.spect === true };
   }
   if (s.type === 'reponse' && typeof s.sdp === 'string' && s.sdp.length < SDP_MAX) return { type: 'reponse', sdp: s.sdp };
-  if (s.type === 'refus' && (s.raison === 'complet' || s.raison === 'version')) return { type: 'refus', raison: s.raison };
+  if (s.type === 'refus' && (s.raison === 'complet' || s.raison === 'version' || s.raison === 'spectateurs')) return { type: 'refus', raison: s.raison };
   return null;
 }
 

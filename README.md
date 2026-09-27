@@ -477,6 +477,21 @@ par un broker MQTT local, pour tester à deux onglets sur une seule machine.
 - Pour du jeu par Internet, le même protocole pourrait passer par un serveur
   relais (TURN).
 
+**Mode spectateur.** Une partie complète reste annoncée sur le réseau (avec
+le score et le nombre de spectateurs) : dans la liste, elle affiche REGARDER.
+Jusqu'à 4 spectateurs (`SPECTATEURS_MAX`) se branchent sur l'hôte, qui leur
+envoie le match comme à l'invité (instantanés, évènements, état de la
+partie) ; on peut arriver en plein match, il est pris en route. Le spectateur
+ne pilote rien et ne vote pas ; entre deux matchs, il attend sur un écran
+« mode spectateur ». En bas de son écran, une barre de réactions : les deux
+logos des équipes du match, toujours présents, puis flamme, gyrophare, cœur
+et « OUF » (touches 1 à 6 au clavier). L'hôte relaie chaque réaction à tout
+le monde avec le nom de son auteur (une toutes les 0,4 s au plus par
+appareil) ; elles montent le long du bord droit de tous les écrans, petites
+et semi-transparentes. Les joueurs peuvent aussi réagir, mais seulement sur
+l'écran de fin. Le nombre de spectateurs s'affiche en haut à gauche chez les
+joueurs. Protocole réseau v10.
+
 ### 9. Handicap, statistiques et ralenti des buts
 
 - **Handicap (Wi-Fi)**. Dans la salle d'attente, l'hôte peut donner un coup de

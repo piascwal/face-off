@@ -6,6 +6,7 @@ export * from './hud';
 export * from './hud-zones';
 export * from './pixel-font';
 export * from './primitives';
+export * from './reactions';
 export * from './rink-render';
 export * from './scene';
 export * from './screens';
