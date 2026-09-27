@@ -6,20 +6,90 @@ import type { MatchState, Rink, Skater } from './types';
 import { alea, angDiff, clamp, decalageRang, pointSegDist } from './utils';
 
 /**
+ * Occupation de la glace par les joueurs non contrôlés — réglages à ajuster
+ * en jouant. Chaque patineur a un poste (voir `posteDe`) : le centre, les
+ * ailiers qui tiennent leur couloir le long des bandes, et les défenseurs qui
+ * restent en couverture derrière le jeu.
+ */
+export const DEMARQUAGE = {
+  /** Deux coéquipiers plus proches que ça se gênent (px). */
+  ecart: 44,
+  /** Pénalité d'un point de soutien collé à un coéquipier (ou à sa destination). */
+  penaliteEcart: 50,
+  /** Couloir des ailiers, en part de la hauteur de la patinoire depuis l'axe. */
+  couloirAilier: 0.3,
+  /** Couloir des défenseurs quand ils sont deux (5 contre 5). */
+  couloirDefenseur: 0.2,
+  /** Jusqu'où un joueur s'écarte de son couloir pour se démarquer (part de la hauteur). */
+  toleranceCouloir: 0.13,
+  /** Recul des défenseurs derrière le porteur quand leur équipe attaque (px). */
+  reculDefenseur: 75,
+};
+
+export type Poste = 'centre' | 'ailier' | 'defenseur';
+
+/**
+ * Poste d'un patineur selon son rang et l'effectif, et son couloir (décalage
+ * vertical en part de la hauteur de la patinoire, du côté où il s'aligne à
+ * l'engagement) :
+ * - 2 joueurs : un centre, un défenseur ;
+ * - 3 joueurs : un centre, un ailier, un défenseur ;
+ * - 5 joueurs : un centre, deux ailiers, deux défenseurs.
+ */
+export function posteDe(s: Skater, nb: number): { poste: Poste; couloir: number } {
+  const cote = Math.sign(decalageRang(s.rang, 1));
+  if (s.rang === 0) return { poste: 'centre', couloir: 0 };
+  if (nb <= 2) return { poste: 'defenseur', couloir: 0 };
+  if (nb === 3) return s.rang === 1 ? { poste: 'ailier', couloir: cote * DEMARQUAGE.couloirAilier } : { poste: 'defenseur', couloir: cote * 0.08 };
+  if (s.rang <= 2) return { poste: 'ailier', couloir: cote * DEMARQUAGE.couloirAilier };
+  return { poste: 'defenseur', couloir: cote * DEMARQUAGE.couloirDefenseur };
+}
+
+/** Ligne bleue de la zone d'attaque de l'équipe `eq`. */
+function bleueOffensive(rink: Rink, eq: number): number {
+  return sensAttaque(eq as 0 | 1) > 0 ? rink.bleueD : rink.bleueG;
+}
+
+/**
+ * Place d'un défenseur quand son équipe a le palet : derrière le porteur, sur
+ * son couloir, sans dépasser la ligne bleue offensive (il tient la pointe) ni
+ * rentrer dans sa propre cage.
+ */
+function placeDefenseur(rink: Rink, s: Skater, xPorteur: number, couloir: number): { x: number; y: number } {
+  const dir = sensAttaque(s.eq);
+  const def = butDefendu(rink, s.eq);
+  let x = xPorteur - dir * DEMARQUAGE.reculDefenseur;
+  // pas au-delà de la ligne bleue offensive, pas collé à sa cage
+  const bleue = bleueOffensive(rink, s.eq) + dir * 6;
+  if ((x - bleue) * dir > 0) x = bleue;
+  if ((x - (def + dir * 30)) * dir < 0) x = def + dir * 30;
+  return { x, y: rink.cy + couloir * rink.h };
+}
+
+/**
  * Se démarquer : parmi quelques points de soutien autour du porteur, choisir
  * celui qui offre une vraie option de passe — loin des adversaires, ligne de
  * passe dégagée, à bonne distance du porteur, sans se coller à un coéquipier.
  * `avant` : le soutien offensif (vers la cage) ou celui qui reste en retrait
- * pour la remise.
+ * pour la remise. `couloir` : le joueur cherche autour de son couloir (part de
+ * la hauteur), au lieu de toute la largeur.
  */
-export function pointDeSoutien(rink: Rink, state: MatchState, s: Skater, c: Skater, avant: boolean): { x: number; y: number } {
+export function pointDeSoutien(
+  rink: Rink,
+  state: MatchState,
+  s: Skater,
+  c: Skater,
+  avant: boolean,
+  couloir: number | null = null,
+): { x: number; y: number } {
   const atk = butAttaque(rink, s.eq);
   const dir = sensAttaque(s.eq);
   const cy = rink.cy;
   const eux = equipe(state, s.eq === 0 ? 1 : 0);
   const autres = equipe(state, s.eq).filter((m) => m !== s && m !== c);
   const xs = avant ? [c.x + dir * 35, c.x + dir * 65, atk - dir * 45, atk - dir * 75] : [c.x - dir * 30, c.x - dir * 50, c.x];
-  const ys = [-48, -28, -10, 10, 28, 48];
+  const tol = DEMARQUAGE.toleranceCouloir * rink.h;
+  const ys = couloir === null ? [-48, -28, -10, 10, 28, 48] : [-1, -0.5, 0, 0.5, 1].map((k) => couloir * rink.h + k * tol);
   let meilleur = { x: s.x, y: s.y };
   let score = -Infinity;
   for (const x0 of xs) {
@@ -35,7 +105,12 @@ export function pointDeSoutien(rink: Rink, state: MatchState, s: Skater, c: Skat
       const dc = Math.hypot(x - c.x, y - c.y);
       sc -= Math.abs(dc - 60) * 0.35;
       if (avant) sc += (x - c.x) * dir * 0.12;
-      for (const m of autres) if (Math.hypot(m.x - x, m.y - y) < 28 || Math.hypot(m.ia.tx - x, m.ia.ty - y) < 24) sc -= 30;
+      // l'écart avec les coéquipiers (et leurs destinations) : plus on est près, plus ça coûte
+      for (const m of autres) {
+        const d = Math.min(Math.hypot(m.x - x, m.y - y), Math.hypot(m.ia.tx - x, m.ia.ty - y));
+        if (d < DEMARQUAGE.ecart) sc -= DEMARQUAGE.penaliteEcart * (1 - d / DEMARQUAGE.ecart);
+      }
+      if (couloir !== null) sc -= Math.abs(dy - couloir * rink.h) * 0.25;
       // un peu de constance : on ne traverse pas la patinoire pour un point à peine meilleur
       sc -= Math.hypot(x - s.x, y - s.y) * 0.08;
       if (sc > score) {
@@ -57,6 +132,8 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
   const ia = s.ia;
   const nous = equipe(state, s.eq);
   const eux = equipe(state, s.eq === 0 ? 1 : 0);
+  const { poste, couloir } = posteDe(s, state.nb);
+  const yCouloir = cy + couloir * rink.h;
 
   if (s.tient) {
     const o = plusProche(eux, s.x, s.y);
@@ -107,8 +184,9 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
     ia.t = Math.min(ia.t, 0.08);
   } else if (p.porteur && p.porteur.eq !== s.eq) {
     if (!('face' in p.porteur)) {
-      ia.tx = def + dir * rink.w * 0.3;
-      ia.ty = cy + decalageRang(s.rang, 35);
+      // le gardien adverse tient le palet : on se replace chacun sur son couloir
+      ia.tx = poste === 'defenseur' ? def + dir * rink.w * 0.25 : rink.cx - dir * 20;
+      ia.ty = yCouloir;
     } else {
       const c = p.porteur;
       const actifs = nous.filter((m) => m.sonne <= 0);
@@ -128,11 +206,24 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
           s.prepaEchecT = ECHEC_PREPA_MAX;
         }
       } else {
-        // marquage individuel : chacun prend l'adversaire libre le plus proche, côté but
+        // marquage individuel, côté but : les défenseurs prennent d'abord les
+        // adversaires les plus dangereux (près de notre cage), les autres le plus proche
         let libres = eux.filter((e) => e !== c);
         let cible: Skater | null = null;
-        for (const m of nous.filter((m) => m !== presseur).sort((a, b) => a.rang - b.rang)) {
-          const e = plusProche(libres, m.x, m.y);
+        const estDef = (m: Skater) => posteDe(m, state.nb).poste === 'defenseur';
+        const marqueurs = nous.filter((m) => m !== presseur).sort((a, b) => Number(estDef(b)) - Number(estDef(a)) || a.rang - b.rang);
+        for (const m of marqueurs) {
+          let e: Skater | null = null;
+          if (estDef(m)) {
+            let meilleur = Infinity;
+            for (const x of libres) {
+              const v = Math.hypot(x.x - def, x.y - cy) * 0.6 + Math.hypot(x.x - m.x, x.y - m.y) * 0.4;
+              if (v < meilleur) {
+                meilleur = v;
+                e = x;
+              }
+            }
+          } else e = plusProche(libres, m.x, m.y);
           if (!e) break;
           libres = libres.filter((x) => x !== e);
           if (m === s) {
@@ -152,14 +243,22 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
   } else if (p.porteur && p.porteur.eq === s.eq) {
     const c = p.porteur;
     if (!('face' in c)) {
-      ia.tx = def + dir * rink.w * (s.rang === 0 ? 0.3 : 0.42);
-      ia.ty = cy + decalageRang(s.rang, 40);
+      // relance depuis notre gardien : les défenseurs se proposent bas, les attaquants s'écartent sur leur couloir
+      ia.tx = def + dir * rink.w * (poste === 'defenseur' ? 0.22 : 0.45);
+      ia.ty = yCouloir;
+    } else if (poste === 'defenseur') {
+      // le défenseur reste en couverture, derrière le jeu : il offre la remise
+      // en retrait (sur son couloir) sans jamais monter au-delà de la ligne bleue
+      const base = placeDefenseur(rink, s, c.x, couloir);
+      const pt = pointDeSoutien(rink, state, s, c, false, couloir);
+      ia.tx = (pt.x - base.x) * dir < 0 ? pt.x : base.x;
+      ia.ty = pt.y;
+      ia.t = Math.min(ia.t, 0.2);
     } else {
-      // soutien : le plus avancé se démarque vers la cage, les autres offrent une
-      // remise en retrait — chacun cherche l'espace libre et une ligne de passe dégagée
-      const soutiens = nous.filter((m) => m !== c).sort((a, b) => Math.abs(a.x - atk) - Math.abs(b.x - atk));
-      const k = soutiens.indexOf(s);
-      const pt = pointDeSoutien(rink, state, s, c, k === 0 || (k === 1 && soutiens.length > 2));
+      // attaquants : chacun se démarque vers la cage sur son couloir (le centre
+      // dans l'axe, les ailiers le long des bandes), là où il y a de l'espace
+      // et une ligne de passe dégagée
+      const pt = pointDeSoutien(rink, state, s, c, true, couloir);
       ia.tx = pt.x;
       ia.ty = pt.y;
       // se replacer plus souvent tant qu'on n'est pas démarqué
@@ -174,12 +273,18 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
       const t = Math.min(0.6, d / 160);
       ia.tx = p.x + p.vx * t - dir * 4;
       ia.ty = p.y + p.vy * t;
+    } else if (poste === 'defenseur') {
+      // les défenseurs restent derrière le palet, sur leur couloir
+      const pt = placeDefenseur(rink, s, p.x, couloir);
+      ia.tx = pt.x;
+      ia.ty = pt.y;
     } else if (k === 1) {
       ia.tx = p.x + (atk - p.x) * 0.3;
-      ia.ty = cy + (p.y < cy ? 26 : -26);
+      ia.ty = couloir === 0 ? cy + (p.y < cy ? 26 : -26) : yCouloir;
     } else {
-      ia.tx = def + (p.x - def) * 0.4;
-      ia.ty = cy + (p.y - cy) * 0.4;
+      // les autres attaquants se tiennent à hauteur du palet, sur leur couloir
+      ia.tx = p.x + dir * 10;
+      ia.ty = yCouloir;
     }
   }
   ia.tx = clamp(ia.tx, rink.x + 8, rink.x + rink.w - 8);

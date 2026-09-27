@@ -381,6 +381,35 @@ placement défensif dans `ai.ts`) utilisaient des tableaux fixes à 3 cases
 par `core/utils.ts::decalageRang`, qui étale n'importe quel effectif de
 chaque côté du joueur central sans tableau à taille fixe.
 
+**Postes et démarquage** (`core/ai.ts`). Chaque joueur non contrôlé a un
+poste selon son rang (`posteDe`) :
+
+| Effectif | Postes |
+|---|---|
+| 2 contre 2 | un centre, un défenseur |
+| 3 contre 3 | un centre, un ailier, un défenseur |
+| 5 contre 5 | un centre, deux ailiers, deux défenseurs |
+
+- **Quand l'équipe a le palet**, les attaquants se démarquent vers la cage
+  sur leur couloir : le centre dans l'axe, les ailiers le long des bandes.
+  Les défenseurs restent en couverture derrière le jeu (remise en retrait) et
+  ne dépassent pas la ligne bleue offensive.
+- **En défense**, les défenseurs marquent d'abord les adversaires les plus
+  proches de leur cage.
+- **Palet libre** : chacun reprend son couloir.
+- Tous les réglages sont dans `DEMARQUAGE` : écart entre coéquipiers,
+  largeur des couloirs, recul des défenseurs.
+
+Mesure sur 30 matchs IA contre IA en 5 contre 5 :
+
+| | Avant | Après |
+|---|---|---|
+| Joueurs collés à un coéquipier (moins de 22 px) | 49 % | 10 % |
+| Grappe de 3 coéquipiers ou plus | 70 % du temps | 10 % |
+| Largeur occupée par une équipe | 51 px | 93 px |
+
+`tests/demarquage.test.ts` garde ces valeurs sous contrôle.
+
 Le menu gagne un bouton « RÉGLAGES AVANCÉS » (`render/screens.ts::dessineAvance`)
 avec quatre bascules, persistées comme le reste dans `app/preferences.ts` et
 appliquées pour de vrai côté simulation (`MatchState.assistTir/assistPasse/changementAuto`,
