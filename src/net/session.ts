@@ -3,11 +3,15 @@ import { Liaison } from './liaison';
 import type { InputIntent } from '@core/types';
 import {
   appliqueAction,
+  avanceAbsence,
   avanceReprise,
   debutRalenti,
+  inviteAbsent,
   inviteArrive,
   invitePart,
+  inviteRevenu,
   nouvellePartie,
+  RECONNEXION_S,
   SPECTATEURS_MAX,
   versFin,
   type ActionLan,
@@ -16,7 +20,7 @@ import {
   type Reaction,
 } from './partie';
 import { bonjour, EmetteurEntrees, EntreeDistante, lisCtrl, type MsgCtrl } from './protocole';
-import { detecteReseaux, salonPour, VERSION_PROTOCOLE, type Salon } from './reseau-local';
+import { detecteReseaux, idAleatoire, salonPour, VERSION_PROTOCOLE, type Salon } from './reseau-local';
 
 /**
  * Sessions de jeu en réseau local : l'appareil hôte *est* le serveur.
@@ -26,6 +30,11 @@ import { detecteReseaux, salonPour, VERSION_PROTOCOLE, type Salon } from './rese
  * propre réseau, choisit une partie et dépose son offre WebRTC dans la boîte
  * de l'hôte. Dès que la liaison directe est ouverte, plus rien ne passe par
  * les serveurs de découverte : le client s'en déconnecte.
+ *
+ * Coupure pendant une partie (Wi-Fi qui décroche, téléphone mis en veille) :
+ * l'hôte garde la place de l'invité et fige le match ; l'invité relance seul
+ * la découverte, retrouve l'annonce de l'hôte et se reconnecte avec le jeton
+ * secret donné à son arrivée (voir `inviteAbsent` dans partie.ts).
  */
 
 export type RaisonFin = 'quitte' | 'exclu' | 'perdu' | 'complet' | 'version' | 'injoignable';
@@ -43,12 +52,27 @@ interface Spectateur {
   nom: string | null;
 }
 
-/** Options de développement (jamais actives en production) : réseau et serveur de découverte locaux. */
-function reglagesDev(): { reseau: string | null; courtiers: string[] | null } {
-  if (!import.meta.env.DEV) return { reseau: null, courtiers: null };
+/**
+ * Options de développement (jamais actives en production) : réseau et
+ * serveur de découverte locaux, délai de reconnexion raccourci (tests).
+ */
+function reglagesDev(): { reseau: string | null; courtiers: string[] | null; reconnexionS: number | null } {
+  if (!import.meta.env.DEV) return { reseau: null, courtiers: null, reconnexionS: null };
   const q = new URLSearchParams(location.search);
-  return { reseau: q.get('reseau'), courtiers: q.get('courtier') ? [q.get('courtier')!] : null };
+  const r = Number(q.get('reconnexion'));
+  return {
+    reseau: q.get('reseau'),
+    courtiers: q.get('courtier') ? [q.get('courtier')!] : null,
+    reconnexionS: r > 0 && r <= 600 ? r : null,
+  };
 }
+
+/** Temps laissé à l'invité pour revenir après une coupure (s). */
+function delaiReconnexion(): number {
+  return reglagesDev().reconnexionS ?? RECONNEXION_S;
+}
+
+const attente = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function salonsDuReseau(): Promise<Salon[]> {
   const dev = reglagesDev();
@@ -127,8 +151,14 @@ export class SessionHote {
    * est en cours, l'app lui envoie `debut` pour qu'il le prenne en route.
    */
   onSpectateur: (envoie: (m: MsgCtrl) => void) => void = () => {};
+  /** L'invité est revenu après une coupure (état déjà envoyé) : en plein match, l'app lui renvoie `debut`. */
+  onInviteRevenu: (envoie: (m: MsgCtrl) => void) => void = () => {};
 
   private liaison: Liaison | null = null;
+  /** L'appareil de la liaison courante s'est présenté (bonjour accepté). */
+  private presente = false;
+  /** Jeton secret de l'invité : le même jeton lui rend sa place après une coupure. */
+  private jetonInvite: string | null = null;
   private spectateurs: Spectateur[] = [];
   private score: [number, number] = [0, 0];
   /** Dernière réaction de chaque auteur (anti-matraquage). */
@@ -243,9 +273,33 @@ export class SessionHote {
     this.diffuse();
   }
 
-  /** Fait avancer le compte à rebours de reprise après une pause. */
+  /** Fait avancer le compte à rebours de reprise après une pause, et l'attente d'un invité absent. */
   avance(dt: number): void {
+    const absence = avanceAbsence(this.partie, dt);
+    if (absence === 'fini') this.finAbsence();
+    else if (absence === 'change') this.diffuse();
     if (avanceReprise(this.partie, dt)) this.diffuse();
+  }
+
+  /** Secondes qu'il reste à l'invité pour revenir (0 : il est là). */
+  get absence(): number {
+    return this.partie.absent;
+  }
+
+  /** L'hôte n'attend plus l'invité parti : retour en salle d'attente. */
+  arreteAttente(): void {
+    if (this.partie.absent > 0) this.finAbsence();
+  }
+
+  /** L'invité n'est pas revenu à temps : sa place est libérée. */
+  private finAbsence(): void {
+    const invite = this.partie.joueurs[1];
+    if (this.liaison) this.lache(this.liaison);
+    invitePart(this.partie);
+    this.jetonInvite = null;
+    this.annonce();
+    this.diffuse();
+    if (invite) this.onInviteParti('perdu', invite.nom);
   }
 
   private async surSignal(de: string, salon: number, sig: Signal): Promise<void> {
@@ -260,6 +314,7 @@ export class SessionHote {
     }
     const l = new Liaison();
     this.liaison = l;
+    this.presente = false;
     this.entree = new EntreeDistante();
     this.connexionEnCours = true;
     this.onChange();
@@ -281,7 +336,7 @@ export class SessionHote {
     this.veille = new Veille(l, () => l.ferme());
     // un pair qui ouvre la liaison sans jamais se présenter ne bloque pas la partie
     setTimeout(() => {
-      if (this.liaison === l && !this.aUnInvite) this.libere(l);
+      if (this.liaison === l && !this.presente) this.libere(l);
     }, 10_000);
   }
 
@@ -290,15 +345,31 @@ export class SessionHote {
     const m = lisCtrl(o);
     if (!m || this.veille?.recu(m)) return;
     if (m.t === 'bonjour') {
-      if (m.v !== VERSION_PROTOCOLE || this.aUnInvite) {
+      if (m.v !== VERSION_PROTOCOLE || m.spect || this.presente) {
         l.ferme();
         return;
       }
-      if (m.spect) {
+      if (this.partie.absent > 0) {
+        // la place est gardée : seul l'invité parti la reprend, avec son jeton
+        if (m.jeton !== this.jetonInvite) {
+          l.ferme();
+          return;
+        }
+        this.presente = true;
+        this.connexionEnCours = false;
+        inviteRevenu(this.partie);
+        this.annonce();
+        this.diffuse();
+        this.onInviteRevenu((x) => l.envoieCtrl(x));
+        return;
+      }
+      if (this.aUnInvite) {
         l.ferme();
         return;
       }
       inviteArrive(this.partie, m.nom, this.equipeConnue(m.equipe) ? m.equipe : this.partie.joueurs[0].equipe, m.appareil);
+      this.jetonInvite = m.jeton;
+      this.presente = true;
       this.connexionEnCours = false;
       this.score = [0, 0];
       // la partie est pleine : elle reste annoncée, mais seulement pour la regarder
@@ -377,23 +448,41 @@ export class SessionHote {
     }
   }
 
-  private libere(l: Liaison): void {
-    if (this.liaison !== l) return;
+  /** Ferme la liaison courante, sans toucher à la partie. */
+  private lache(l: Liaison): boolean {
+    if (this.liaison !== l) return false;
     l.onFerme = () => {};
     l.ferme();
     this.veille?.arrete();
     this.veille = null;
     this.liaison = null;
+    this.presente = false;
     this.code = null;
     this.connexionEnCours = false;
-    invitePart(this.partie);
+    return true;
+  }
+
+  /** Ferme la liaison ; l'invité perd sa place, sauf si elle lui est gardée (absent). */
+  private libere(l: Liaison): void {
+    if (!this.lache(l)) return;
+    if (this.partie.absent <= 0) {
+      invitePart(this.partie);
+      this.jetonInvite = null;
+    }
     this.annonce();
     this.onChange();
   }
 
   private parti(l: Liaison, raison: RaisonFin): void {
     if (this.liaison !== l) return;
-    const invite = this.partie.joueurs[1];
+    const invite = this.presente ? this.partie.joueurs[1] : null;
+    // coupure (pas un départ volontaire) : on garde sa place et on fige le match
+    if (invite && raison === 'perdu' && inviteAbsent(this.partie, delaiReconnexion())) {
+      this.lache(l);
+      this.annonce();
+      this.diffuse();
+      return;
+    }
     this.libere(l);
     if (invite) this.onInviteParti(raison, invite.nom);
   }
@@ -409,6 +498,7 @@ export class SessionHote {
     l.envoieCtrl({ t: 'exclu' } satisfies MsgCtrl);
     l.onCtrl = () => {};
     invitePart(this.partie);
+    this.jetonInvite = null;
     this.onChange();
     // laisse partir le message avant de couper
     setTimeout(() => this.libere(l), 150);
@@ -458,6 +548,8 @@ export class SessionClient {
   code: string | null = null;
   /** Partie rejointe pour la regarder seulement : pas d'entrées, des réactions. */
   spectateur = false;
+  /** Connexion perdue en pleine partie : on tente de revenir jusqu'à cet instant (performance.now, ms). */
+  reconnexion: { limite: number } | null = null;
   onChange: () => void = () => {};
   onCtrl: (m: MsgCtrl) => void = () => {};
   onJeu: (data: ArrayBuffer) => void = () => {};
@@ -469,6 +561,9 @@ export class SessionClient {
   private vues = new Map<string, number>();
   private readonly nettoyage: ReturnType<typeof setInterval>;
   private attenteReponse: ((s: Signal) => void) | null = null;
+  /** Notre identité et notre jeton secret dans la partie rejointe (pour y revenir). */
+  private identite: { nom: string; equipe: string; appareil: string; jeton: string } | null = null;
+  private generationReconnexion = 0;
 
   private constructor(private annuaire: Annuaire | null) {
     this.nettoyage = setInterval(() => this.oublieVieilles(), 5000);
@@ -518,12 +613,22 @@ export class SessionClient {
 
   /** Rejoint une partie comme joueur, ou comme spectateur (`spect`). */
   async rejoins(partie: AnnoncePartie, nom: string, equipe: string, appareil: string, spect = false): Promise<void> {
-    const annuaire = this.annuaire;
-    if (!annuaire || this.liaison) return;
+    if (!this.annuaire || this.liaison) return;
     if (partie.v !== VERSION_PROTOCOLE) throw new Error('version');
+    this.spectateur = spect;
+    this.identite = { nom, equipe, appareil, jeton: idAleatoire(16) };
+    await this.connecte(partie);
+  }
+
+  /** Liaison directe avec l'hôte de `partie`, puis présentation (bonjour avec notre jeton). */
+  private async connecte(partie: AnnoncePartie): Promise<void> {
+    const annuaire = this.annuaire;
+    const id = this.identite;
+    if (!annuaire || !id || this.liaison) throw new Error('injoignable');
+    const { nom, equipe, appareil, jeton } = id;
+    const spect = this.spectateur;
     const l = new Liaison();
     this.liaison = l;
-    this.spectateur = spect;
     this.emetteur = new EmetteurEntrees();
     try {
       const sdp = await l.creeOffre();
@@ -568,7 +673,7 @@ export class SessionClient {
     };
     l.onFerme = () => this.termine('perdu');
     this.veille = new Veille(l, () => l.ferme());
-    l.envoieCtrl(bonjour(nom, equipe, appareil, spect));
+    l.envoieCtrl(bonjour(nom, equipe, appareil, spect, jeton));
     // la liaison directe est établie : plus besoin des serveurs de découverte
     annuaire.ferme();
     this.annuaire = null;
@@ -599,10 +704,73 @@ export class SessionClient {
     l.ferme();
     this.veille?.arrete();
     this.veille = null;
-    this.onFin(raison);
+    if (raison === 'perdu' && this.peutRevenir()) void this.reviens();
+    else this.onFin(raison);
+  }
+
+  /** Une coupure en pleine partie (hors salle d'attente) laisse le temps de revenir ; un spectateur, lui, rouvre la liste. */
+  private peutRevenir(): boolean {
+    const e = this.partie;
+    return !this.spectateur && !!this.rejointe && !!this.identite && !!e?.joueurs[1] && e.phase !== 'attente';
+  }
+
+  /**
+   * Reconnexion après une coupure : on relance la découverte, on attend
+   * l'annonce de notre hôte (toujours là, place gardée) et on se reconnecte
+   * avec notre jeton. On réessaie jusqu'au délai ; au-delà, la partie est perdue.
+   */
+  private async reviens(): Promise<void> {
+    const gen = ++this.generationReconnexion;
+    const limite = performance.now() + delaiReconnexion() * 1000;
+    this.reconnexion = { limite };
+    this.onChange();
+    const actif = () => gen === this.generationReconnexion && this.reconnexion !== null;
+    let cible: AnnoncePartie | null = null;
+    while (actif()) {
+      if (performance.now() > limite) {
+        this.abandonneReconnexion();
+        return;
+      }
+      try {
+        if (!this.annuaire) {
+          const a = new Annuaire(await salonsDuReseau(), courtiers(), false);
+          await a.ouvre();
+          if (!actif()) {
+            a.ferme();
+            return;
+          }
+          this.annuaire = a;
+          a.onSignal = (_de, _salon, sig) => this.attenteReponse?.(sig);
+          a.onAnnonce = (x) => {
+            if (x.id === this.rejointe?.id) cible = x;
+          };
+          a.ecouteAnnonces();
+        }
+        if (cible) {
+          await this.connecte(cible);
+          if (!actif()) return;
+          this.reconnexion = null;
+          this.onChange();
+          return;
+        }
+      } catch {
+        // réseau pas encore revenu, hôte pas encore prêt : on réessaie
+      }
+      await attente(1000);
+    }
+  }
+
+  private abandonneReconnexion(): void {
+    this.generationReconnexion++;
+    this.reconnexion = null;
+    this.annuaire?.ferme();
+    this.annuaire = null;
+    this.onFin('perdu');
   }
 
   ferme(): void {
+    this.generationReconnexion++;
+    this.reconnexion = null;
     clearInterval(this.nettoyage);
     const l = this.liaison;
     if (l) {

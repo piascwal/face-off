@@ -60,9 +60,12 @@ export async function environnement(nomTest) {
   const env = {
     urlJeu,
     navigateur,
-    /** Ouvre un appareil ; `options` : viewport, dpr, stockage local initial, pseudo. */
+    /**
+     * Ouvre un appareil ; `options` : viewport, dpr, stockage local initial,
+     * pseudo, paramètres d'URL en plus (`parametres`, ex. « reconnexion=15 »).
+     */
     async appareil(nom, options = {}) {
-      const { largeur = 844, hauteur = 390, dpr = 2, stockage = null, pseudo = null } = options;
+      const { largeur = 844, hauteur = 390, dpr = 2, stockage = null, pseudo = null, parametres = '' } = options;
       const contexte = await navigateur.newContext({ viewport: { width: largeur, height: hauteur }, deviceScaleFactor: dpr, hasTouch: true, isMobile: true });
       if (stockage) await contexte.addInitScript((s) => localStorage.setItem('face-off-v1', s), JSON.stringify(stockage));
       const page = await contexte.newPage();
@@ -73,7 +76,7 @@ export async function environnement(nomTest) {
       page.on('console', (m) => {
         if (m.type() === 'error') console.log(`  [${nom}] console : ${m.text()}`);
       });
-      await page.goto(urlJeu);
+      await page.goto(parametres ? `${urlJeu}&${parametres}` : urlJeu);
       await page.waitForFunction(() => !!window.faceOff);
       await attends(800);
       if (pseudo) await page.evaluate((p) => (window.faceOff.pref.pseudo = p), pseudo);

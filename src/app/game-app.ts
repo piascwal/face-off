@@ -44,6 +44,7 @@ import {
   dessineLan,
   dessineReactions,
   dessinePauseLan,
+  dessineCoupureLan,
   dessineRepriseLan,
   dessineSalon,
   dessineFin,
@@ -541,6 +542,8 @@ export class GameApp {
 
   /** Match en réseau figé (pause demandée par l'un des deux, ou compte à rebours de reprise). */
   private get pauseLan(): boolean {
+    // invité en train de se reconnecter : son écran est figé
+    if (this.jeuReseau && this.client?.reconnexion) return true;
     const e = this.partieLan;
     return !!this.jeuReseau && !!e && e.phase === 'match' && (e.pause !== null || this.repriseRestante() > 0);
   }
@@ -651,6 +654,10 @@ export class GameApp {
         h.onReaction = (r, de) => this.ajouteReaction(r, de);
         // un spectateur arrive en plein match : il le prend en route
         h.onSpectateur = (envoie) => {
+          if (this.jeuReseau?.role === 'hote' && h.partie.phase === 'match') envoie({ t: 'debut', s0: this.seqInstantane + 1 });
+        };
+        // l'invité revient après une coupure : en plein match, il le reprend en route
+        h.onInviteRevenu = (envoie) => {
           if (this.jeuReseau?.role === 'hote' && h.partie.phase === 'match') envoie({ t: 'debut', s0: this.seqInstantane + 1 });
         };
         h.onInviteParti = (raison, nom) => {
@@ -780,13 +787,15 @@ export class GameApp {
     this.state = creePartie(this.rink!, options);
     this.jeuReseau = jeu;
     this.phaseVue = 'match';
-    this.finReprise = null;
+    // repris en route (retour après une coupure) : le compte à rebours de reprise est peut-être en cours
+    this.finReprise = e.reprise > 0 ? performance.now() / 1000 + e.reprise : null;
     this.cumul = 0;
     this.effets.reinitialise();
     this.entrees.reinitialise();
     this.ecranUI = 'jeu';
     this.enPause = false;
-    this.effets.annonce('PRETS ?', 'MATCH EN RESEAU', C.blanc, 1.5);
+    // repris en route : le compte à rebours de reprise suffit
+    if (this.finReprise === null) this.effets.annonce('PRETS ?', 'MATCH EN RESEAU', C.blanc, 1.5);
   }
 
   private surCtrlClient(m: MsgCtrl): void {
@@ -1001,6 +1010,32 @@ export class GameApp {
       g.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(temps * 3));
       texte(g, "EN ATTENTE DE L'HOTE...", Math.round(this.W / 2), cy - 4, C.or, 1, 'c');
       g.globalAlpha = 1;
+    }
+  }
+
+  /**
+   * Coupure Wi-Fi en cours de partie : chez l'hôte et les spectateurs, la
+   * place gardée à l'invité ; chez l'invité, sa reconnexion. Le voile couvre
+   * l'écran et remplace ses boutons.
+   */
+  private dessineCoupure(g: CanvasRenderingContext2D, temps: number): void {
+    const e = this.partieLan;
+    const rc = this.client?.reconnexion;
+    if (rc && this.client?.rejointe) {
+      this.boutons = [];
+      dessineCoupureLan(g, this.boutons, this.W, this.H, temps, {
+        sous: `RECONNEXION A ${this.client.rejointe.nom}...`,
+        reste: (rc.limite - performance.now()) / 1000,
+        bouton: { libelle: 'QUITTER LA PARTIE', act: () => this.ouvreLan() },
+      });
+    } else if (e && e.absent > 0 && (this.hote || this.spectateur)) {
+      this.boutons = [];
+      const h = this.hote;
+      dessineCoupureLan(g, this.boutons, this.W, this.H, temps, {
+        sous: `EN ATTENTE DE ${e.joueurs[1]?.nom ?? ''}`,
+        reste: e.absent,
+        bouton: h ? { libelle: 'NE PLUS ATTENDRE', act: () => h.arreteAttente() } : undefined,
+      });
     }
   }
 
@@ -1398,14 +1433,15 @@ export class GameApp {
       }
       if (this.jeuReseau && !ECRANS_MENU.includes(this.ecranUI)) this.dessineEtatReseau(g, tempsUI);
       const partie = this.partieLan;
-      if (this.ecranUI === 'jeu' && partie && this.jeuReseau && partie.pause !== null) {
+      if (this.ecranUI === 'jeu' && partie && this.jeuReseau && partie.pause !== null && partie.absent <= 0) {
         dessinePauseLan(g, this.boutons, this.W, this.H, {
           par: partie.joueurs[partie.pause]?.nom ?? '',
           onReprendre: this.spectateur ? undefined : () => this.agitLan({ a: 'pause', on: false }),
           onQuitter: () => this.ouvreLan(),
         });
       } else if (this.ecranUI === 'jeu' && this.pauseLan) {
-        dessineRepriseLan(g, this.W, this.H, this.repriseRestante());
+        // (coupure en cours : c'est son voile qui s'affiche, voir dessineCoupure)
+        if (!this.client?.reconnexion && !(partie && partie.absent > 0)) dessineRepriseLan(g, this.W, this.H, this.repriseRestante());
       } else if (ralenti) {
         const enLan = !!partie && !!this.jeuReseau;
         const passe = enLan && partie!.ralentiPasse[this.placeLan];
@@ -1480,6 +1516,7 @@ export class GameApp {
       } else if (this.ecranUI === 'fin') {
         dessineFin(g, this.boutons, this.W, this.H, tempsUI, this.finProps(state));
       }
+      this.dessineCoupure(g, tempsUI);
       // mode spectateur : barre de réactions, puis les réactions qui montent (sur tous les écrans)
       if (this.barreReactionsVisible()) {
         dessineBarreReactions(g, this.boutons, Math.round(this.W / 2), this.H - 13, this.logosLan(), (r) => this.reagit(r), 10);

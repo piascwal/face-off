@@ -1,7 +1,7 @@
 import type { GameEvent, GamePhase, InputIntent, MatchState, Rink, StatsMatch, TeamId } from '@core/types';
 import { angDiff } from '@core/utils';
 import { APPAREIL_SUR, estReaction, lisAction, lisEtatPartie, type ActionLan, type EtatPartieLan, type Reaction } from './partie';
-import { VERSION_PROTOCOLE } from './reseau-local';
+import { idAleatoire, VERSION_PROTOCOLE } from './reseau-local';
 
 /**
  * Protocole de jeu en réseau local — hôte autoritaire :
@@ -19,8 +19,12 @@ import { VERSION_PROTOCOLE } from './reseau-local';
 export type { VarianteMaillot } from './partie';
 
 export type MsgCtrl =
-  /** `spect` : l'appareil se présente comme spectateur (il ne joue pas). */
-  | { t: 'bonjour'; v: number; nom: string; equipe: string; appareil: string; spect: boolean }
+  /**
+   * `spect` : l'appareil se présente comme spectateur (il ne joue pas).
+   * `jeton` : secret tiré par l'invité à son arrivée ; le même jeton lui
+   * rend sa place s'il revient après une coupure.
+   */
+  | { t: 'bonjour'; v: number; nom: string; equipe: string; appareil: string; spect: boolean; jeton: string }
   /** État de la partie (salle d'attente, choix, votes, pause), diffusé par l'hôte à chaque changement. */
   | { t: 'etat'; e: EtatPartieLan }
   /** Action du client sur ses propres choix (équipe, maillot, prêt, vote, pause). */
@@ -41,6 +45,7 @@ export type MsgCtrl =
 
 const NOM_SUR = /^[A-Z0-9 ]{1,14}$/;
 const EQUIPE_SURE = /^[a-z]{2,16}$/;
+const JETON_SUR = /^[0-9a-f]{32}$/;
 
 /** Valide un message du canal de contrôle ; renvoie null s'il est mal formé. */
 export function lisCtrl(o: unknown): MsgCtrl | null {
@@ -55,8 +60,10 @@ export function lisCtrl(o: unknown): MsgCtrl | null {
         EQUIPE_SURE.test(m.equipe) &&
         typeof m.appareil === 'string' &&
         APPAREIL_SUR.test(m.appareil) &&
-        typeof m.spect === 'boolean'
-        ? { t: 'bonjour', v: m.v, nom: m.nom, equipe: m.equipe, appareil: m.appareil, spect: m.spect }
+        typeof m.spect === 'boolean' &&
+        typeof m.jeton === 'string' &&
+        JETON_SUR.test(m.jeton)
+        ? { t: 'bonjour', v: m.v, nom: m.nom, equipe: m.equipe, appareil: m.appareil, spect: m.spect, jeton: m.jeton }
         : null;
     case 'etat': {
       const e = lisEtatPartie(m.e);
@@ -83,8 +90,8 @@ export function lisCtrl(o: unknown): MsgCtrl | null {
   }
 }
 
-export function bonjour(nom: string, equipe: string, appareil: string, spect = false): MsgCtrl {
-  return { t: 'bonjour', v: VERSION_PROTOCOLE, nom, equipe, appareil, spect };
+export function bonjour(nom: string, equipe: string, appareil: string, spect = false, jeton = idAleatoire(16)): MsgCtrl {
+  return { t: 'bonjour', v: VERSION_PROTOCOLE, nom, equipe, appareil, spect, jeton };
 }
 
 // ------------------------------------------------------------ évènements --

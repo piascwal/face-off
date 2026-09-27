@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   appliqueAction,
+  avanceAbsence,
   avanceReprise,
+  inviteAbsent,
   inviteArrive,
   invitePart,
+  inviteRevenu,
   lisEtatPartie,
   matchFige,
   nouvellePartie,
@@ -119,6 +122,43 @@ describe('partie Wi-Fi : on n’avance que quand les deux ont validé', () => {
     expect(e.pause).toBeNull();
   });
 
+  it('coupure en plein match : place gardée, match figé, reprise au retour', () => {
+    const e = partieADeux();
+    e.phase = 'match';
+    expect(inviteAbsent(e, 60)).toBe(true);
+    expect(e.joueurs[1]).not.toBeNull();
+    expect(e.absent).toBe(60);
+    expect(e.pause).toBe(1);
+    expect(matchFige(e)).toBe(true);
+    // personne ne relance le match tant que l'invité est absent
+    appliqueAction(e, 0, { a: 'pause', on: false });
+    expect(e.pause).toBe(1);
+    // on ne diffuse qu'au changement de la seconde affichée
+    expect(avanceAbsence(e, 0.5)).toBe('rien');
+    expect(avanceAbsence(e, 0.6)).toBe('change');
+    inviteRevenu(e);
+    expect(e.absent).toBe(0);
+    expect(e.pause).toBeNull();
+    expect(e.reprise).toBe(REPRISE_S);
+    expect(matchFige(e)).toBe(true);
+    expect(avanceReprise(e, REPRISE_S)).toBe(true);
+    expect(matchFige(e)).toBe(false);
+  });
+
+  it('coupure : délai écoulé, en salle d’attente la place n’est pas gardée', () => {
+    const e = partieADeux();
+    e.phase = 'fin';
+    expect(inviteAbsent(e, 2)).toBe(true);
+    expect(e.pause).toBeNull();
+    expect(avanceAbsence(e, 1.5)).toBe('change');
+    expect(avanceAbsence(e, 1)).toBe('fini');
+    invitePart(e);
+    expect(e.absent).toBe(0);
+    const s = partieADeux();
+    expect(inviteAbsent(s)).toBe(false);
+    expect(s.absent).toBe(0);
+  });
+
   it('valide l’état reçu (aller-retour JSON) et rejette un état truqué', () => {
     const e = partieADeux();
     expect(lisEtatPartie(JSON.parse(JSON.stringify(e)))).toEqual(e);
@@ -126,6 +166,9 @@ describe('partie Wi-Fi : on n’avance que quand les deux ont validé', () => {
     expect(lisEtatPartie({ ...e, reprise: 99 })).toBeNull();
     expect(lisEtatPartie({ ...e, spect: 3 })?.spect).toBe(3);
     expect(lisEtatPartie({ ...e, spect: 12 })).toBeNull();
+    expect(lisEtatPartie({ ...e, absent: 42.5 })?.absent).toBe(42.5);
+    expect(lisEtatPartie({ ...e, absent: -1 })).toBeNull();
+    expect(lisEtatPartie({ ...e, absent: undefined })).toBeNull();
     expect(lisEtatPartie({ ...e, joueurs: [e.joueurs[0], { ...e.joueurs[1], nom: '<b>' }] })).toBeNull();
   });
 });

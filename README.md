@@ -60,6 +60,7 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 |---|---|
 | `coupe` | Mode coupe : choix, tableau, dévoilement, élimination, titre |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
+| `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), puis invité qui ne revient pas |
 
 En local, Chromium doit être installé une fois : `npx playwright install chromium`.
 Pour écrire un scénario, `e2e/outils.mjs` fournit `appareil()`,
@@ -487,12 +488,28 @@ classique, ni découvrir seule les appareils voisins. D'où le montage :
 - Les deux écrans n'ont pas la même taille : positions, vitesses et directions
   sont reprojetées d'une patinoire à l'autre.
 - Des pings permettent d'afficher la latence (en haut à gauche). Au-delà de
-  6 s de silence, la partie est considérée comme perdue et chacun est ramené
-  à l'écran adapté avec un message.
+  6 s de silence, la liaison est considérée comme coupée.
+- **Reconnexion.** Une coupure pendant une partie (Wi-Fi qui décroche,
+  téléphone mis en veille) ne la termine plus.
+  - L'hôte garde la place de l'invité pendant 60 s (`RECONNEXION_S` dans
+    `net/partie.ts`) et fige le match. L'hôte et les spectateurs voient
+    « CONNEXION PERDUE — EN ATTENTE DE X » avec le compte à rebours.
+  - L'invité relance seul la découverte, retrouve l'annonce de son hôte et se
+    reconnecte. Il prouve qu'il est bien le joueur parti avec un jeton secret,
+    tiré à son arrivée et envoyé seulement par la liaison chiffrée.
+  - Le match reprend au même score et au même temps de jeu, après le compte à
+    rebours de 3 s. En plein match, l'invité est repris en route comme un
+    spectateur.
+  - Au bout du délai, ou si l'hôte appuie sur NE PLUS ATTENDRE, l'hôte revient
+    en salle d'attente. L'invité peut aussi quitter pendant l'attente.
+  - En salle d'attente, rien n'est gardé : la place se libère tout de suite.
+    Si c'est l'hôte qui tombe, pas de reprise possible, car il porte la
+    simulation : l'invité revient à la liste au bout du délai.
 
 En développement, `?reseau=xxx&courtier=ws://localhost:8883` (actif seulement
 avec `npm run dev`) remplace la détection du réseau et les serveurs publics
 par un broker MQTT local, pour tester à deux onglets sur une seule machine.
+`&reconnexion=15` raccourcit le délai de reconnexion (tests).
 
 **Limites connues.**
 

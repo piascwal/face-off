@@ -400,6 +400,34 @@ export function dessineRepriseLan(g: CanvasRenderingContext2D, W: number, H: num
   texte(g, n, cx, cy - 18, C.or, f > 0.7 ? 5 : 4, 'c');
 }
 
+/** Coupure Wi-Fi en pleine partie : qui on attend, et combien de temps encore. */
+export interface EtatCoupureLan {
+  /** Ligne sous le titre (« EN ATTENTE DE LYNX 12 », « RECONNEXION A OURS 22 »). */
+  sous: string;
+  /** Secondes restantes avant d'abandonner. */
+  reste: number;
+  /** Bouton (ne plus attendre, quitter) ; aucun pour un spectateur. */
+  bouton?: { libelle: string; act: () => void };
+}
+
+/**
+ * Connexion perdue : voile sur tout l'écran (match figé, choix des équipes ou
+ * écran de fin), avec le compte à rebours de la place gardée.
+ */
+export function dessineCoupureLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, e: EtatCoupureLan): void {
+  g.fillStyle = 'rgba(7,9,20,0.72)';
+  g.fillRect(0, 0, W, H);
+  const cx = Math.round(W / 2);
+  const cy = Math.round(H / 2);
+  texte(g, 'CONNEXION PERDUE', cx, cy - 48, '#ff8a8a', 2, 'c');
+  g.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(temps * 3));
+  texte(g, e.sous, cx, cy - 26, C.or, 1, 'c');
+  g.globalAlpha = 1;
+  texte(g, Math.max(0, Math.ceil(e.reste)), cx, cy - 12, C.blanc, 3, 'c');
+  texte(g, 'SECONDES', cx, cy + 12, C.gris, 1, 'c');
+  if (e.bouton) bouton(g, boutons, e.bouton.libelle, cx - 60, cy + 26, 120, 18, e.bouton.act);
+}
+
 // ================================================================== fin ==
 
 export interface EtatFinLan {

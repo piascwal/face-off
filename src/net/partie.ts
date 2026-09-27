@@ -5,6 +5,10 @@
  *      ▲                   ▲                                         ▲          │
  *      └── invité parti    └──────────── 2 votes « équipes » ────────┴─ 2 votes « rejouer »
  *
+ * Connexion perdue avec l'invité hors de la salle d'attente : sa place lui
+ * est réservée `RECONNEXION_S` secondes (`absent`), le match est figé ; s'il
+ * revient (même jeton secret), on reprend là où on en était, sinon il part.
+ *
  * Chaque joueur n'agit que sur ses propres choix (équipe, maillot, prêt,
  * vote) ; on ne passe à l'étape suivante que quand les deux ont validé.
  * Module pur (aucun réseau, aucun DOM) : l'hôte applique ici ses actions et
@@ -64,6 +68,11 @@ export interface EtatPartieLan {
   ralentiPasse: [boolean, boolean];
   /** Nombre de spectateurs connectés. */
   spect: number;
+  /**
+   * Connexion perdue avec l'invité : secondes qu'il lui reste pour revenir
+   * (0 = il est là). Sa place lui est gardée et le match est en pause.
+   */
+  absent: number;
 }
 
 export type ActionLan =
@@ -78,6 +87,8 @@ export type ActionLan =
   | { a: 'passer' };
 
 export const REPRISE_S = 3;
+/** Temps laissé à l'invité pour se reconnecter après une coupure (s). */
+export const RECONNEXION_S = 60;
 
 export function nouvellePartie(config: ConfigLan, nom: string, equipe: string, appareil: string): EtatPartieLan {
   return {
@@ -89,6 +100,7 @@ export function nouvellePartie(config: ConfigLan, nom: string, equipe: string, a
     bonus: ['aucun', 'aucun'],
     ralentiPasse: [false, false],
     spect: 0,
+    absent: 0,
   };
 }
 
@@ -109,8 +121,45 @@ export function invitePart(e: EtatPartieLan): void {
   e.phase = 'attente';
   e.pause = null;
   e.reprise = 0;
+  e.absent = 0;
   e.joueurs[0].pret = false;
   e.joueurs[0].vote = null;
+}
+
+/**
+ * La connexion avec l'invité vient de tomber : en salle d'attente, il part
+ * (rien à perdre) ; ailleurs, sa place lui est gardée `delai` secondes et le
+ * match se fige. Renvoie true si la place est gardée.
+ */
+export function inviteAbsent(e: EtatPartieLan, delai = RECONNEXION_S): boolean {
+  if (!e.joueurs[1] || e.phase === 'attente') return false;
+  e.absent = delai;
+  if (e.phase === 'match') {
+    e.pause = 1;
+    e.reprise = 0;
+  }
+  return true;
+}
+
+/** L'invité est revenu : le match reprend après le compte à rebours habituel. */
+export function inviteRevenu(e: EtatPartieLan): void {
+  e.absent = 0;
+  if (e.phase === 'match') {
+    e.pause = null;
+    e.reprise = REPRISE_S;
+  }
+}
+
+/**
+ * Fait avancer l'attente de l'invité absent. Renvoie 'change' quand la
+ * seconde affichée change (à diffuser), 'fini' quand le délai est écoulé.
+ */
+export function avanceAbsence(e: EtatPartieLan, dt: number): 'rien' | 'change' | 'fini' {
+  if (e.absent <= 0) return 'rien';
+  const avant = Math.ceil(e.absent);
+  e.absent = Math.max(0, e.absent - dt);
+  if (e.absent === 0) return 'fini';
+  return Math.ceil(e.absent) !== avant ? 'change' : 'rien';
 }
 
 /** Même équipe et même maillot : on ne distinguerait plus les deux camps. */
@@ -197,7 +246,8 @@ export function appliqueAction(e: EtatPartieLan, qui: Place, action: ActionLan, 
       if (e.phase === 'match') e.ralentiPasse[qui] = true;
       return false;
     case 'pause':
-      if (e.phase !== 'match') return false;
+      // pendant l'absence de l'invité, la pause tient jusqu'à son retour
+      if (e.phase !== 'match' || e.absent > 0) return false;
       if (action.on) {
         e.pause = qui;
         e.reprise = 0;
@@ -275,6 +325,7 @@ export function lisEtatPartie(o: unknown): EtatPartieLan | null {
   if (!Array.isArray(b) || b.length !== 2 || !b.every(estBonus)) return null;
   if (!Array.isArray(rp) || rp.length !== 2 || !rp.every((x) => typeof x === 'boolean')) return null;
   if (!entier(e.spect, SPECTATEURS_MAX)) return null;
+  if (typeof e.absent !== 'number' || !(e.absent >= 0 && e.absent <= 600)) return null;
   return {
     phase: e.phase as PhaseLan,
     config,
@@ -284,6 +335,7 @@ export function lisEtatPartie(o: unknown): EtatPartieLan | null {
     bonus: [b[0] as BonusEquipe, b[1] as BonusEquipe],
     ralentiPasse: [rp[0] as boolean, rp[1] as boolean],
     spect: e.spect,
+    absent: e.absent,
   };
 }
 

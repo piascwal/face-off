@@ -193,6 +193,10 @@ describe('protocole de jeu', () => {
     const b = bonjour('LYNX 12', 'nice', '0123456789abcdef', true);
     expect(lisCtrl(JSON.parse(JSON.stringify(b)))).toEqual(b);
     expect(lisCtrl({ ...b, spect: undefined })).toBeNull();
+    // jeton de reconnexion : 32 caractères hexadécimaux
+    expect((b as { jeton: string }).jeton).toMatch(/^[0-9a-f]{32}$/);
+    expect(lisCtrl({ ...b, jeton: 'abc' })).toBeNull();
+    expect(lisCtrl({ ...b, jeton: undefined })).toBeNull();
     expect(lisCtrl({ t: 'reaction', r: 'logo1', de: '' })).toEqual({ t: 'reaction', r: 'logo1', de: '' });
     expect(lisCtrl({ t: 'reaction', r: 'gyro', de: 'OURS 22' })).toEqual({ t: 'reaction', r: 'gyro', de: 'OURS 22' });
     expect(lisCtrl({ t: 'reaction', r: 'bombe', de: '' })).toBeNull();
