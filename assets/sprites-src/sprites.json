@@ -56,8 +56,9 @@
     ]
   },
   "celebration": {
-    "tileW": 91,
-    "tileH": 123,
-    "images": 1
+    "tileW": 134,
+    "tileH": 148,
+    "images": 4,
+    "reference": 122
   }
 }

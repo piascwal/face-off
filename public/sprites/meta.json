@@ -47,9 +47,10 @@
     "echelle": 0.22
   },
   "celebration": {
-    "tileW": 91,
-    "tileH": 123,
-    "images": 1
+    "tileW": 134,
+    "tileH": 148,
+    "images": 4,
+    "reference": 122
   },
   "visages": 6,
   "teamIds": [

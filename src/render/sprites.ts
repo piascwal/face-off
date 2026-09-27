@@ -33,8 +33,12 @@ export interface MetaSprites {
    * puis en miroir). `pied` : centre du corps ; `tete` : centre du casque, par image.
    */
   chute: { tileW: number; tileH: number; images: number; pied: Point; tete: Point[]; echelle: number };
-  /** Célébrations de l'écran de but (de face), une case par dessin, posées sur le bas de la case. */
-  celebration: { tileW: number; tileH: number; images: number };
+  /**
+   * Célébrations de l'écran de but (de face), une case par dessin, posées sur
+   * le bas de la case. `reference` : hauteur du premier dessin (échelle commune :
+   * un joueur à genou reste plus petit qu'un joueur debout).
+   */
+  celebration: { tileW: number; tileH: number; images: number; reference: number };
   /** Nombre de variantes de visage dans visages.png. */
   visages: number;
   teamIds: string[];
@@ -45,7 +49,7 @@ const META_DEFAUT: MetaSprites = {
   gardien: { tileW: 132, tileH: 115, pied: { x: 71, y: 113 }, echelle: 0.2, decalage: -41 },
   portrait: { tileW: 92, tileH: 116 },
   chute: { tileW: 176, tileH: 102, images: 2, pied: { x: 88, y: 43 }, tete: [{ x: 114, y: 31 }, { x: 125, y: 39 }], echelle: 0.22 },
-  celebration: { tileW: 91, tileH: 123, images: 1 },
+  celebration: { tileW: 134, tileH: 148, images: 4, reference: 122 },
   visages: 1,
   teamIds: [],
 };

@@ -17,7 +17,10 @@ export const CELEBRATION = {
    * joueur passe au centre à 40 % de sa vitesse moyenne (et entre/sort plus vite).
    */
   ralentiCentre: 0.6,
-  /** Hauteur du joueur, en part de la hauteur de l'écran. */
+  /**
+   * Hauteur du joueur, en part de la hauteur de l'écran, mesurée sur le
+   * premier dessin ; les autres gardent la même échelle (à genou : plus petit).
+   */
   hauteur: 0.42,
 };
 
@@ -48,8 +51,8 @@ export function dessineCelebration(
   const t = banniere.max - banniere.vie - retard;
   if (t < 0 || t > duree) return;
   const M = sprites.meta.celebration;
-  const h = Math.round(H * hauteur);
-  const k = h / M.tileH;
+  const k = (H * hauteur) / M.reference;
+  const h = M.tileH * k;
   const w = M.tileW * k;
   // position le long de la traversée, plus lente au centre
   const pos = (u: number) => u + (ralentiCentre * Math.sin(2 * Math.PI * u)) / (2 * Math.PI);
