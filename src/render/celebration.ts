@@ -5,13 +5,14 @@ import type { BanqueSprites } from './sprites';
  * Réglages de la célébration du buteur sur l'écran de but — à ajuster en
  * jouant. La traversée doit tenir dans la célébration en direct : avec le
  * ralenti des buts, celle-ci dure au moins `retard + duree` (voir
- * `CELEBRATION_S` dans app/ralenti.ts) ; sans ralenti, le bandeau reste 2,4 s.
+ * `CELEBRATION_S` dans app/ralenti.ts) ; sans ralenti, le bandeau reste
+ * `ANNONCE_BUT_S` (core/constants.ts, 2,9 s).
  */
 export const CELEBRATION = {
   /** Temps entre le but et l'entrée du joueur à gauche (s). */
   retard: 0.05,
   /** Traversée complète, de l'entrée à gauche à la sortie à droite (s). */
-  duree: 1.5,
+  duree: 2.0,
   /**
    * Ralentissement au centre de l'écran : 0 = vitesse constante ; 0,6 = le
    * joueur passe au centre à 40 % de sa vitesse moyenne (et entre/sort plus vite).
@@ -32,8 +33,8 @@ function hasard(n: number): number {
 
 /**
  * Le buteur (dessin tiré au sort, aux couleurs de son équipe) traverse le bas
- * de l'écran de gauche à droite pendant la célébration, devant l'écusson
- * géant et sous le bandeau « BUT ! ».
+ * de l'écran de gauche à droite pendant la célébration, au premier plan :
+ * devant l'écusson géant et devant le bandeau « BUT ! ».
  */
 export function dessineCelebration(
   g: CanvasRenderingContext2D,

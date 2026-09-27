@@ -107,3 +107,9 @@ export const POKE_RECHARGE = 0.35;
 export const CHANGEMENT_AUTO_SEUIL = 70;
 export const CHANGEMENT_AUTO_MARGE = 24;
 
+/**
+ * Écran de but : durée du bandeau « BUT ! » et de l'écusson (s). La phase
+ * « but » dure un peu plus (voir DUREE_BUT dans rules.ts) ; la célébration du
+ * buteur qui traverse l'écran doit tenir dedans (voir render/celebration.ts).
+ */
+export const ANNONCE_BUT_S = 2.9;

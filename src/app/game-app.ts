@@ -1140,14 +1140,15 @@ export class GameApp {
       g.setTransform(E, 0, 0, E, 0, 0);
       // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
       if (!ECRANS_MENU.includes(this.ecranUI)) {
-        if (!ralenti) {
-          dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, tempsUI);
-          dessineCelebration(g, this.W, this.H, this.sprites, this.effets.banniere, this.ecranUI);
-        }
+        if (!ralenti) dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, tempsUI);
         dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
       }
       if (!ralenti && (this.ecranUI === 'menu' || !ECRANS_MENU.includes(this.ecranUI))) {
         dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
+      }
+      // le buteur qui fête son but passe au premier plan, devant l'écusson et le bandeau
+      if (!ralenti && !ECRANS_MENU.includes(this.ecranUI)) {
+        dessineCelebration(g, this.W, this.H, this.sprites, this.effets.banniere, this.ecranUI);
       }
       if (this.jeuReseau && !ECRANS_MENU.includes(this.ecranUI)) this.dessineEtatReseau(g, tempsUI);
       const partie = this.partieLan;

@@ -1,5 +1,6 @@
 import { lachePalet, lancePasse, meilleurReceveur, pointCrosse, prendPalet } from './actions';
 import {
+  ANNONCE_BUT_S,
   ACCEL,
   BUT_DEMI,
   BUT_PROF,
@@ -481,7 +482,7 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
     txt: collectif ? 'BUT COLLECTIF !' : 'BUT !',
     sous: collectif ? `${p.passes} PASSES  ${state.score[0]} - ${state.score[1]}` : `${state.score[0]} - ${state.score[1]}`,
     c: '#ffd35c',
-    duree: 2.4,
+    duree: ANNONCE_BUT_S,
     eq,
     celeb: Math.floor(Math.random() * 1000),
   });

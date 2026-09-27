@@ -518,8 +518,9 @@ calée en bas de l'écran pour toujours montrer les joueurs.
 **Célébration du buteur.** Pendant l'écran de but, un joueur de l'équipe qui
 marque, tiré au sort parmi les dessins `assets/sprites-src/celebration-<n>.jpg`
 (repeints aux couleurs du maillot, `celebration-<id>.png`), traverse le bas de
-l'écran de gauche à droite, devant l'écusson géant, en ralentissant au centre,
-avec une gerbe de glace. Le tirage part avec l'annonce du but (`celeb`) : en
+l'écran de gauche à droite, au premier plan (devant l'écusson géant et le
+bandeau « BUT ! »), en ralentissant au centre, avec une gerbe de glace. Le
+bandeau et l'écusson restent 2,9 s (`ANNONCE_BUT_S`), la traversée dure 2 s. Le tirage part avec l'annonce du but (`celeb`) : en
 Wi-Fi, les deux écrans montrent le même dessin. Tous les réglages (retard,
 durée de la traversée, ralentissement au centre, taille) sont regroupés dans
 `CELEBRATION` (`src/render/celebration.ts`) ; avec le ralenti des buts, la

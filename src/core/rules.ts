@@ -1,5 +1,5 @@
 import { controle } from './actions';
-import { DUREES, EFFECTIFS, NIVEAUX } from './constants';
+import { ANNONCE_BUT_S, DUREES, EFFECTIFS, NIVEAUX } from './constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from './entities';
 import { PROFIL_NEUTRE, type TeamProfile } from './teams';
 import { statsVides, type BonusEquipe, type GameMode, type LevelConfig, type MatchState, type Rink, type TeamId } from './types';
@@ -29,7 +29,8 @@ export interface OptionsPartie {
   dureeBut?: number;
 }
 
-export const DUREE_BUT = 2.6;
+/** Phase « but » sans ralenti : le bandeau, puis un court temps avant l'engagement. */
+export const DUREE_BUT = ANNONCE_BUT_S + 0.2;
 
 /**
  * Un profil d'équipe (vitesse/tir/défense/gardien) module le niveau de
