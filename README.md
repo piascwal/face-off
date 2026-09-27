@@ -305,12 +305,13 @@ Mesure en IA contre IA (50 matchs) : en 3 contre 3, +21 % de passes pour
 le même nombre de buts (8,9 contre 8,6) ; en 2 contre 2, +11 % de passes.
 
 **Mise en échec, esquive et coup de crosse.** Trois boutons, dont le rôle
-change selon qu'on a le palet ou non :
+change selon qu'on a le palet ou non ; le petit bouton garde toujours les
+accélérations (sprint, esquive, mise en échec) :
 
 | | Gros bouton | Bouton moyen | Petit bouton |
 |---|---|---|---|
 | **Avec le palet** | TIR | PASSE | SPRINT / ESQUIVE |
-| **Sans le palet** | ÉCHEC | CHANGER DE JOUEUR | CROSSE |
+| **Sans le palet** | CROSSE | CHANGER DE JOUEUR | ÉCHEC |
 
 - **ÉCHEC** : l'élan vise tout seul le porteur adverse à moins de 55 px
   (`ECHEC_PORTEE`), à défaut l'adversaire le plus proche, sinon la direction
@@ -337,8 +338,8 @@ change selon qu'on a le palet ou non :
 - **CROSSE** : coup de crosse sûr, qui ne s'esquive pas — la crosse vole le
   palet de plus loin et bien plus souvent pendant 0,3 s, puis se recharge.
 
-Au clavier : ESPACE tire ou met en échec, L passe, MAJ sprinte / esquive /
-donne le coup de crosse. En IA contre IA, les buts ne bougent pas et 3 à
+Au clavier : ESPACE tire ou donne le coup de crosse, L passe, MAJ sprinte /
+esquive / met en échec. En IA contre IA, les buts ne bougent pas et 3 à
 8 % des mises en échec sont esquivées.
 
 Passes et tirs laissent une **traînée** derrière le palet (bleue pour une

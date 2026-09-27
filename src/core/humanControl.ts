@@ -85,12 +85,8 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
   // un joueur repris en main abandonne la mise en échec que l'IA préparait
   s.prepaEchecT = 0;
   const actif = state.phase === 'jeu';
-  // sans le palet, le gros bouton met en échec : l'élan part tout seul vers la cible
-  if (intent.tirAppui && actif && !s.tient) {
-    const c = cibleEchec(state, s);
-    if (c) elan(state, s, c.x + c.vx * 0.12 - s.x, c.y + c.vy * 0.12 - s.y);
-    else elan(state, s, intent.ix, intent.iy);
-  }
+  // sans le palet, le gros bouton donne un coup de CROSSE
+  if (intent.tirAppui && actif && !s.tient) coupDeCrosse(state, s);
   if (intent.tirTenu && s.tient && !s.arme && actif) {
     s.arme = true;
     s.charge = 0;
@@ -117,8 +113,9 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
     if (s.tient) passeJoueur(state, s, intent.ix, intent.iy, state.assistPasse);
     else changeJoueur(state, s.eq);
   }
-  // petit bouton : avec le palet, SPRINT — ou ESQUIVE si un défenseur arrive en
-  // mise en échec ; sans le palet, coup de CROSSE
+  // petit bouton, celui des accélérations : avec le palet, SPRINT — ou ESQUIVE si
+  // un défenseur arrive en mise en échec ; sans le palet, mise en ÉCHEC (l'élan
+  // part tout seul vers la cible)
   if (intent.elanAppui && actif) {
     if (s.tient) {
       const menace = menaceEchec(state, s);
@@ -129,7 +126,9 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
         elan(state, s, intent.ix, intent.iy);
       }
     } else {
-      coupDeCrosse(state, s);
+      const c = cibleEchec(state, s);
+      if (c) elan(state, s, c.x + c.vx * 0.12 - s.x, c.y + c.vy * 0.12 - s.y);
+      else elan(state, s, intent.ix, intent.iy);
     }
   }
 }

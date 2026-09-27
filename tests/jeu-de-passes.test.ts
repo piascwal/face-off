@@ -139,7 +139,7 @@ describe('passes selon la zone, bouton de tir malin, démarquage', () => {
 });
 
 describe('bouton ÉCHEC', () => {
-  it('sans le palet, le gros bouton fonce sur le porteur adverse et le met en échec', () => {
+  it('sans le palet, le petit bouton fonce sur le porteur adverse et le met en échec', () => {
     const { st, a } = situation();
     const [p1, p2] = st.patineurs.filter((s) => s.eq === 1) as [Skater, Skater];
     // le porteur à 40 px, un autre adversaire plus près mais sans le palet
@@ -152,7 +152,7 @@ describe('bouton ÉCHEC', () => {
     for (const s of st.patineurs) Object.assign(s.ia, { t: 99, tx: s.x, ty: s.y });
     a.recupCd = 99;
     expect(cibleEchec(st, a)).toBe(p1);
-    appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, tirAppui: true, tirTenu: true }, 1 / 60);
+    appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
     expect(a.elanT).toBeGreaterThan(0);
     for (let i = 0; i < 30 && p1.tient; i++) pas(rink, st, 1 / 60);
     expect(p1.tient).toBe(false);
@@ -250,13 +250,14 @@ describe('esquive et coup de crosse', () => {
     expect(e.d.sonne).toBeGreaterThan(1);
   });
 
-  it('sans le palet, le petit bouton donne un coup de crosse, avec une recharge', () => {
+  it('sans le palet, le gros bouton donne un coup de crosse, avec une recharge', () => {
     const { st, a, d } = echecEnApproche();
     Object.assign(d, { elanT: 0, vx: 0 });
-    appliqueEntreeJoueur(rink, st, d, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
+    appliqueEntreeJoueur(rink, st, d, { ...INTENT_VIDE, tirAppui: true }, 1 / 60);
     expect(d.pokeT).toBeGreaterThan(0);
+    expect(d.elanT).toBeLessThanOrEqual(0); // pas de mise en échec avec ce bouton
     const avant = d.pokeT;
-    appliqueEntreeJoueur(rink, st, d, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
+    appliqueEntreeJoueur(rink, st, d, { ...INTENT_VIDE, tirAppui: true }, 1 / 60);
     expect(d.pokeT).toBe(avant);
     expect(a.tient).toBe(true);
   });

@@ -46,13 +46,14 @@ export function dessineCommandes(
   const tAppui = ui.tir !== null;
   g.globalAlpha = tAppui ? 0.9 : 0.6;
   disque(g, zt.x, zt.y, zt.r, C.contour);
-  // rouge pour tirer, orange pour mettre en échec (gris le temps que l'élan se recharge)
-  const [fond, face] = s.tient ? ['#ff5470', '#e03a58'] : s.elanCd > 0 ? ['#6b7295', '#5a6082'] : ['#ff9a4a', '#e07428'];
+  // rouge pour tirer, violet pour le coup de crosse (gris le temps qu'il se recharge)
+  const crossePrete = s.pokeT <= -POKE_RECHARGE + 1e-3;
+  const [fond, face] = s.tient ? ['#ff5470', '#e03a58'] : !crossePrete ? ['#6b7295', '#5a6082'] : ['#8a7cf0', '#6f62d6'];
   disque(g, zt.x, zt.y + (tAppui ? 1 : 0), zt.r - 1, fond);
   if (!tAppui) disque(g, zt.x, zt.y + 1, zt.r - 3, face);
   if (s.arme) anneau(g, zt.x, zt.y, zt.r + 2, C.or, s.charge, 2);
   g.globalAlpha = 1;
-  const libelle = s.tient ? 'TIR' : 'ÉCHEC';
+  const libelle = s.tient ? 'TIR' : 'CROSSE';
   texte(g, libelle, zt.x, zt.y - 3 + (tAppui ? 1 : 0), C.blanc, 1, 'c');
   if (ui.tir && s.arme) {
     const dx = ui.tir.x - ui.tir.x0;
@@ -75,15 +76,17 @@ export function dessineCommandes(
   g.globalAlpha = 1;
   texte(g, s.tient ? 'PASSE' : 'CHANGE', zpa.x, zpa.y - 3, C.blanc, 1, 'c');
 
-  // petit bouton : SPRINT avec le palet (ESQUIVE quand un défenseur arrive), CROSSE sans
+  // petit bouton, celui des accélérations : SPRINT avec le palet (ESQUIVE quand
+  // un défenseur arrive), mise en ÉCHEC sans
   const eAppui = ui.elanActif;
-  const pret = s.tient ? s.elanCd <= 0 || menace : s.pokeT <= -POKE_RECHARGE + 1e-3;
+  const pret = s.elanCd <= 0 || (s.tient && menace);
   const clignote = menace && Math.floor(temps * 16) & 1;
-  const couleur = !pret ? '#3a4060' : menace ? (clignote ? '#ffd35c' : '#ff9a4a') : s.tient ? '#3fb4e8' : '#8a7cf0';
+  const couleur = !pret ? '#3a4060' : menace ? (clignote ? '#ffd35c' : '#ff9a4a') : s.tient ? '#3fb4e8' : '#ff9a4a';
   g.globalAlpha = eAppui || menace ? 0.95 : 0.6;
   disque(g, ze.x, ze.y, ze.r + (menace ? 2 : 0), C.contour);
   disque(g, ze.x, ze.y + (eAppui ? 1 : 0), ze.r - 1 + (menace ? 2 : 0), couleur);
-  if (!pret && s.tient) anneau(g, ze.x, ze.y, ze.r + 1, '#8fe3ff', 1 - Math.max(0, s.elanCd) / ELAN_CD_PALET, 1);
+  // recharge de l'élan (1 s sans le palet, plus longue avec)
+  if (!pret) anneau(g, ze.x, ze.y, ze.r + 1, '#8fe3ff', 1 - Math.max(0, s.elanCd) / (s.tient ? ELAN_CD_PALET : 1), 1);
   g.globalAlpha = 1;
-  texte(g, !s.tient ? 'CROSSE' : menace ? 'ESQUIVE' : 'SPRINT', ze.x, ze.y - 3, C.blanc, 1, 'c');
+  texte(g, !s.tient ? 'ÉCHEC' : menace ? 'ESQUIVE' : 'SPRINT', ze.x, ze.y - 3, C.blanc, 1, 'c');
 }
