@@ -146,8 +146,11 @@ describe('bouton ÉCHEC', () => {
     Object.assign(p1, { x: a.x + 40, y: a.y + 6, vx: 0, vy: 0 });
     Object.assign(p2, { x: a.x - 20, y: a.y - 8, vx: 0, vy: 0 });
     prendPalet(st, p1);
-    // ce test vérifie l'échec, pas l'esquive de l'IA (aléatoire)
+    // ce test vérifie l'échec, pas l'esquive ni les passes de l'IA, ni un vol à la
+    // crosse avant le choc (aléatoires) : IA figées sur place, pas de harponnage
     st.nivEq[1].esquive = 0;
+    for (const s of st.patineurs) Object.assign(s.ia, { t: 99, tx: s.x, ty: s.y });
+    a.recupCd = 99;
     expect(cibleEchec(st, a)).toBe(p1);
     appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, tirAppui: true, tirTenu: true }, 1 / 60);
     expect(a.elanT).toBeGreaterThan(0);
@@ -225,13 +228,18 @@ describe('esquive et coup de crosse', () => {
   it('face à un humain, l’IA prépare sa mise en échec : le « ! » laisse plus de 0,4 s pour esquiver', () => {
     const { st, a, d } = echecEnApproche();
     Object.assign(d, { x: a.x + 20, vx: 0, elanT: 0, elanCd: 0, prepaEchecT: ECHEC_PREPA_MAX });
+    // le défenseur reste sur le porteur (sans quoi il repart vers sa place et peut
+    // sortir de portée), sans lui chiper le palet à la crosse (aléatoire)
+    Object.assign(d.ia, { tx: a.x, ty: a.y });
+    d.recupCd = 99;
     st.nivEq[1].esquive = 0;
     let fenetre = 0;
-    for (let i = 0; i < 120 && d.elanT <= 0; i++) {
+    // départ de la charge : l'élan arme sa recharge (l'élan lui-même retombe à 0 au choc)
+    for (let i = 0; i < 120 && d.elanCd <= 0; i++) {
       if (menaceEchec(st, a)) fenetre += 1 / 60;
       pas(rink, st, 1 / 60);
     }
-    expect(d.elanT).toBeGreaterThan(0);
+    expect(d.elanCd).toBeGreaterThan(0);
     expect(fenetre).toBeGreaterThanOrEqual(ECHEC_PREPA - 0.02);
     // esquiver pendant la préparation marche aussi : le défenseur reste sonné
     const e = echecEnApproche();
