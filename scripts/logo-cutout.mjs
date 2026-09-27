@@ -155,6 +155,34 @@ function retireFondUni(data, w, h, fonds) {
     for (const idx of aRetirer) data[idx * 4 + 3] = 0;
   }
 
+  // Reflet du fond sur les bords clairs : sur un fond à deux composantes hautes
+  // (magenta = rouge + bleu), un liseré blanc garde une teinte rosée (sa
+  // composante basse, le vert, est « tirée » vers le fond). On la remonte au
+  // niveau des deux autres sur les pixels clairs du pourtour, sans rien
+  // retirer : un rouge franc (bleu bas) n'est pas concerné.
+  if (chromaFond >= 60 && hautes === 2) {
+    const basse = canaux.findIndex((c) => c <= maxFond - chromaFond * 0.4);
+    const hauts = [0, 1, 2].filter((k) => k !== basse);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = y * w + x;
+        const i = idx * 4;
+        if (data[i + 3] === 0) continue;
+        let bord = false;
+        for (let dy = -2; dy <= 2 && !bord; dy++) {
+          for (let dx = -2; dx <= 2 && !bord; dx++) {
+            const xx = x + dx;
+            const yy = y + dy;
+            if (xx >= 0 && yy >= 0 && xx < w && yy < h && data[(yy * w + xx) * 4 + 3] === 0) bord = true;
+          }
+        }
+        if (!bord) continue;
+        const m = Math.min(data[i + hauts[0]], data[i + hauts[1]]);
+        if (m > 150 && data[i + basse] < m - 25) data[i + basse] = m - 10;
+      }
+    }
+  }
+
   // Poussière : un pixel (ou une poignée) resté isolé au beau milieu du fond
   // déjà retiré — coloré ni assez près du fond, ni assez « en fuite » pour
   // les passes ci-dessus, mais trop petit pour être un vrai trait du dessin.
@@ -403,6 +431,11 @@ export function detoure(imgData) {
     }
   }
   if (!mode) {
+    // fond franc et saturé (magenta, vert d'incrustation...) : c'est la seule
+    // couleur de fond ; une deuxième couleur fréquente sur le pourtour est un
+    // morceau du dessin qui touche le cadre (bord sombre d'un écusson...).
+    const [c0] = fonds;
+    if (c0 && chroma(c0.r, c0.g, c0.b) > 60) fonds.length = 1;
     retireFondUni(data, w, h, fonds);
     mode = 'uni';
   }

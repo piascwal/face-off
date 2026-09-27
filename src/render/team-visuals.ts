@@ -114,6 +114,14 @@ const INTERIEURS: Omit<TeamDef, 'exterieur'>[] = [
     logo: 'logos/annecy.png',
     interieur: { maillot: '#141414', fonce: '#8b1e1e', clair: '#ffffff', casque: '#141414' },
   },
+  {
+    id: 'colorado',
+    nom: 'Avalanche',
+    ville: 'Colorado',
+    code: 'COLORADO',
+    logo: 'logos/colorado.png',
+    interieur: { maillot: '#6f263d', fonce: '#236192', clair: '#ffffff', casque: '#6f263d' },
+  },
 ];
 
 export const EQUIPES_JOUABLES: TeamDef[] = INTERIEURS.map((def) => ({

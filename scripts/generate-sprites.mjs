@@ -39,6 +39,7 @@ const INTERIEURS = [
   { id: 'marseille', maillot: '#2f7bbf', fonce: '#16213e', clair: '#c7ccd1', casque: '#2b2f38' },
   { id: 'valence', maillot: '#c41e3a', fonce: '#0d0d0d', clair: '#ffffff', casque: '#0d0d0d' },
   { id: 'annecy', maillot: '#141414', fonce: '#8b1e1e', clair: '#ffffff', casque: '#141414' },
+  { id: 'colorado', maillot: '#6f263d', fonce: '#236192', clair: '#ffffff', casque: '#6f263d' },
 ];
 const VARIANTES = ['interieur', 'exterieur'];
 function palette(base, variante) {
