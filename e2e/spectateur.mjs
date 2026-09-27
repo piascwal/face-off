@@ -14,25 +14,25 @@ export default async function spectateur(env) {
 
   // un 3e appareil ouvre la liste : la partie pleine y est « à regarder »
   const spect = await env.appareil('SPECT', { pseudo: 'OURS 22' });
-  await spect.page.evaluate(() => window.faceOff.ouvreLan());
-  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.client?.parties.some((p) => p.plein)), 'la partie pleine est annoncée (REGARDER)');
+  await spect.page.evaluate(() => window.faceOff.lan.ouvre());
+  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.lan.client?.parties.some((p) => p.plein)), 'la partie pleine est annoncée (REGARDER)');
   await env.capture(spect.page, '1-liste');
-  await spect.page.evaluate(() => window.faceOff.rejoinsLan(window.faceOff.client.parties.find((p) => p.plein), true));
-  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.ecranUI === 'jeu' && window.faceOff.spectateur), 'le spectateur est pris en route dans le match');
-  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.hote.nbSpectateurs === 1), 'l\'hôte compte 1 spectateur');
-  env.verifie(await env.attendsQue(invite.page, () => window.faceOff.client.partie.spect === 1), 'l\'invité voit 1 spectateur');
+  await spect.page.evaluate(() => window.faceOff.lan.rejoins(window.faceOff.lan.client.parties.find((p) => p.plein), true));
+  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.ecranUI === 'jeu' && window.faceOff.lan.spectateur), 'le spectateur est pris en route dans le match');
+  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.nbSpectateurs === 1), 'l\'hôte compte 1 spectateur');
+  env.verifie(await env.attendsQue(invite.page, () => window.faceOff.lan.client.partie.spect === 1), 'l\'invité voit 1 spectateur');
   await attends(1500);
   const tH = await hote.page.evaluate(() => window.faceOff.state.temps);
   const tS = await spect.page.evaluate(() => window.faceOff.state.temps);
   env.verifie(Math.abs(tH - tS) < 1, `le spectateur suit le match (horloges ${tH.toFixed(2)} / ${tS.toFixed(2)})`);
 
   // réactions : relayées à tous ; la 2e, trop rapprochée, est ignorée
-  await spect.page.evaluate(() => window.faceOff.reagit('logo1'));
-  await spect.page.evaluate(() => window.faceOff.reagit('feu'));
+  await spect.page.evaluate(() => window.faceOff.lan.reagit('logo1'));
+  await spect.page.evaluate(() => window.faceOff.lan.reagit('feu'));
   await attends(450);
-  await spect.page.evaluate(() => window.faceOff.reagit('gyro'));
+  await spect.page.evaluate(() => window.faceOff.lan.reagit('gyro'));
   await attends(300);
-  const liste = (a) => a.page.evaluate(() => window.faceOff.reactions.map((r) => `${r.r}:${r.de}`).join(','));
+  const liste = (a) => a.page.evaluate(() => window.faceOff.lan.reactions.map((r) => `${r.r}:${r.de}`).join(','));
   const attendu = 'logo1:OURS 22,gyro:OURS 22';
   const [rH, rI, rS] = [await liste(hote), await liste(invite), await liste(spect)];
   env.verifie(rH === attendu && rI === attendu && rS === attendu, `réactions relayées à tous, anti-matraquage (${rH} | ${rI} | ${rS})`);
@@ -40,9 +40,9 @@ export default async function spectateur(env) {
   await env.capture(invite.page, '3-invite');
 
   // un joueur ne réagit pas pendant le match
-  await invite.page.evaluate(() => window.faceOff.client.reagit('coeur'));
+  await invite.page.evaluate(() => window.faceOff.lan.client.reagit('coeur'));
   await attends(300);
-  env.verifie(!(await hote.page.evaluate(() => window.faceOff.reactions.some((r) => r.r === 'coeur'))), 'pas de réaction des joueurs pendant le match');
+  env.verifie(!(await hote.page.evaluate(() => window.faceOff.lan.reactions.some((r) => r.r === 'coeur'))), 'pas de réaction des joueurs pendant le match');
 
   // fin du match : le spectateur voit l'écran de fin, les joueurs peuvent réagir
   await lan.termineMatch(hote, [2, 1]);
@@ -50,27 +50,29 @@ export default async function spectateur(env) {
   await attends(2500);
   await invite.page.evaluate(() => {
     const a = window.faceOff;
-    if (a.imageFin) a.imageFin.stats = true;
-    a.reagit('coeur');
+    a.imageFin.passe();
+    a.lan.reagit('coeur');
   });
   await attends(300);
-  env.verifie(await spect.page.evaluate(() => window.faceOff.reactions.some((r) => r.r === 'coeur' && r.de === 'BISON 15')), 'réaction d\'un joueur à la fin, vue par le spectateur');
+  env.verifie(await spect.page.evaluate(() => window.faceOff.lan.reactions.some((r) => r.r === 'coeur' && r.de === 'BISON 15')), 'réaction d\'un joueur à la fin, vue par le spectateur');
   await env.capture(spect.page, '4-fin-spectateur');
 
   // revanche : le spectateur suit
-  await hote.page.evaluate(() => window.faceOff.agitLan({ a: 'vote', vote: 'rejouer' }));
-  await invite.page.evaluate(() => window.faceOff.agitLan({ a: 'vote', vote: 'rejouer' }));
+  await hote.page.evaluate(() => window.faceOff.lan.agit({ a: 'vote', vote: 'rejouer' }));
+  await invite.page.evaluate(() => window.faceOff.lan.agit({ a: 'vote', vote: 'rejouer' }));
   env.verifie(await env.attendsQue(spect.page, () => window.faceOff.ecranUI === 'jeu'), 'le spectateur suit la revanche');
 
   // retour au choix des équipes : le spectateur attend
   await lan.termineMatch(hote, [1, 0]);
   await env.attendsQue(spect.page, () => window.faceOff.ecranUI === 'fin');
-  await hote.page.evaluate(() => window.faceOff.agitLan({ a: 'vote', vote: 'equipes' }));
-  await invite.page.evaluate(() => window.faceOff.agitLan({ a: 'vote', vote: 'equipes' }));
+  await hote.page.evaluate(() => window.faceOff.lan.agit({ a: 'vote', vote: 'equipes' }));
+  await invite.page.evaluate(() => window.faceOff.lan.agit({ a: 'vote', vote: 'equipes' }));
   env.verifie(await env.attendsQue(spect.page, () => window.faceOff.ecranUI === 'lanSpect'), 'le spectateur attend pendant le choix des équipes');
   await env.capture(spect.page, '5-attente');
 
-  // le spectateur s'en va
-  await spect.page.evaluate(() => window.faceOff.ouvreLan());
-  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.hote.nbSpectateurs === 0), 'le départ du spectateur est pris en compte');
+  // le spectateur s'en va (ÉCHAP : retour à la liste des parties, pas au menu)
+  await spect.page.keyboard.press('Escape');
+  await attends(300);
+  env.verifie((await spect.page.evaluate(() => window.faceOff.ecranUI)) === 'lan', 'ÉCHAP : le spectateur revient à la liste des parties');
+  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.nbSpectateurs === 0), 'le départ du spectateur est pris en compte');
 }

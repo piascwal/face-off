@@ -58,9 +58,10 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 
 | Scénario | Ce qu'il vérifie |
 |---|---|
+| `solo` | Au clavier : menu, choix des équipes et maillots (avec retour), match, pause, fin, rejouer, bilan |
 | `coupe` | Mode coupe : choix, tableau, dévoilement, élimination, titre |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
-| `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), puis invité qui ne revient pas |
+| `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), invité qui ne revient pas, coupure pendant le choix des équipes |
 
 En local, Chromium doit être installé une fois : `npx playwright install chromium`.
 Pour écrire un scénario, `e2e/outils.mjs` fournit `appareil()`,
@@ -82,11 +83,34 @@ src/
   input/    — clavier + tactile → InputIntent
   net/      — multijoueur Wi-Fi : découverte chiffrée, liaison WebRTC, protocole
   render/   — tout le dessin canvas (police pixel, patinoire, sprites, HUD, menus)
-  app/      — assemble le tout : boucle de jeu, préférences, PWA/plein écran
+  app/      — assemble le tout (voir « L'application » ci-dessous)
 scripts/
   generate-sprites.mjs — génère les PNG des joueurs/gardiens et les icônes PWA
-tests/      — tests Vitest de game-core
+tests/      — tests Vitest (simulation, IA, coupe, réseau)
+e2e/        — tests de bout en bout dans Chromium (voir « Démarrer »)
 ```
+
+### L'application (`src/app/`)
+
+Un noyau et trois parcours, chacun responsable de ses écrans (dessin,
+boutons, touches du clavier) :
+
+| Fichier | Rôle |
+|---|---|
+| `game-app.ts` | Noyau : canevas et mise à l'échelle, patinoire, boucle de jeu à pas fixe, rendu du match, entrées, ralenti des buts, fin de match |
+| `parcours-solo.ts` | Menu, réglages avancés, choix des équipes et maillots, match contre l'ordinateur, pause, écran de fin |
+| `parcours-coupe.ts` | Mode coupe : choix de l'équipe, tableau, dévoilement des résultats |
+| `parcours-lan.ts` | Multijoueur Wi-Fi : sessions hôte/client, phases de la partie, match en réseau, réactions |
+| `vues-lan.ts` | Écrans du Wi-Fi et surcouches du match en réseau (pause, coupure, latence) |
+| `image-fin.ts` | Image de victoire / défaite aux couleurs du joueur |
+| `ecrans.ts` | Liste des écrans |
+| `preferences.ts`, `ralenti.ts`, `pwa.ts` | Préférences sauvegardées, enregistrement et lecture du ralenti, plein écran et PWA |
+
+Les parcours partagent l'état du noyau (`app.state`, `app.ecranUI`,
+`app.pref`...). Une touche du clavier ne déclenche qu'une action, même si
+cette action change d'écran. En développement, l'application est accessible
+en `window.faceOff` (`faceOff.lan.hote`, `faceOff.coupe.revelation`...) pour
+les tests de bout en bout.
 
 ### `game-core` : la simulation isolée du rendu
 

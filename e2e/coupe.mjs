@@ -10,32 +10,32 @@ export default async function coupe(env) {
   const p = a.page;
   const app = (f, arg) => p.evaluate(f, arg);
   await env.capture(p, '1-menu');
-  await app(() => window.faceOff.jouer());
+  await app(() => window.faceOff.solo.jouer());
   env.verifie((await app(() => window.faceOff.ecranUI)) === 'coupeChoix', 'JOUER en mode coupe ouvre le choix de l\'équipe');
-  await app(() => window.faceOff.lanceCoupe());
+  await app(() => window.faceOff.coupe.lance());
   await attends(500);
   const c0 = await app(() => window.faceOff.pref.coupe);
   env.verifie(c0 && c0.equipe === 'roanne' && c0.tours[0].length === 4, 'coupe créée : 8 équipes, le joueur dans le premier quart');
   await env.capture(p, '2-tableau');
 
   const joueEtFinis = async (sj, sa) => {
-    await app(() => window.faceOff.joueMatchCoupe());
+    await app(() => window.faceOff.coupe.joueMatch());
     await attends(800);
-    const ok = await app(() => window.faceOff.ecranUI === 'jeu' && window.faceOff.matchCoupe);
+    const ok = await app(() => window.faceOff.ecranUI === 'jeu' && window.faceOff.coupe.matchCoupe);
     await app((sc) => {
       const s = window.faceOff.state;
       s.score = sc;
       s.horloge = 0.01;
     }, [sj, sa]);
     await env.attendsQue(p, () => window.faceOff.ecranUI === 'fin');
-    await app(() => window.faceOff.ouvreTableau());
+    await app(() => window.faceOff.coupe.ouvreTableau());
     return ok;
   };
 
   env.verifie(await joueEtFinis(3, 1), 'le quart se lance contre l\'adversaire du tableau');
   await attends(1200);
   const revele = await app(() => {
-    const r = window.faceOff.revelation;
+    const r = window.faceOff.coupe.revelation;
     return r && r.t0 !== null && r.etapes.length === 5;
   });
   env.verifie(revele, 'les résultats du tour se dévoilent (4 scores + tirage des demies)');
@@ -43,7 +43,7 @@ export default async function coupe(env) {
   await attends(3500);
   const c1 = await app(() => window.faceOff.pref.coupe);
   env.verifie(c1.tour === 1 && c1.tours[1].length === 2 && c1.tours[1][0].a === 'roanne', 'vainqueur en demie, tableau sauvegardé');
-  const niv = await app(() => window.faceOff.niveauMatch);
+  const niv = await app(() => window.faceOff.solo.niveauMatch);
 
   await joueEtFinis(1, 2);
   env.verifie(niv === 0, 'le quart se joue au niveau choisi');
@@ -53,17 +53,17 @@ export default async function coupe(env) {
   await env.capture(p, '4-elimine');
 
   await app(() => {
-    window.faceOff.nouvelleCoupe();
-    window.faceOff.lanceCoupe();
+    window.faceOff.coupe.nouvelle();
+    window.faceOff.coupe.lance();
   });
   for (let t = 0; t < 3; t++) {
     await joueEtFinis(4, 2);
-    await app(() => window.faceOff.passeRevelation());
+    await app(() => window.faceOff.coupe.passeRevelation());
   }
   await attends(500);
   const c3 = await app(() => window.faceOff.pref.coupe);
   env.verifie(!c3.elimine && c3.tour === 3 && c3.tours[2][0].sa === 4, 'trois victoires : champion');
   await env.capture(p, '5-champion');
-  await app(() => window.faceOff.quitteTableau());
+  await app(() => window.faceOff.coupe.quitteTableau());
   env.verifie((await app(() => window.faceOff.pref.coupe)) === null, 'la coupe terminée est rangée en quittant le tableau');
 }

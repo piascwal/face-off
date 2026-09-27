@@ -117,22 +117,22 @@ export const lan = {
   /** L'hôte ouvre une partie ; l'invité la voit dans la liste et la rejoint. */
   async connecte(env, hote, invite) {
     await hote.page.evaluate(() => {
-      window.faceOff.ouvreConfigLan();
-      window.faceOff.creePartieLan();
+      window.faceOff.lan.ouvreConfig();
+      window.faceOff.lan.creePartie();
     });
-    await env.attendsQue(hote.page, () => !!window.faceOff.hote);
-    await invite.page.evaluate(() => window.faceOff.ouvreLan());
-    env.verifie(await env.attendsQue(invite.page, () => (window.faceOff.client?.parties.length ?? 0) > 0), 'l\'invité voit la partie dans la liste');
-    await invite.page.evaluate(() => window.faceOff.rejoinsLan(window.faceOff.client.parties[0]));
-    return env.verifie(await env.attendsQue(hote.page, () => !!window.faceOff.hote?.partie.joueurs[1]), 'l\'invité est connecté à l\'hôte');
+    await env.attendsQue(hote.page, () => !!window.faceOff.lan.hote);
+    await invite.page.evaluate(() => window.faceOff.lan.ouvre());
+    env.verifie(await env.attendsQue(invite.page, () => (window.faceOff.lan.client?.parties.length ?? 0) > 0), 'l\'invité voit la partie dans la liste');
+    await invite.page.evaluate(() => window.faceOff.lan.rejoins(window.faceOff.lan.client.parties[0]));
+    return env.verifie(await env.attendsQue(hote.page, () => !!window.faceOff.lan.hote?.partie.joueurs[1]), 'l\'invité est connecté à l\'hôte');
   },
   /** Du salon au match : l'hôte lance, les deux valident équipes puis maillots. */
   async lanceMatch(env, hote, invite) {
-    await hote.page.evaluate(() => window.faceOff.agitLan({ a: 'lancer' }));
+    await hote.page.evaluate(() => window.faceOff.lan.agit({ a: 'lancer' }));
     await attends(500);
     for (let etape = 0; etape < 2; etape++) {
-      await hote.page.evaluate(() => window.faceOff.agitLan({ a: 'pret', pret: true }));
-      await invite.page.evaluate(() => window.faceOff.agitLan({ a: 'pret', pret: true }));
+      await hote.page.evaluate(() => window.faceOff.lan.agit({ a: 'pret', pret: true }));
+      await invite.page.evaluate(() => window.faceOff.lan.agit({ a: 'pret', pret: true }));
       await attends(700);
     }
     return env.verifie(await env.attendsQue(invite.page, () => window.faceOff.ecranUI === 'jeu'), 'le match démarre chez l\'invité');
