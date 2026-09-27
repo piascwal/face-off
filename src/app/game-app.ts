@@ -674,8 +674,8 @@ export class GameApp {
     g.globalAlpha = Math.min(1, t / 0.15);
     g.imageSmoothingEnabled = true;
     g.imageSmoothingQuality = 'high';
-    // recadrage plutôt en bas : les banderoles (CHAMPIONS!, DEFEATED) sont en haut de l'image
-    g.drawImage(img, (this.W - w) / 2, (this.H - h) * 0.2, w, h);
+    // calé en bas : on garde les joueurs, quitte à couper les banderoles du haut
+    g.drawImage(img, (this.W - w) / 2, this.H - h, w, h);
     g.restore();
     return true;
   }
