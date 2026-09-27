@@ -41,6 +41,8 @@ export interface Skater {
   /** Esquive d'une mise en échec en cours (s) ; `esquiveVerrou` : appui raté, pas d'esquive possible (anti-matraquage). */
   esquiveT: number;
   esquiveVerrou: number;
+  /** IA : mise en échec en préparation (s restantes avant de charger le porteur). */
+  prepaEchecT: number;
   anim: number;
   humain: boolean;
   ex: number;

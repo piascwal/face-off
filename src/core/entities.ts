@@ -21,6 +21,7 @@ export function nouveauPatineur(eq: TeamId, rang: number): Skater {
     pokeT: -POKE_RECHARGE,
     esquiveT: 0,
     esquiveVerrou: 0,
+    prepaEchecT: 0,
     anim: 0,
     humain: false,
     ex: 0,

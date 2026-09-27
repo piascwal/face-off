@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { menaceEchec, passeVers, prendPalet, surReception, tir } from '../src/core/actions';
-import { COMBO_BONUS, UNE_TOUCHE_BONUS, UNE_TOUCHE_S } from '../src/core/constants';
+import { COMBO_BONUS, ECHEC_PREPA, ECHEC_PREPA_MAX, UNE_TOUCHE_BONUS, UNE_TOUCHE_S } from '../src/core/constants';
 import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
 import { pointDeSoutien } from '../src/core/ai';
-import { appliqueEntreeJoueur, cibleEchec, tirPlausible } from '../src/core/humanControl';
+import { appliqueEntreeJoueur, cibleEchec } from '../src/core/humanControl';
 import { pas } from '../src/core/simulation';
 import { INTENT_VIDE, type MatchState, type Skater } from '../src/core/types';
 
@@ -115,23 +115,15 @@ describe('passes selon la zone, bouton de tir malin, démarquage', () => {
     expect(st2.palet.passe?.facile).toBe(true);
   });
 
-  it('le bouton de tir fait une passe dans sa moitié, mais tire face à la cage adverse', () => {
-    const { st, b } = situation();
-    // face à la cage adverse, près d'elle : c'est un tir
-    prendPalet(st, b);
-    expect(tirPlausible(rink, b, 0, 0)).toBe(true);
-    appliqueEntreeJoueur(rink, st, b, { ...INTENT_VIDE, tirAppui: true, tirTenu: true }, 1 / 60);
-    expect(b.arme).toBe(true);
-    // dans sa moitié : le même appui part en passe vers le coéquipier
-    const { st: st2, a: a2, b: b2 } = situation();
-    a2.x = rink.cx - 100;
-    b2.x = rink.cx - 60;
-    prendPalet(st2, a2);
-    expect(tirPlausible(rink, a2, 0, 0)).toBe(false);
-    appliqueEntreeJoueur(rink, st2, a2, { ...INTENT_VIDE, tirAppui: true, tirTenu: true }, 1 / 60);
-    expect(a2.tient).toBe(false);
-    expect(st2.palet.passe?.vers).toBe(b2);
-    expect(a2.elanT).toBeLessThanOrEqual(0);
+  it('le bouton de tir arme toujours un tir, même dans sa moitié', () => {
+    const { st, a, b } = situation();
+    a.x = rink.cx - 100;
+    b.x = rink.cx - 60;
+    prendPalet(st, a);
+    appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, tirAppui: true, tirTenu: true }, 1 / 60);
+    expect(a.arme).toBe(true);
+    expect(a.tient).toBe(true);
+    expect(st.palet.passe).toBeFalsy();
   });
 
   it('le coéquipier se démarque : son point de soutien est loin des adversaires', () => {
@@ -196,6 +188,26 @@ describe('esquive et coup de crosse', () => {
     d.elanT = 0.3;
     appliqueEntreeJoueur(rink, st, a, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
     expect(a.esquiveT).toBe(0);
+  });
+
+  it('face à un humain, l’IA prépare sa mise en échec : le « ! » laisse plus de 0,4 s pour esquiver', () => {
+    const { st, a, d } = echecEnApproche();
+    Object.assign(d, { x: a.x + 20, vx: 0, elanT: 0, elanCd: 0, prepaEchecT: ECHEC_PREPA_MAX });
+    st.nivEq[1].esquive = 0;
+    let fenetre = 0;
+    for (let i = 0; i < 120 && d.elanT <= 0; i++) {
+      if (menaceEchec(st, a)) fenetre += 1 / 60;
+      pas(rink, st, 1 / 60);
+    }
+    expect(d.elanT).toBeGreaterThan(0);
+    expect(fenetre).toBeGreaterThanOrEqual(ECHEC_PREPA - 0.02);
+    // esquiver pendant la préparation marche aussi : le défenseur reste sonné
+    const e = echecEnApproche();
+    Object.assign(e.d, { x: e.a.x + 20, vx: 0, elanT: 0, prepaEchecT: ECHEC_PREPA_MAX });
+    appliqueEntreeJoueur(rink, e.st, e.a, { ...INTENT_VIDE, elanAppui: true }, 1 / 60);
+    expect(e.a.esquiveT).toBeGreaterThan(0);
+    expect(e.d.prepaEchecT).toBe(0);
+    expect(e.d.sonne).toBeGreaterThan(1);
   });
 
   it('sans le palet, le petit bouton donne un coup de crosse, avec une recharge', () => {

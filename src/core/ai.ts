@@ -1,5 +1,5 @@
 import { elan, esquive, ligneLibre, menaceEchec, meilleurReceveur, passeVers, tir } from './actions';
-import { VMAX } from './constants';
+import { ECHEC_PREPA, ECHEC_PREPA_MAX, VMAX } from './constants';
 import { angleVersCoinLoin, butAttaque, butDefendu, sensAttaque } from './shooting';
 import { equipe, plusProche } from './state-helpers';
 import type { MatchState, Rink, Skater } from './types';
@@ -123,8 +123,9 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
           ia.ty = c.y + (cy - c.y) * 0.3;
         }
         const dc = Math.hypot(c.x - s.x, c.y - s.y);
-        if (dc < 26 && s.elanCd <= 0 && Math.random() < niv.check * niv.reac * 1.2) {
-          elan(state, s, c.x + c.vx * 0.1 - s.x, c.y + c.vy * 0.1 - s.y);
+        // la mise en échec se prépare un instant (voir ECHEC_PREPA), puis part dans pilotageIA
+        if (dc < 44 && s.elanCd <= 0 && s.prepaEchecT <= 0 && Math.random() < niv.check * niv.reac * 1.2) {
+          s.prepaEchecT = ECHEC_PREPA_MAX;
         }
       } else {
         // marquage individuel : chacun prend l'adversaire libre le plus proche, côté but
@@ -192,12 +193,23 @@ export function pilotageIA(rink: Rink, state: MatchState, s: Skater, dt: number)
     ia.t = state.nivEq[s.eq].reac * alea(0.7, 1.3);
     planIA(rink, state, s);
   }
+  // mise en échec en préparation : on charge dès que le porteur est assez près, mais
+  // pas avant le délai minimal face à un humain (le temps de voir le « ! » et d'esquiver)
+  if (s.prepaEchecT > 0) {
+    s.prepaEchecT = Math.max(0, s.prepaEchecT - dt);
+    const c = state.palet.porteur;
+    if (s.sonne > 0 || !c || !('face' in c) || c.eq === s.eq) s.prepaEchecT = 0;
+    else if (ECHEC_PREPA_MAX - s.prepaEchecT >= (c.humain ? ECHEC_PREPA : 0) && Math.hypot(c.x - s.x, c.y - s.y) < 28) {
+      s.prepaEchecT = 0;
+      elan(state, s, c.x + c.vx * 0.1 - s.x, c.y + c.vy * 0.1 - s.y);
+    }
+  }
   // porteur visé par une mise en échec : l'IA esquive parfois, selon son niveau
-  // (probabilité répartie sur la fenêtre d'esquive, ~0,15 s)
+  // (probabilité répartie sur l'élan du défenseur, ~0,15 s ; la préparation ne compte pas)
   if (s.tient) {
     const menace = menaceEchec(state, s);
     const p = state.nivEq[s.eq].esquive;
-    if (menace && p > 0 && Math.random() < (-Math.log(1 - p) / 0.15) * dt) esquive(state, s, menace);
+    if (menace && menace.elanT > 0 && p > 0 && Math.random() < (-Math.log(1 - p) / 0.15) * dt) esquive(state, s, menace);
   }
   // si on perd le palet en armant, on oublie le tir
   if (s.arme && !s.tient) {

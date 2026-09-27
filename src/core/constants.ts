@@ -62,8 +62,16 @@ export const ECHEC_PORTEE = 55;
 // Esquive : le porteur appuie sur SPRINT pile quand un défenseur arrive en
 // mise en échec. Le défenseur passe à côté et reste sonné plus longtemps
 // qu'un joueur mis en échec : l'échec reste puissant, mais devient risqué.
-/** Distance (px) à laquelle un défenseur en élan vers le porteur ouvre la fenêtre d'esquive. */
-export const ESQUIVE_PORTEE = 40;
+/** Distance (px) à laquelle un défenseur en élan (ou qui s'apprête à charger) ouvre la fenêtre d'esquive. */
+export const ESQUIVE_PORTEE = 56;
+/**
+ * L'IA prépare sa mise en échec au moins ce temps (s) avant de charger : le
+ * « ! » apparaît sur le porteur dès la préparation, ce qui laisse le temps de
+ * réagir (sans elle, l'élan ne durait qu'environ 0,06 s avant le choc). Elle
+ * charge ensuite dès qu'elle est assez près, et renonce au bout de `ECHEC_PREPA_MAX`.
+ */
+export const ECHEC_PREPA = 0.45;
+export const ECHEC_PREPA_MAX = 0.9;
 /** Durée de l'esquive (s) : le porteur ne peut pas être mis en échec pendant ce temps. */
 export const ESQUIVE_T = 0.3;
 /** Défenseur esquivé : sonné (s). Une mise en échec réussie sonne 0,8 s. */

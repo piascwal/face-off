@@ -179,14 +179,20 @@ export interface EtatFin {
 }
 
 export function dessineFin(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, fin: EtatFin): void {
-  g.fillStyle = 'rgba(7,9,20,0.74)';
+  g.fillStyle = 'rgba(7,9,20,0.5)';
   g.fillRect(0, 0, W, H);
   const cx = Math.round(W / 2);
   const cy = Math.round(H / 2);
+  // panneau sombre derrière le bilan : lisible par-dessus l'image de victoire / défaite
+  g.fillStyle = 'rgba(7,9,20,0.72)';
+  g.fillRect(cx - 142, cy - 94, 284, 158);
+  g.fillStyle = 'rgba(255,255,255,0.12)';
+  g.fillRect(cx - 142, cy - 94, 284, 1);
+  g.fillRect(cx - 142, cy + 63, 284, 1);
   const gagne = fin.score[0] > fin.score[1];
   const t = temps;
   const titre = gagne ? 'VICTOIRE !' : 'DEFAITE';
-  texte(g, titre, cx, cy - 75 + Math.round(Math.sin(t * 4) * 1.5), gagne ? C.or : fin.equipes[1].maillot, 3, 'c');
+  texte(g, titre, cx, cy - 75 + Math.round(Math.sin(t * 4) * 1.5), gagne ? C.or : '#ff6b6b', 3, 'c');
   texte(g, `${fin.score[0]} - ${fin.score[1]}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 50, C.blanc, 2, 'c');
   dessineStatsFin(g, cx, cy - 31, fin.tirs, fin.stats);
   bouton(g, boutons, 'REJOUER', cx - 108, cy + 17, 100, 20, fin.onRejouer, { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' });

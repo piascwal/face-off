@@ -1,6 +1,6 @@
 import { changeJoueur, coupDeCrosse, elan, esquive, menaceEchec, passeJoueur, surReception, tir } from './actions';
 import { BUT_DEMI, ECHEC_PORTEE, ESQUIVE_VERROU, UNE_TOUCHE_CHARGE } from './constants';
-import { angleVersCoinLoin, butAttaque, sensAttaque } from './shooting';
+import { angleVersCoinLoin, butAttaque } from './shooting';
 import type { InputIntent, MatchState, Rink, Skater } from './types';
 import { angDiff } from './utils';
 
@@ -54,22 +54,6 @@ export function angleTirJoueur(
 }
 
 /**
- * Un tir a-t-il du sens ici ? Il faut être dans la moitié adverse (ou tout
- * près de la ligne rouge) et regarder à peu près vers la cage (à 100° près).
- * Sinon, le bouton de tir fait une passe : dans le feu de l'action, on appuie
- * facilement sur TIR en voulant passer.
- */
-export function tirPlausible(rink: Rink, s: Skater, ix: number, iy: number): boolean {
-  const gx = butAttaque(rink, s.eq);
-  const dir = sensAttaque(s.eq);
-  const moitieAdverse = (s.x - rink.cx) * dir > -rink.w * 0.04;
-  const m = Math.hypot(ix, iy);
-  const a = m > 0.35 ? Math.atan2(iy, ix) : s.face;
-  const versBut = Math.abs(angDiff(a, Math.atan2(rink.cy - s.y, gx - s.x))) < 1.75;
-  return moitieAdverse && versBut;
-}
-
-/**
  * Cible d'une mise en échec : le porteur adverse s'il est à portée (il passe
  * en priorité), sinon l'adversaire le plus proche. `null` si personne n'est
  * assez près.
@@ -98,12 +82,11 @@ export function cibleEchec(state: MatchState, s: Skater): Skater | null {
 export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, intent: InputIntent, dt: number): void {
   s.ex = intent.ix;
   s.ey = intent.iy;
+  // un joueur repris en main abandonne la mise en échec que l'IA préparait
+  s.prepaEchecT = 0;
   const actif = state.phase === 'jeu';
-  // appui sur TIR hors de toute situation de tir : c'est une passe
-  const tirEnPasse =
-    intent.tirAppui && actif && s.tient && !s.arme && !tirPlausible(rink, s, intent.ix, intent.iy) && passeJoueur(state, s, intent.ix, intent.iy, state.assistPasse);
   // sans le palet, le gros bouton met en échec : l'élan part tout seul vers la cible
-  if (intent.tirAppui && !tirEnPasse && actif && !s.tient) {
+  if (intent.tirAppui && actif && !s.tient) {
     const c = cibleEchec(state, s);
     if (c) elan(state, s, c.x + c.vx * 0.12 - s.x, c.y + c.vy * 0.12 - s.y);
     else elan(state, s, intent.ix, intent.iy);

@@ -294,13 +294,15 @@ function changeAutoEquipe(state: MatchState, c: Skater): void {
 export function menaceEchec(state: MatchState, s: Skater): Skater | null {
   if (!s.tient || s.esquiveT > 0) return null;
   for (const o of state.patineurs) {
-    if (o.eq === s.eq || o.elanT <= 0 || o.sonne > 0) continue;
+    if (o.eq === s.eq || o.sonne > 0 || (o.elanT <= 0 && o.prepaEchecT <= 0)) continue;
     const dx = s.x - o.x;
     const dy = s.y - o.y;
     const d = Math.hypot(dx, dy);
+    if (d > ESQUIVE_PORTEE) continue;
+    // la préparation vise toujours le porteur : la menace est certaine
+    if (o.prepaEchecT > 0) return o;
     const v = Math.hypot(o.vx, o.vy);
-    if (d > ESQUIVE_PORTEE || v < 1) continue;
-    if ((o.vx * dx + o.vy * dy) / (v * (d || 1)) > 0.6) return o;
+    if (v >= 1 && (o.vx * dx + o.vy * dy) / (v * (d || 1)) > 0.6) return o;
   }
   return null;
 }
@@ -322,6 +324,7 @@ export function esquive(state: MatchState, s: Skater, o: Skater): void {
   s.esquiveVerrou = 0;
   s.elanCd = Math.max(s.elanCd, 0.6);
   o.elanT = 0;
+  o.prepaEchecT = 0;
   o.sonne = ESQUIVE_SONNE;
   o.vx *= 0.7;
   o.vy *= 0.7;

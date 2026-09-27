@@ -85,6 +85,8 @@ export function dessinePatineur(
   let bx = s.x - piedX * e;
   const by = s.y + 4 - M.pied.y * e;
   if (s.sonne > 0) bx += Math.sin(temps * 40);
+  // mise en échec en préparation : le défenseur tremble, prêt à charger
+  if (s.prepaEchecT > 0) bx += Math.floor(temps * 30) & 1 ? 1 : -1;
   const teteY = by + M.tete * e + 2;
   const sp = pointCrosse(s);
   const corps = (dx = 0, dy = 0) => {
@@ -105,6 +107,10 @@ export function dessinePatineur(
     lueurSol(g, s.x, s.y + 4, 12 * rs, C.or, 0.5 + 0.15 * Math.sin(temps * 8));
     haloSol(g, s.x, s.y + 4, 9 * rs, C.or, 1, 2);
     haloSol(g, s.x, s.y + 4, 11 * rs, '#fff3b0', 0.5 + 0.3 * Math.sin(temps * 8));
+  }
+  // mise en échec en préparation : anneau rouge clignotant sous le défenseur
+  if (s.prepaEchecT > 0) {
+    haloSol(g, s.x, s.y + 4, 10 * rs, '#ff5a4e', Math.floor(temps * 16) & 1 ? 1 : 0.45, 2);
   }
   // tir spécial chargé (combo de passes) : petite flamme pulsante au-dessus du porteur
   if (s.tient && specialPret) {

@@ -390,7 +390,6 @@ export interface EtatFinLan {
   bilan: string | null;
   prolong: boolean;
   moi: 0 | 1;
-  couleurAdverse: string;
   monVote: 'rejouer' | 'equipes' | null;
   voteAdverse: 'rejouer' | 'equipes' | null;
   nomAdverse: string;
@@ -400,15 +399,21 @@ export interface EtatFinLan {
 
 /** Fin de match en réseau : on ne relance que si les deux joueurs votent la même chose. */
 export function dessineFinLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, fin: EtatFinLan): void {
-  g.fillStyle = 'rgba(7,9,20,0.74)';
+  g.fillStyle = 'rgba(7,9,20,0.5)';
   g.fillRect(0, 0, W, H);
   const cx = Math.round(W / 2);
   const cy = Math.round(H / 2);
+  // panneau sombre derrière le bilan : lisible par-dessus l'image de victoire / défaite
+  g.fillStyle = 'rgba(7,9,20,0.72)';
+  g.fillRect(cx - 142, cy - 94, 284, 158);
+  g.fillStyle = 'rgba(255,255,255,0.12)';
+  g.fillRect(cx - 142, cy - 94, 284, 1);
+  g.fillRect(cx - 142, cy + 63, 284, 1);
   const eux = fin.moi === 0 ? 1 : 0;
   const gagne = fin.score[fin.moi] > fin.score[eux];
   const nul = fin.score[0] === fin.score[1];
   const titre = nul ? 'MATCH NUL' : gagne ? 'VICTOIRE !' : 'DEFAITE';
-  texte(g, titre, cx, cy - 75 + Math.round(Math.sin(temps * 4) * 1.5), gagne ? C.or : nul ? C.blanc : fin.couleurAdverse, 3, 'c');
+  texte(g, titre, cx, cy - 75 + Math.round(Math.sin(temps * 4) * 1.5), gagne ? C.or : nul ? C.blanc : '#ff6b6b', 3, 'c');
   texte(g, `${fin.score[0]} - ${fin.score[1]}${fin.prolong ? '  PROL.' : ''}`, cx, cy - 50, C.blanc, 2, 'c');
   dessineStatsFin(g, cx, cy - 31, fin.tirs, fin.stats);
 

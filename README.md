@@ -297,9 +297,6 @@ Ensuite :
 - **passes plus sûres dans sa propre moitié** : visée deux fois plus
   précise, réception un peu plus large et interception un peu plus dure
   (`PASSE_FACILE_MARGE`) ;
-- **bouton de tir malin** (`humanControl.ts::tirPlausible`) : si l'on n'arme
-  pas déjà un tir et qu'on n'est ni dans la moitié adverse ni tourné vers la
-  cage (à 100° près), TIR fait une passe ; le bouton affiche alors PASSE ;
 - **cages un peu plus larges** (ouverture de 32 px au lieu de 30) et gardien
   dessiné un peu plus bas, pour que ses jambières couvrent bien la zone où il
   arrête vraiment le palet.
@@ -312,20 +309,23 @@ change selon qu'on a le palet ou non :
 
 | | Gros bouton | Bouton moyen | Petit bouton |
 |---|---|---|---|
-| **Avec le palet** | TIR (ou PASSE hors situation de tir) | PASSE | SPRINT / ESQUIVE |
+| **Avec le palet** | TIR | PASSE | SPRINT / ESQUIVE |
 | **Sans le palet** | ÉCHEC | CHANGER DE JOUEUR | CROSSE |
 
 - **ÉCHEC** : l'élan vise tout seul le porteur adverse à moins de 55 px
   (`ECHEC_PORTEE`), à défaut l'adversaire le plus proche, sinon la direction
   du joystick. Puissant et très arcade — mais il peut être esquivé.
 - **ESQUIVE** : quand un défenseur arrive en échec sur le porteur, un « ! »
-  clignote au-dessus de lui et le petit bouton affiche ESQUIVE. Un appui dans
-  cette fenêtre très courte (défenseur à moins de 40 px, lancé vers lui) fait
-  un pas de côté : le défenseur passe à côté et reste sonné 1,2 s (contre
+  clignote au-dessus de lui et le petit bouton affiche ESQUIVE. Face à un
+  porteur humain, l'IA prépare sa charge au moins 0,45 s (`ECHEC_PREPA` : le
+  défenseur tremble, un anneau rouge clignote sous lui) avant de s'élancer,
+  sans quoi l'élan ne laissait que 0,03 s pour réagir. Un appui pendant la
+  préparation ou l'élan (défenseur à moins de 56 px) fait un pas de côté : le défenseur passe à côté et reste sonné 1,2 s (contre
   0,8 s pour un joueur mis en échec), avec image fantôme, bulle « ESQUIVÉ ! »
   et un court arrêt sur image. Un appui hors fenêtre bloque l'esquive
   0,35 s : matraquer le bouton ne marche pas. L'IA esquive aussi, selon son
-  niveau (10 % en Facile, 25 % en Normal, 45 % en Pro).
+  niveau (10 % en Facile, 25 % en Normal, 45 % en Pro). Contre un porteur IA,
+  la charge part sans délai : l'équilibre IA contre IA ne bouge pas.
 - **CROSSE** : coup de crosse sûr, qui ne s'esquive pas — la crosse vole le
   palet de plus loin et bien plus souvent pendant 0,3 s, puis se recharge.
 
@@ -503,8 +503,9 @@ Apache-2.0, voir [LICENSE](./LICENSE).
 **Image de fin de match.** Juste avant les statistiques, une image plein
 écran (`public/fins/victoire.jpg` ou `defaite.jpg`) montre la victoire ou la
 défaite du point de vue de chaque joueur — en Wi-Fi, chacun voit la sienne.
-Elle reste 1 s (`IMAGE_FIN_S`), ou jusqu'à un appui (ou Entrée), puis les
-statistiques s'affichent.
+Elle reste seule 2 s (`IMAGE_FIN_S`), ou jusqu'à un appui (ou Entrée), puis
+les statistiques s'affichent par-dessus, l'image restant en fond. Elle est
+calée en bas de l'écran pour toujours montrer les joueurs.
 
 **Écran des maillots.** Le joueur y est vu de face (`portrait-<id>.png`,
 converti depuis `assets/sprites-src/portrait.jpg` comme les autres dessins),
