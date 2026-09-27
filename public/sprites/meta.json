@@ -22,6 +22,10 @@
     "echelle": 0.2,
     "decalage": -41
   },
+  "portrait": {
+    "tileW": 92,
+    "tileH": 116
+  },
   "visages": 6,
   "teamIds": [
     "toulouse",

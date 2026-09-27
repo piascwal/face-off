@@ -80,6 +80,9 @@ import { demandePleinEcranPaysage, PleinEcranAuPremierGeste } from './pwa';
 
 const PAS_FIXE = 1 / 120;
 
+/** Durée d'affichage de l'image de victoire / défaite avant les statistiques (s). */
+const IMAGE_FIN_S = 1;
+
 type EcranUI = 'menu' | 'avance' | 'equipes' | 'maillots' | 'lan' | 'lanConfig' | 'salon' | 'lanChoix' | 'jeu' | 'pause' | 'fin';
 
 /** Écrans de menu plein cadre : ni tableau d'affichage ni bandeau par-dessus. */
@@ -132,6 +135,9 @@ export class GameApp {
   private decor: DecorPatinoire | null = null;
 
   private readonly sprites = new BanqueSprites();
+  /** Image de fin de match (victoire / défaite), affichée juste avant les statistiques. */
+  private readonly imagesFin = { victoire: new Image(), defaite: new Image() };
+  private imageFin: { gagne: boolean; t0: number } | null = null;
   private readonly audio = new MoteurAudio();
   private readonly effets = new SystemeEffets();
   private readonly pleinEcran = new PleinEcranAuPremierGeste();
@@ -189,6 +195,8 @@ export class GameApp {
     // sont pas prêts, dessinePatineur/dessineGardien sautent juste le
     // drawImage (aucune erreur), donc on ne bloque pas l'affichage dessus.
     void this.sprites.charge().then(() => this.prechargeTouteLaSelection());
+    this.imagesFin.victoire.src = `${import.meta.env.BASE_URL}fins/victoire.jpg`;
+    this.imagesFin.defaite.src = `${import.meta.env.BASE_URL}fins/defaite.jpg`;
     this.effets.definitEquipes(this.equipesActuelles);
     this.effets.intensiteEcran = this.pref.secoussesReduites ? 0.4 : 1;
 
@@ -643,11 +651,46 @@ export class GameApp {
     }
   }
 
+  /**
+   * Image de fin de match plein écran (recadrée pour couvrir l'écran) :
+   * visible `IMAGE_FIN_S` secondes, ou jusqu'à un appui. Renvoie false quand
+   * il n'y a plus d'image à montrer (les statistiques s'affichent alors).
+   */
+  private dessineImageFin(g: CanvasRenderingContext2D): boolean {
+    const f = this.imageFin;
+    if (!f) return false;
+    const t = performance.now() / 1000 - f.t0;
+    const img = f.gagne ? this.imagesFin.victoire : this.imagesFin.defaite;
+    if (t > IMAGE_FIN_S || !img.complete || img.naturalWidth === 0) {
+      this.imageFin = null;
+      return false;
+    }
+    g.fillStyle = '#05060d';
+    g.fillRect(0, 0, this.W, this.H);
+    const k = Math.max(this.W / img.naturalWidth, this.H / img.naturalHeight);
+    const w = img.naturalWidth * k;
+    const h = img.naturalHeight * k;
+    g.save();
+    g.globalAlpha = Math.min(1, t / 0.15);
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = 'high';
+    // recadrage plutôt en bas : les banderoles (CHAMPIONS!, DEFEATED) sont en haut de l'image
+    g.drawImage(img, (this.W - w) / 2, (this.H - h) * 0.2, w, h);
+    g.restore();
+    return true;
+  }
+
   /** Match terminé (détecté dans l'état de jeu) : écran de fin, et vote côté hôte. */
   private surFinMatch(): void {
     this.ecranUI = 'fin';
     this.enPause = false;
     this.entrees.reinitialise();
+    // victoire ou défaite, vue de ce joueur-ci (en Wi-Fi, chacun voit la sienne)
+    const sc = this.state?.score;
+    if (sc && sc[0] !== sc[1]) {
+      const moi = this.eqLocal;
+      this.imageFin = { gagne: sc[moi] > sc[moi === 0 ? 1 : 0], t0: performance.now() / 1000 };
+    }
     if (this.jeuReseau?.role === 'hote') this.hote?.finMatch();
     if (this.jeuReseau) this.phaseVue = 'fin';
     // bilan des duels Wi-Fi, gardé sur chaque appareil
@@ -940,6 +983,11 @@ export class GameApp {
           }
           return;
         }
+        // image de victoire / défaite : un appui la passe, sans toucher aux boutons dessous
+        if (this.ecranUI === 'fin' && this.imageFin) {
+          this.imageFin = null;
+          return;
+        }
         const b = clicSurBouton(this.boutons, p.x, p.y);
         if (b) {
           this.audio.clic();
@@ -968,7 +1016,8 @@ export class GameApp {
         if (this.ecranUI === 'jeu') this.pause(true);
       }
       if (e.code === 'Enter') {
-        if (this.ecranUI === 'menu') this.ouvreSelectionEquipe();
+        if (this.ecranUI === 'fin' && this.imageFin) this.imageFin = null;
+        else if (this.ecranUI === 'menu') this.ouvreSelectionEquipe();
         else if (this.ecranUI === 'lan') this.actualiseLan();
         else if (this.ecranUI === 'lanConfig') this.creePartieLan();
         else if (this.ecranUI === 'salon') this.agitLan({ a: 'lancer' });
@@ -1123,6 +1172,8 @@ export class GameApp {
       } else if (this.ecranUI === 'lanChoix' && partie) {
         const props = this.choixLanProps(partie);
         if (props) dessineChoixLan(g, this.boutons, this.sprites, this.W, this.H, tempsUI, props);
+      } else if (this.ecranUI === 'fin' && this.dessineImageFin(g)) {
+        // image de victoire / défaite, avant les statistiques
       } else if (this.ecranUI === 'fin' && partie && this.jeuReseau) {
         dessineFinLan(g, this.boutons, this.W, this.H, tempsUI, this.finLanProps(state, partie));
       } else if (this.ecranUI === 'menu') {

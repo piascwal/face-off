@@ -26,6 +26,8 @@ export interface MetaSprites {
    */
   joueur: { tileW: number; tileH: number; images: number; arret: number; pied: Point; tete: number; echelle: number; decalage: number };
   gardien: { tileW: number; tileH: number; pied: Point; echelle: number; decalage: number };
+  /** Joueur de face de l'écran des maillots (crosse à droite, puis en miroir). */
+  portrait: { tileW: number; tileH: number };
   /** Nombre de variantes de visage dans visages.png. */
   visages: number;
   teamIds: string[];
@@ -34,6 +36,7 @@ export interface MetaSprites {
 const META_DEFAUT: MetaSprites = {
   joueur: { tileW: 133, tileH: 105, images: 4, arret: 0, pied: { x: 52, y: 101 }, tete: 0, echelle: 0.28, decalage: 10 },
   gardien: { tileW: 132, tileH: 115, pied: { x: 71, y: 113 }, echelle: 0.2, decalage: -41 },
+  portrait: { tileW: 92, tileH: 116 },
   visages: 1,
   teamIds: [],
 };
@@ -58,6 +61,7 @@ export class BanqueSprites {
   private base = `${import.meta.env.BASE_URL}sprites`;
   private skaters = new Map<string, HTMLImageElement>();
   private goalies = new Map<string, HTMLImageElement>();
+  private portraits = new Map<string, HTMLImageElement>();
   private visages: HTMLImageElement | null = null;
   private enCours = new Map<string, Promise<void>>();
   pret = false;
@@ -78,12 +82,14 @@ export class BanqueSprites {
     const enCours = this.enCours.get(teamId);
     if (enCours) return enCours;
     const p = (async () => {
-      const [s, g] = await Promise.all([
+      const [s, g, p] = await Promise.all([
         chargeImage(`${this.base}/skater-${teamId}.png`),
         chargeImage(`${this.base}/goalie-${teamId}.png`),
+        chargeImage(`${this.base}/portrait-${teamId}.png`),
       ]);
       this.skaters.set(teamId, s);
       this.goalies.set(teamId, g);
+      this.portraits.set(teamId, p);
     })();
     this.enCours.set(teamId, p);
     return p;
@@ -107,6 +113,14 @@ export class BanqueSprites {
     const col = ((frame % images) + images) % images;
     const rang = (((variante % n) + n) % n) + (gauche ? n : 0);
     return { img, rect: { sx: col * tileW, sy: rang * tileH, sw: tileW, sh: tileH } };
+  }
+
+  /** Joueur de face (écran des maillots) ; `miroir` : crosse à gauche. */
+  spritePortrait(teamId: string, miroir: boolean): { img: HTMLImageElement; rect: Rect } | null {
+    const img = this.portraits.get(teamId);
+    if (!img) return null;
+    const { tileW, tileH } = this.meta.portrait;
+    return { img, rect: { sx: 0, sy: (miroir ? 1 : 0) * tileH, sw: tileW, sh: tileH } };
   }
 
   spriteGardien(teamId: string, gauche: boolean): { img: HTMLImageElement; rect: Rect } | null {

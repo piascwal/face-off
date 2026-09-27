@@ -498,3 +498,15 @@ par un broker MQTT local, pour tester à deux onglets sur une seule machine.
 ## Licence
 
 Apache-2.0, voir [LICENSE](./LICENSE).
+
+
+**Image de fin de match.** Juste avant les statistiques, une image plein
+écran (`public/fins/victoire.jpg` ou `defaite.jpg`) montre la victoire ou la
+défaite du point de vue de chaque joueur — en Wi-Fi, chacun voit la sienne.
+Elle reste 1 s (`IMAGE_FIN_S`), ou jusqu'à un appui (ou Entrée), puis les
+statistiques s'affichent.
+
+**Écran des maillots.** Le joueur y est vu de face (`portrait-<id>.png`,
+converti depuis `assets/sprites-src/portrait.jpg` comme les autres dessins),
+aux couleurs du maillot choisi, avec l'écusson sur la poitrine ; la crosse est
+tournée vers l'extérieur de l'écran de chaque côté.

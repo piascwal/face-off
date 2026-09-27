@@ -187,18 +187,17 @@ export function dessinePanneauMaillot(
   const dy = Math.max(0, Math.round(zoneHaut + (zoneBas - zoneHaut - hauteurBloc) / 2 - hautBloc));
   texte(g, def.code, cx, hautBloc + dy, def.interieur.clair, 2, 'c');
 
-  // le joueur porte le maillot choisi, tourné vers le centre de l'écran
+  // le joueur, de face, porte le maillot choisi ; crosse vers l'extérieur de l'écran
+  // (à gauche pour le panneau de gauche : le dessin d'origine la tient à droite)
   const spriteId = `${def.id}-${cote.variante}`;
-  const M = sprites.meta.joueur;
-  const sprite = sprites.spriteJoueur(spriteId, M.arret, !faceDroite);
-  // ~96 px de haut, pieds centrés sous le panneau
-  const echelle = 96 / M.tileH;
+  const M = sprites.meta.portrait;
+  const sprite = sprites.spritePortrait(spriteId, faceDroite);
+  const sh = 96;
+  const echelle = sh / M.tileH;
   const sw = M.tileW * echelle;
-  const sh = M.tileH * echelle;
   const sy = 36 + dy;
-  const piedX = faceDroite ? M.pied.x : M.tileW - M.pied.x;
   if (sprite) {
-    g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, cx - piedX * echelle, sy, sw, sh);
+    g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, Math.round(cx - sw / 2), sy, sw, sh);
   }
 
   const label = cote.variante === 'interieur' ? 'DOMICILE' : 'EXTERIEUR';

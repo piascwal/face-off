@@ -65,6 +65,8 @@ export async function chargeSources(dossier) {
     joueurRoles: await lis('joueur-roles.png'),
     gardien: await lis('gardien.png'),
     gardienRoles: await lis('gardien-roles.png'),
+    portrait: await lis('portrait.png'),
+    portraitRoles: await lis('portrait-roles.png'),
   };
 }
 
@@ -242,6 +244,12 @@ function feuilleDeuxSens(img, tileW, tileH, nb) {
 export function feuilleJoueur(S, eq, logo) {
   const { tileW, tileH, images } = S.meta.joueur;
   return feuilleDeuxSens(repeint(S.joueur, S.joueurRoles, S.meta.roles, eq, logo, tileW, images), tileW, tileH, images);
+}
+
+/** Joueur de face de l'écran des maillots : une case vers la droite (crosse à droite), puis la même en miroir. */
+export function feuillePortrait(S, eq, logo) {
+  const { tileW, tileH } = S.meta.portrait;
+  return feuilleDeuxSens(repeint(S.portrait, S.portraitRoles, S.meta.roles, eq, logo, tileW, 1), tileW, tileH, 1);
 }
 
 export function feuilleGardien(S, eq, logo) {
