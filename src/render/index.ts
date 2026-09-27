@@ -1,3 +1,4 @@
+export * from './celebration';
 export * from './controls-overlay';
 export * from './effects';
 export * from './entities-render';

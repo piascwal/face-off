@@ -515,6 +515,20 @@ Elle reste seule 2 s (`IMAGE_FIN_S`), ou jusqu'à un appui (ou Entrée), puis
 les statistiques s'affichent par-dessus, l'image restant en fond. Elle est
 calée en bas de l'écran pour toujours montrer les joueurs.
 
+**Célébration du buteur.** Pendant l'écran de but, un joueur de l'équipe qui
+marque, tiré au sort parmi les dessins `assets/sprites-src/celebration-<n>.jpg`
+(repeints aux couleurs du maillot, `celebration-<id>.png`), traverse le bas de
+l'écran de gauche à droite, devant l'écusson géant, en ralentissant au centre,
+avec une gerbe de glace. Le tirage part avec l'annonce du but (`celeb`) : en
+Wi-Fi, les deux écrans montrent le même dessin. Tous les réglages (retard,
+durée de la traversée, ralentissement au centre, taille) sont regroupés dans
+`CELEBRATION` (`src/render/celebration.ts`) ; avec le ralenti des buts, la
+célébration en direct dure au moins le temps de la traversée. Pour ajouter un
+dessin : fond magenta, joueur entier ; l'ajouter à `CELEBRATIONS` dans
+`scripts/convertit-sources.py` avec les zones du casque, du visage, des gants,
+de la culotte et de la crosse, puis relancer la conversion et `npm run
+sprites`.
+
 **Joueur au sol.** Le défenseur esquivé a ses propres dessins
 (`chute-<id>.png` : plongeon puis allongé, convertis depuis
 `assets/sprites-src/chute-plongeon.jpg` et `chute-allonge.jpg`), repeints aux

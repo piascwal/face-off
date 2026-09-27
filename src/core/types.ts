@@ -158,7 +158,8 @@ export type GameEvent =
   // `c` est une couleur neutre de repli ; quand `eq` est fourni, le rendu
   // préfère la couleur de maillot de cette équipe (core ne connaît pas les
   // couleurs de maillot — voir render/team-visuals.ts).
-  | { type: 'annonce'; txt: string; sous: string; c: string; duree: number; eq?: TeamId };
+  // `celeb` : tirage de la célébration du buteur (même dessin sur les deux écrans en Wi-Fi)
+  | { type: 'annonce'; txt: string; sous: string; c: string; duree: number; eq?: TeamId; celeb?: number };
 
 /** Entrée d'un joueur humain pour une image de simulation. */
 export interface InputIntent {

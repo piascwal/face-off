@@ -33,6 +33,8 @@ export interface MetaSprites {
    * puis en miroir). `pied` : centre du corps ; `tete` : centre du casque, par image.
    */
   chute: { tileW: number; tileH: number; images: number; pied: Point; tete: Point[]; echelle: number };
+  /** Célébrations de l'écran de but (de face), une case par dessin, posées sur le bas de la case. */
+  celebration: { tileW: number; tileH: number; images: number };
   /** Nombre de variantes de visage dans visages.png. */
   visages: number;
   teamIds: string[];
@@ -43,6 +45,7 @@ const META_DEFAUT: MetaSprites = {
   gardien: { tileW: 132, tileH: 115, pied: { x: 71, y: 113 }, echelle: 0.2, decalage: -41 },
   portrait: { tileW: 92, tileH: 116 },
   chute: { tileW: 176, tileH: 102, images: 2, pied: { x: 88, y: 43 }, tete: [{ x: 114, y: 31 }, { x: 125, y: 39 }], echelle: 0.22 },
+  celebration: { tileW: 91, tileH: 123, images: 1 },
   visages: 1,
   teamIds: [],
 };
@@ -69,6 +72,7 @@ export class BanqueSprites {
   private goalies = new Map<string, HTMLImageElement>();
   private portraits = new Map<string, HTMLImageElement>();
   private chutes = new Map<string, HTMLImageElement>();
+  private celebrations = new Map<string, HTMLImageElement>();
   private visages: HTMLImageElement | null = null;
   private enCours = new Map<string, Promise<void>>();
   pret = false;
@@ -89,12 +93,14 @@ export class BanqueSprites {
     const enCours = this.enCours.get(teamId);
     if (enCours) return enCours;
     const p = (async () => {
-      const [s, g, p, c] = await Promise.all([
+      const [s, g, p, c, ce] = await Promise.all([
         chargeImage(`${this.base}/skater-${teamId}.png`),
         chargeImage(`${this.base}/goalie-${teamId}.png`),
         chargeImage(`${this.base}/portrait-${teamId}.png`),
         chargeImage(`${this.base}/chute-${teamId}.png`),
+        chargeImage(`${this.base}/celebration-${teamId}.png`),
       ]);
+      this.celebrations.set(teamId, ce);
       this.skaters.set(teamId, s);
       this.goalies.set(teamId, g);
       this.portraits.set(teamId, p);
@@ -139,6 +145,15 @@ export class BanqueSprites {
     const { tileW, tileH, images } = this.meta.chute;
     const col = Math.min(images - 1, Math.max(0, frame));
     return { img, rect: { sx: col * tileW, sy: (gauche ? 1 : 0) * tileH, sw: tileW, sh: tileH } };
+  }
+
+  /** Célébration de l'écran de but : `tirage` choisit le dessin (modulo leur nombre). */
+  spriteCelebration(teamId: string, tirage: number): { img: HTMLImageElement; rect: Rect } | null {
+    const img = this.celebrations.get(teamId);
+    if (!img) return null;
+    const { tileW, tileH, images } = this.meta.celebration;
+    const col = ((Math.floor(tirage) % images) + images) % images;
+    return { img, rect: { sx: col * tileW, sy: 0, sw: tileW, sh: tileH } };
   }
 
   spriteGardien(teamId: string, gauche: boolean): { img: HTMLImageElement; rect: Rect } | null {

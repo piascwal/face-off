@@ -32,6 +32,8 @@ export interface Banniere {
   max: number;
   /** Id de l'écusson géant affiché derrière le bandeau (but marqué par cette équipe). */
   logoId?: string;
+  /** Célébration du buteur : feuille de son équipe (maillot compris) et tirage du dessin. */
+  celebration?: { spriteId: string; tirage: number };
 }
 
 function luminosite(hex: string): number {
@@ -116,8 +118,8 @@ export class SystemeEffets {
     this.bulles.push({ txt, x, y, c, vie: 1.1 });
   }
 
-  annonce(txt: string, sous: string, c: string, duree = 1.6, logoId?: string): void {
-    this.banniere = { txt, sous, c, vie: duree, max: duree, logoId };
+  annonce(txt: string, sous: string, c: string, duree = 1.6, logoId?: string, celebration?: Banniere['celebration']): void {
+    this.banniere = { txt, sous, c, vie: duree, max: duree, logoId, celebration };
   }
 
   /** Consomme les évènements de gameplay produits par un pas de simulation. */
@@ -143,6 +145,7 @@ export class SystemeEffets {
             ev.eq !== undefined ? couleurVive(this.equipes[ev.eq]) : ev.c,
             ev.duree,
             ev.eq !== undefined ? this.equipes[ev.eq].teamId : undefined,
+            ev.eq !== undefined ? { spriteId: this.equipes[ev.eq].id, tirage: ev.celeb ?? 0 } : undefined,
           );
           break;
         case 'secousse':

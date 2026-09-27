@@ -483,6 +483,7 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
     c: '#ffd35c',
     duree: 2.4,
     eq,
+    celeb: Math.floor(Math.random() * 1000),
   });
   if (collectif) {
     state.evenements.push({ type: 'confettis', x: rink.cx, y: rink.cy, eq });

@@ -54,5 +54,10 @@
         "y": 37.7
       }
     ]
+  },
+  "celebration": {
+    "tileW": 91,
+    "tileH": 123,
+    "images": 1
   }
 }

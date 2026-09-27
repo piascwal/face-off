@@ -46,6 +46,11 @@
     ],
     "echelle": 0.22
   },
+  "celebration": {
+    "tileW": 91,
+    "tileH": 123,
+    "images": 1
+  },
   "visages": 6,
   "teamIds": [
     "toulouse",

@@ -413,11 +413,11 @@ ZONES_CHUTE = [
 ]
 
 
-def detoure_violet(a):
+def detoure_violet(a, s_min=0.3):
     """Le halo violet du fond, accroché au bord du dessin (les contours sombres restent)."""
     H, W = a.shape[:2]
     hv = np.array([[hsv(a[y, x, :3]) for x in range(W)] for y in range(H)])
-    violet = (hv[..., 0] > 255) & (hv[..., 0] < 335) & (hv[..., 1] > 0.3) & (hv[..., 2] > 0.28)
+    violet = (hv[..., 0] > 255) & (hv[..., 0] < 335) & (hv[..., 1] > s_min) & (hv[..., 2] > 0.28)
     while True:
         vide = np.pad(a[..., 3] == 0, 1, constant_values=True)
         bord = ndimage.binary_dilation(vide)[1:-1, 1:-1] & (a[..., 3] > 0) & violet
@@ -475,6 +475,69 @@ def chutes():
                 roles[y, x] = r
         nettoie(roles)
         sorties.append((a, roles, corps))
+    return sorties
+
+
+# --- Célébrations (écran de but) -------------------------------------------------
+
+# Un joueur qui fête un but, de face, sur fond magenta : chaque image
+# `celebration-<n>.jpg` rejoint le tirage au sort de l'écran de but. Par image
+# (coordonnées du dessin pixelisé) : casque, visage, gants, culotte et crosse
+# (segments du manche, palette comprise).
+CELEBRATIONS = [
+    {'nom': 'celebration-1', 'casque': (24, 22, 46, 34), 'visage': (27, 33, 44, 47),
+     'gants': [(1, 15, 18, 33), (60, 19, 76, 34)], 'culotte': (29, 69, 69, 87),
+     'crosse': [(46, 2, 60, 7), (60, 7, 70, 22), (70, 30, 82, 57)]},
+]
+
+
+def celebrations():
+    sorties = []
+    dans = lambda x, y, b: b[0] <= x <= b[2] and b[1] <= y <= b[3]  # noqa: E731
+    for z in CELEBRATIONS:
+        im = np.asarray(Image.open(SRC / f"{z['nom']}.jpg").convert('RGB')).astype(float)
+        fond = np.median(im[:30, :30].reshape(-1, 3), 0)
+        fg = ndimage.binary_opening(np.linalg.norm(im - fond, axis=2) > 70, iterations=1)
+        lab, n = ndimage.label(fg)
+        tailles = ndimage.sum(fg, lab, range(1, n + 1))
+        fg = ndimage.binary_fill_holes(np.isin(lab, [i + 1 for i, t in enumerate(tailles) if t > 1000]))
+        a = quantifie([pixelise(im, fg, PERIODE_GARDIEN)])[0]
+        detoure_violet(a, s_min=0.15)  # le liseré rose sous les patins aussi
+        H, W = a.shape[:2]
+        for y in range(H):
+            for x in range(W):
+                h, s, v = hsv(a[y, x, :3])
+                if a[y, x, 3] and 285 <= h <= 320 and s > 0.6 and v > 0.5:
+                    a[y, x, 3] = 0  # fond magenta vu entre la chaussure et la lame
+        roles = np.zeros((H, W), np.uint8)
+        for y in range(H):
+            for x in range(W):
+                if not a[y, x, 3]:
+                    continue
+                h, s, v = hsv(a[y, x, :3])
+                r = role_couleur(h, s, v, False)
+                rouge = r == R['maillot']
+                if r == R['contour']:
+                    pass
+                elif any(dist_seg(x, y, *seg) <= 2.5 for seg in z['crosse']) and not any(dans(x, y, g) for g in z['gants']):
+                    r = R['garde']  # la crosse garde ses couleurs
+                elif dans(x, y, z['casque']):
+                    r = R['casque'] if rouge else R['casque-bande'] if r == R['bande'] else R['garde']
+                elif dans(x, y, z['visage']):
+                    r = R['garde']  # visage (peau, barbe, bouche) tel quel
+                elif any(dans(x, y, g) for g in z['gants']) and r != R['bande'] and (
+                        (8 <= h <= 35 and v < 0.72) or (rouge and v < 0.55)):
+                    r = R['gants']
+                elif dans(x, y, z['culotte']):
+                    if rouge and (v < 0.5 or 12 < h < 30):
+                        r = R['garde']  # ombres de la culotte brune
+                elif r == R['blanc'] and 160 <= h <= 230:
+                    r = R['garde']  # lames des patins, gris bleuté
+                elif r == R['garde'] and (h <= 26 or h >= 330) and s > 0.45:
+                    r = R['maillot']  # ombres brun-rouge du maillot
+                roles[y, x] = r
+        nettoie(roles)
+        sorties.append((a, roles))
     return sorties
 
 
@@ -544,6 +607,20 @@ def main():
     Image.fromarray(carte, 'L').save(SRC / 'chute-roles.png')
     meta['chute'] = {'tileW': cw, 'tileH': chh, 'images': len(ch), 'pied': {'x': ax, 'y': ay},
                      'tete': [{'x': round(float(x), 1), 'y': round(float(y), 1)} for x, y in tetes]}
+    # célébrations : cases de même taille, dessins centrés et posés sur le bas
+    ce = celebrations()
+    cw = max(a.shape[1] for a, _ in ce) + 2
+    chh = max(a.shape[0] for a, _ in ce) + 1
+    feuille = np.zeros((chh, cw * len(ce), 4), np.uint8)
+    carte = np.zeros((chh, cw * len(ce)), np.uint8)
+    for i, (a, lab) in enumerate(ce):
+        ox, oy = i * cw + (cw - a.shape[1]) // 2, chh - 1 - a.shape[0]
+        m = a[..., 3] > 0
+        feuille[oy:oy + a.shape[0], ox:ox + a.shape[1]][m] = a[m]
+        carte[oy:oy + a.shape[0], ox:ox + a.shape[1]][m] = lab[m]
+    Image.fromarray(feuille, 'RGBA').save(SRC / 'celebration.png')
+    Image.fromarray(carte, 'L').save(SRC / 'celebration-roles.png')
+    meta['celebration'] = {'tileW': cw, 'tileH': chh, 'images': len(ce)}
     (SRC / 'sprites.json').write_text(json.dumps(meta, indent=2) + '\n')
     print(f'planche : grille {P:.2f} px, {len(dessins)} images en cases de {tw}×{th}')
     print(f'gardien : {g.shape[1]}×{g.shape[0]}')

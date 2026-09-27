@@ -1,9 +1,13 @@
 import { DUREE_BUT } from '@core/rules';
+import { CELEBRATION } from '@render/celebration';
 import type { GamePhase, MatchState, Rink } from '@core/types';
 import { appliqueInstantane, type Instantane } from '@net/protocole';
 
-/** Célébration en direct (bandeau, écusson) avant que le ralenti ne démarre. */
-export const CELEBRATION_S = 1.6;
+/**
+ * Célébration en direct (bandeau, écusson, buteur qui traverse l'écran) avant
+ * que le ralenti ne démarre : au moins le temps de la traversée du buteur.
+ */
+export const CELEBRATION_S = Math.max(1.6, CELEBRATION.retard + CELEBRATION.duree + 0.05);
 /** Portion rejouée : ce qui précède le but, et un peu après. */
 const AVANT_S = 2.5;
 const APRES_S = 0.3;

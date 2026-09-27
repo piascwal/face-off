@@ -69,6 +69,8 @@ export async function chargeSources(dossier) {
     portraitRoles: await lis('portrait-roles.png'),
     chute: await lis('chute.png'),
     chuteRoles: await lis('chute-roles.png'),
+    celebration: await lis('celebration.png'),
+    celebrationRoles: await lis('celebration-roles.png'),
   };
 }
 
@@ -258,6 +260,15 @@ export function feuillePortrait(S, eq, logo) {
 export function feuilleChute(S, eq) {
   const { tileW, tileH, images } = S.meta.chute;
   return feuilleDeuxSens(repeint(S.chute, S.chuteRoles, S.meta.roles, eq, null, tileW, images), tileW, tileH, images);
+}
+
+/** Célébrations de l'écran de but : une case par dessin, de face (pas de miroir). */
+export function feuilleCelebrations(S, eq) {
+  const { tileW, images } = S.meta.celebration;
+  const img = repeint(S.celebration, S.celebrationRoles, S.meta.roles, eq, null, tileW, images);
+  const c = createCanvas(img.width, img.height);
+  c.getContext('2d').putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
+  return c;
 }
 
 export function feuilleGardien(S, eq, logo) {

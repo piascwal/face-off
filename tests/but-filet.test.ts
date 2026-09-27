@@ -25,8 +25,11 @@ describe('palet dans les filets', () => {
     p.vy = 0;
     let dedans = 0;
     let dehors = 0;
+    let celeb: number | undefined;
     for (let i = 0; i < 180; i++) {
       pas(rink, st, 1 / 60);
+      for (const e of st.evenements) if (e.type === 'annonce' && e.eq !== undefined) celeb = e.celeb;
+      st.evenements.length = 0;
       const phase: string = st.phase;
       if (phase !== 'but') continue;
       const inside = p.x > rink.butD && p.x < rink.butD + BUT_PROF + 1 && Math.abs(p.y - rink.cy) < BUT_DEMI;
@@ -36,5 +39,7 @@ describe('palet dans les filets', () => {
     expect(st.score[0]).toBe(1);
     expect(dedans).toBeGreaterThan(60);
     expect(dehors).toBe(0);
+    // le tirage de la célébration du buteur voyage avec l'annonce (même dessin sur les deux écrans)
+    expect(Number.isInteger(celeb)).toBe(true);
   });
 });

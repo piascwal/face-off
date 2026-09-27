@@ -27,6 +27,7 @@ import {
   construitFoule,
   construitGlace,
   dessineBanniere,
+  dessineCelebration,
   dessineLogoBut,
   dessineAvance,
   dessineChoixMaillots,
@@ -1139,7 +1140,10 @@ export class GameApp {
       g.setTransform(E, 0, 0, E, 0, 0);
       // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
       if (!ECRANS_MENU.includes(this.ecranUI)) {
-        if (!ralenti) dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, tempsUI);
+        if (!ralenti) {
+          dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, tempsUI);
+          dessineCelebration(g, this.W, this.H, this.sprites, this.effets.banniere, this.ecranUI);
+        }
         dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
       }
       if (!ralenti && (this.ecranUI === 'menu' || !ECRANS_MENU.includes(this.ecranUI))) {
