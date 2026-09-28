@@ -24,6 +24,7 @@ import {
   EQUIPES_JOUABLES,
   resoutEquipe,
   SystemeEffets,
+  texte,
   TracesGlace,
   trouveTeamDef,
   type DecorPatinoire,
@@ -38,7 +39,7 @@ import { ParcoursLan } from './parcours-lan';
 import { ParcoursSolo } from './parcours-solo';
 import { chargePreferences, type Preferences } from './preferences';
 import { Ralenti } from './ralenti';
-import { PleinEcranAuPremierGeste } from './pwa';
+import { estAutonome, PleinEcranAuPremierGeste } from './pwa';
 
 const PAS_FIXE = 1 / 120;
 
@@ -73,6 +74,15 @@ export class GameApp {
   private optionsMatch: OptionsPartie | null = null;
   private etatRalenti: MatchState | null = null;
   private readonly pleinEcran = new PleinEcranAuPremierGeste();
+  /**
+   * Tant que c'est vrai (et qu'on est sur le menu), le tout premier geste de
+   * l'utilisateur ne fait que déclencher le plein écran : il n'atteint aucun
+   * bouton. Sans ça, ce premier geste tombait souvent sur JOUER, et la
+   * bannière du navigateur (« glissez pour quitter le plein écran ») restait
+   * affichée au-dessus du tout début du match. Ici, elle apparaît et
+   * disparaît avant même que le joueur ait choisi son équipe.
+   */
+  private attenteDemarrage = !estAutonome();
 
   // ------------------------------------------ état partagé avec les parcours
   /** Taille logique de l'écran (px). */
@@ -279,6 +289,11 @@ export class GameApp {
     this.audio.init();
     // souris : le pointerdown suffit comme geste ; doigt : voir pointerup
     if (e.pointerType === 'mouse') this.pleinEcran.tente();
+    // premier geste sur le menu : rien que le plein écran, aucun bouton ne réagit
+    if (this.attenteDemarrage && this.ecranUI === 'menu') {
+      this.attenteDemarrage = false;
+      return;
+    }
     const p = this.versLogique(e);
     if (this.portrait) return;
     const lan = this.lan;
@@ -323,6 +338,11 @@ export class GameApp {
   private surTouche(e: KeyboardEvent): void {
     if (!e.repeat) this.audio.init();
     if (e.code !== 'Escape') this.pleinEcran.tente();
+    // premier geste sur le menu : rien que le plein écran, aucune touche ne réagit
+    if (this.attenteDemarrage && this.ecranUI === 'menu') {
+      this.attenteDemarrage = false;
+      return;
+    }
     this.entrees.onKeyDown(e);
     if (this.entrees.pauseDemandee) {
       this.entrees.pauseDemandee = false;
@@ -473,6 +493,22 @@ export class GameApp {
       g.fillStyle = `rgba(255,255,255,${this.effets.flash * 0.5})`;
       g.fillRect(0, 0, this.W, this.H);
     }
+    if (this.attenteDemarrage && this.ecranUI === 'menu') this.dessineEcranDemarrage(g, temps);
+  }
+
+  /**
+   * Premier écran, par-dessus le menu : un seul geste (clic, appui, touche)
+   * suffit à passer en plein écran, avant que le joueur touche un vrai
+   * bouton. Voir `attenteDemarrage`.
+   */
+  private dessineEcranDemarrage(g: CanvasRenderingContext2D, temps: number): void {
+    const cx = Math.round(this.W / 2);
+    const cy = Math.round(this.H / 2);
+    g.fillStyle = 'rgba(5,6,13,0.82)';
+    g.fillRect(0, 0, this.W, this.H);
+    const pulse = Math.sin(temps * 5) > 0;
+    texte(g, 'APPUYEZ POUR COMMENCER', cx, cy - 5, pulse ? C.or : C.blanc, 2, 'c');
+    texte(g, 'LE JEU PASSE EN PLEIN ECRAN', cx, cy + 15, '#6f7aa6', 1, 'c');
   }
 
   /** Par-dessus le match : pause Wi-Fi, ralenti du but, ou commandes tactiles. */

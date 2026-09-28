@@ -13,6 +13,13 @@ export default async function solo(env) {
     await p.keyboard.press(t);
     await attends(150);
   };
+  await env.capture(p, '0-demarrage');
+  env.verifie(await p.evaluate(() => window.faceOff.attenteDemarrage), 'écran de démarrage affiché avant tout geste');
+
+  // premier geste : passe l'écran de démarrage (plein écran), n'active aucun bouton du menu
+  await touche('Escape');
+  env.verifie(!(await p.evaluate(() => window.faceOff.attenteDemarrage)), 'ÉCHAP : écran de démarrage passé');
+  env.verifie((await ecran()) === 'menu', 'toujours sur le menu (aucun bouton atteint par ce premier geste)');
   await env.capture(p, '1-menu');
 
   await touche('Enter');
