@@ -177,6 +177,7 @@ export class ParcoursSolo {
     }
     if (e.code === 'Escape' && ecran === 'maillots') this.retourChoixEquipes();
     if (e.code === 'Escape' && ecran === 'avance') this.fermeAvance();
+    if (e.code === 'Escape' && ecran === 'equipes') this.app.retourMenu();
     if (ecran === 'equipes' && !repete) {
       // pensé « manette » : gauche/droite pour votre équipe, haut/bas pour l'adversaire
       if (e.code === 'ArrowLeft') this.tourneJoueur(-1);
@@ -293,6 +294,7 @@ export class ParcoursSolo {
       onPrecedentAdversaire: () => this.tourneAdversaire(-1),
       onSuivantAdversaire: () => this.tourneAdversaire(1),
       onConfirmer: () => this.confirmeSelection(),
+      onRetour: () => this.app.retourMenu(),
     };
   }
 

@@ -21,6 +21,7 @@ export interface EtatSelectionEquipe {
   onPrecedentAdversaire: () => void;
   onSuivantAdversaire: () => void;
   onConfirmer: () => void;
+  onRetour: () => void;
 }
 
 /** Convertit un multiplicateur de stat (~0.85..1.15) en note façon jeu de sport (65..99). */
@@ -137,6 +138,7 @@ export function dessineSelectionEquipe(g: CanvasRenderingContext2D, boutons: Zon
   dessinePanneauEquipe(g, boutons, 0, moitie, H, 'VOUS', etat.joueur, etat.onPrecedentJoueur, etat.onSuivantJoueur);
   dessinePanneauEquipe(g, boutons, moitie, W - moitie, H, 'ADVERSAIRE', etat.adversaire, etat.onPrecedentAdversaire, etat.onSuivantAdversaire);
 
+  bouton(g, boutons, '< RETOUR', 4, boutonY, 60, 16, etat.onRetour, { couleur: '#232a58', e: 1 });
   bouton(g, boutons, 'JOUER', cx - 45, boutonY, 90, 16, etat.onConfirmer, {
     e: 2,
     couleur: '#d12f4c',

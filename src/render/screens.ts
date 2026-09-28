@@ -122,7 +122,7 @@ export function dessineAvance(g: CanvasRenderingContext2D, boutons: ZoneBouton[]
   const cx = Math.round(W / 2);
   texte(g, 'REGLAGES AVANCES', cx, 4, C.blanc, 1, 'c');
 
-  const pw = 210;
+  const pw = 234;
   const ph = 100;
   const py = Math.round(H * 0.18);
   panneau(g, cx - pw / 2, py, pw, ph);
