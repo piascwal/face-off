@@ -700,11 +700,11 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 | But x2 | le prochain but de l'équipe compte double ; « 2X » au-dessus de la cage adverse | 10 s |
 | Super héros | super vitesse + un tir surpuissant + freeze des adversaires pendant les 3 premières secondes (`HEROS_FREEZE_S`) ; le tir ne coupe pas le reste du bonus ; deux fois plus rare au tirage | 8 s |
 | Tremblement | tout le monde tombe (la chute de l'esquive, 1,6 s), coéquipiers compris, sauf le porteur du palet ; l'écran tremble fort, grondement, poussière | 2,5 s |
-| Givre | l'écran de tout le monde gèle : patinoire floutée et bleutée, cristaux de glace sur les bords (`render/givre-ecran.ts`) ; le tableau et les commandes restent nets | 7 s |
+| Givre | l'écran de tout le monde gèle : patinoire très floue et bleutée, cristaux de glace sur les bords (`render/givre-ecran.ts`) ; le tableau et les commandes restent nets | 7 s |
 | Cage géante | la cage adverse s'ouvre deux fois plus large ; le gardien garde sa taille et ne couvre plus les coins ; l'ouverture brille en or | 10 s |
 | Mini cage | sa propre cage rétrécit (×0,45) ; l'ouverture brille en or | 10 s |
 | Gardien endormi | le gardien adverse ne bouge plus, n'attrape plus rien et ne couvre plus que 60 % de son corps ; des « Z » montent au-dessus de lui | 6 s |
-| Blackout | les lumières s'éteignent (après deux clignotements), un projecteur suit le joueur doré ; l'adversaire est presque dans le noir (une petite lueur autour de son joueur) et intercepte (×0,5) et vole (×0,3) moins bien ; l'équipe du bonus voit mieux | 8 s |
+| Blackout | les lumières s'éteignent (après deux clignotements) : tout est noir, sauf deux projecteurs, sur le joueur doré et sur le gardien adverse ; l'équipe dans le noir garde une petite lueur autour du joueur qu'elle pilote, et intercepte (×0,5) et vole (×0,3) moins bien | 8 s |
 
 **Mode entraînement** (Réglages avancés > ENTRAINEMENT) : on choisit un
 bonus dans la grille (le choix est gardé), puis un match sans chrono

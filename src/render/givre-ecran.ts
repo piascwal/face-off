@@ -15,8 +15,10 @@ export class GivreEcran {
    */
   dessine(g: CanvasRenderingContext2D, ecran: HTMLCanvasElement, W: number, H: number, E: number, force: number, temps: number): void {
     if (force <= 0) return;
-    const fw = Math.max(1, Math.round(ecran.width / 10));
-    const fh = Math.max(1, Math.round(ecran.height / 10));
+    // flou fort : l'image réduite 14 fois (et adoucie quand le navigateur sait
+    // flouter un canvas), puis agrandie avec lissage par-dessus la patinoire
+    const fw = Math.max(1, Math.round(ecran.width / 14));
+    const fh = Math.max(1, Math.round(ecran.height / 14));
     this.flou ??= document.createElement('canvas');
     const f = this.flou;
     if (f.width !== fw || f.height !== fh) {
@@ -25,13 +27,16 @@ export class GivreEcran {
     }
     const k = f.getContext('2d')!;
     k.imageSmoothingEnabled = true;
+    if ('filter' in k) k.filter = 'blur(1.5px)';
+    k.clearRect(0, 0, fw, fh);
     k.drawImage(ecran, 0, 0, fw, fh);
+    if ('filter' in k) k.filter = 'none';
     g.save();
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.imageSmoothingEnabled = true;
-    g.globalAlpha = 0.62 * force;
+    g.globalAlpha = 0.93 * force;
     g.drawImage(f, 0, 0, ecran.width, ecran.height);
-    g.globalAlpha = 0.16 * force;
+    g.globalAlpha = 0.22 * force;
     g.fillStyle = '#cdefff';
     g.fillRect(0, 0, ecran.width, ecran.height);
     g.restore();

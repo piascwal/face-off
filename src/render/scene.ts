@@ -101,10 +101,10 @@ function sommeil(g: CanvasRenderingContext2D, state: MatchState): void {
 let calqueNoir: HTMLCanvasElement | null = null;
 
 /**
- * Blackout : les lumières de l'aréna s'éteignent (en deux clignotements),
- * un projecteur suit le joueur doré. L'équipe qui l'a déclenché y voit encore
- * assez ; l'adversaire est dans le noir, avec juste une petite lueur autour du
- * joueur qu'il pilote. Un spectateur voit entre les deux.
+ * Blackout : les lumières de l'aréna s'éteignent (en deux clignotements) et
+ * tout devient noir, sauf deux projecteurs : sur le joueur doré, et sur le
+ * gardien adverse qu'il va défier. L'équipe dans le noir garde juste une
+ * petite lueur autour du joueur qu'elle pilote, pour savoir où il est.
  */
 function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eqLocal: TeamId | null): void {
   for (const eq of [0, 1] as TeamId[]) {
@@ -114,7 +114,6 @@ function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eq
     // les lumières vacillent avant de s'éteindre, puis reviennent à la fin
     if (age < 0.35 && Math.floor(age * 12) % 2 === 1) continue;
     const force = Math.min(1, age / 0.35, pv.reste / 0.6);
-    const noir = eqLocal === null ? 0.72 : eqLocal === eq ? 0.5 : 0.9;
     const W = Math.ceil(rink.x * 2 + rink.w);
     const H = Math.ceil(rink.y * 2 + rink.h);
     calqueNoir ??= document.createElement('canvas');
@@ -125,8 +124,9 @@ function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eq
     }
     const k = c.getContext('2d')!;
     k.globalCompositeOperation = 'source-over';
+    k.globalAlpha = 1;
     k.clearRect(0, 0, W, H);
-    k.fillStyle = '#04050c';
+    k.fillStyle = '#000000';
     k.fillRect(0, 0, W, H);
     // trous : paliers nets (comme des pixels) du plus large au plus serré
     k.globalCompositeOperation = 'destination-out';
@@ -139,21 +139,24 @@ function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eq
       });
     const spot = joueurDore(state, eq);
     if (spot) trou(spot.x, spot.y - 8, [30, 25, 21]);
+    const gardien = state.gardiens[eq === 0 ? 1 : 0];
+    trou(gardien.x, gardien.y - 7, [26, 21, 17]);
     const moi = eqLocal !== null && eqLocal !== eq ? state.controles[eqLocal] : null;
-    if (moi) trou(moi.x, moi.y - 8, [14, 10]);
+    if (moi) trou(moi.x, moi.y - 8, [11, 8]);
     k.globalAlpha = 1;
-    g.globalAlpha = noir * force;
+    k.globalCompositeOperation = 'source-over';
+    g.globalAlpha = force;
     g.drawImage(c, 0, 0);
-    g.globalAlpha = 1;
-    if (spot) {
-      // le faisceau du projecteur sur la glace
-      g.globalAlpha = 0.18 * force;
-      g.fillStyle = '#fff3b0';
+    // les faisceaux des projecteurs sur la glace
+    g.globalAlpha = 0.2 * force;
+    g.fillStyle = '#fff3b0';
+    for (const p of [spot, gardien]) {
+      if (!p) continue;
       g.beginPath();
-      g.ellipse(spot.x, spot.y + 2, 18, 7, 0, 0, Math.PI * 2);
+      g.ellipse(p.x, p.y + 2, 18, 7, 0, 0, Math.PI * 2);
       g.fill();
-      g.globalAlpha = 1;
     }
+    g.globalAlpha = 1;
   }
 }
 
