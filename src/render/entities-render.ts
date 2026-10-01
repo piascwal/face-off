@@ -136,6 +136,36 @@ function imageTir(s: Skater): number | null {
   return TIR_ANIM.length;
 }
 
+/**
+ * Mise en échec : le coup d'épaule dure tout l'élan, et un instant après (le
+ * choc, ou la glisse quand il rate). L'élan avec le palet n'est qu'un sprint.
+ */
+const ECHEC_POSE_APRES = 0.12;
+function enEchec(s: Skater): boolean {
+  return !s.tient && s.elanT > -ECHEC_POSE_APRES && s.elanCd > 0.5;
+}
+
+/** Traits de vitesse derrière un joueur lancé à l'attaque : ils fondent avec l'élan. */
+function traitsVitesse(g: CanvasRenderingContext2D, s: Skater, temps: number): void {
+  const v = Math.hypot(s.vx, s.vy);
+  const a = v > 30 ? Math.atan2(s.vy, s.vx) : s.face;
+  const ux = Math.cos(a);
+  const uy = Math.sin(a);
+  const alpha = Math.min(1, s.elanT / 0.1);
+  for (let k = 0; k < 7; k++) {
+    const dec = (k - 3) * 3.4 + Math.sin(temps * 40 + k * 2.1);
+    const long = 14 + ((k * 7) % 5) * 4;
+    const dep = 6 + ((k * 5 + Math.floor(temps * 30)) % 4) * 2;
+    const x0 = s.x - ux * dep - uy * dec;
+    const y0 = s.y - 6 - uy * dep + ux * dec;
+    for (let i = 0; i < long; i += 2) {
+      g.globalAlpha = alpha * (0.85 - (i / long) * 0.7);
+      px(g, x0 - ux * i, y0 - uy * i, 2, 1, k % 2 ? '#ffffff' : '#5fb0e8');
+    }
+  }
+  g.globalAlpha = 1;
+}
+
 /** Pas de patinage : distance parcourue (px logiques) par image du cycle. */
 const PAS_ANIM = 8;
 
@@ -210,17 +240,22 @@ export function dessinePatineur(
   // geste de tir (armé, puis descente, impact, accompagnement), si sa feuille est chargée
   let poseTir = imageTir(s);
   if (poseTir !== null && !sprites.spriteTir(id, poseTir, gauche)) poseTir = null;
-  const M = poseTir !== null ? sprites.meta.tir : sprites.meta.joueur;
+  // mise en échec : la pose du coup d'épaule (sans le tir, qui a la priorité)
+  const poseEchec = poseTir === null && enEchec(s) && !!sprites.spriteEchec(id, gauche);
+  const M = poseTir !== null ? sprites.meta.tir : poseEchec ? sprites.meta.echec : sprites.meta.joueur;
   const e = M.echelle;
   // taille des repères au sol, proportionnelle au joueur
   const rs = e / 0.28;
   const v = Math.hypot(s.vx, s.vy);
-  const frame = poseTir ?? (v < 14 ? sprites.meta.joueur.arret : Math.floor(s.anim / PAS_ANIM) % sprites.meta.joueur.images);
+  const frame = poseTir ?? (poseEchec ? 0 : v < 14 ? sprites.meta.joueur.arret : Math.floor(s.anim / PAS_ANIM) % sprites.meta.joueur.images);
   // joueur doré (bonus) : feuille repeinte en or, visage compris ; chaque joueur
   // garde son visage (teint, barbe) : même tirage sur les deux écrans en Wi-Fi
   let sprite;
   let visage;
-  if (poseTir !== null) {
+  if (poseEchec) {
+    sprite = or ? sprites.spriteEchecDore(id, gauche) : sprites.spriteEchec(id, gauche);
+    visage = or ? null : sprites.spriteVisageEchec(varianteVisage, gauche);
+  } else if (poseTir !== null) {
     sprite = or ? sprites.spriteTirDore(id, frame, gauche) : sprites.spriteTir(id, frame, gauche);
     visage = or ? null : sprites.spriteVisageTir(varianteVisage, frame, gauche);
   } else {
@@ -237,7 +272,7 @@ export function dessinePatineur(
   if (s.sonne > 0) bx += Math.sin(temps * 40);
   // mise en échec en préparation : le défenseur tremble, prêt à charger
   if (s.prepaEchecT > 0) bx += Math.floor(temps * 30) & 1 ? 1 : -1;
-  const teteY = by + (poseTir !== null ? sprites.meta.tir.tete[poseTir]! : sprites.meta.joueur.tete) * e + 2;
+  const teteY = by + (poseTir !== null ? sprites.meta.tir.tete[poseTir]! : poseEchec ? sprites.meta.echec.tete : sprites.meta.joueur.tete) * e + 2;
   const sp = pointCrosse(s);
   const corps = (dx = 0, dy = 0) => {
     // impact : silhouette blanche (le visage est dans la silhouette)
@@ -277,6 +312,17 @@ export function dessinePatineur(
     corps(-s.vx * 0.1, -s.vy * 0.1);
     g.globalAlpha = 1;
   }
+  // mise en échec lancée : traits de vitesse et images fantômes derrière lui
+  if (poseEchec && s.elanT > 0) {
+    traitsVitesse(g, s, temps);
+    g.globalAlpha = 0.38;
+    corps(-s.vx * 0.04, -s.vy * 0.04);
+    g.globalAlpha = 0.22;
+    corps(-s.vx * 0.08, -s.vy * 0.08);
+    g.globalAlpha = 0.1;
+    corps(-s.vx * 0.12, -s.vy * 0.12);
+    g.globalAlpha = 1;
+  }
   if (bonus?.fantome) g.globalAlpha = 0.62;
   if (or) {
     // auréole : le joueur doré brille (le flou d'ombre est en pixels d'écran)
@@ -297,7 +343,7 @@ export function dessinePatineur(
   if (bonus?.confus) spirales(g, Math.round(s.x), teteY - 4, temps);
 
   if (s.sonne > 0) etoiles(g, s.x, teteY - 1, temps);
-  if (s.elanT > 0) {
+  if (s.elanT > 0 && !poseEchec) {
     g.globalAlpha = 0.35;
     corps(-s.vx * 0.04, -s.vy * 0.04);
     g.globalAlpha = 1;

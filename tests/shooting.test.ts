@@ -89,3 +89,30 @@ describe('geste de tir', () => {
     expect(s.tirT).toBe(0);
   });
 });
+
+describe('mise en échec', () => {
+  it('le choc fige, secoue, et émet l’onde et les étincelles d’impact', async () => {
+    const { creePartie } = await import('../src/core/rules');
+    const { elan } = await import('../src/core/actions');
+    const { collisionsPatineurs } = await import('../src/core/physics');
+    const rink = calculeRink(400, 200);
+    const st = creePartie(rink, { mode: 'match', niveauIdx: 1, dureeIdx: 1, effectifIdx: 1 });
+    st.phase = 'jeu';
+    const s = st.controles[0]!;
+    const o = st.patineurs.find((x) => x.eq === 1)!;
+    for (const x of st.patineurs) x.tient = false;
+    Object.assign(s, { x: 200, y: 100, vx: 0, vy: 0, elanCd: 0, sonne: 0 });
+    Object.assign(o, { x: 207, y: 100, vx: 0, vy: 0, sonne: 0, esquiveT: 0, prepaEchecT: 0 });
+    elan(st, s, 1, 0);
+    expect(s.elanT).toBeGreaterThan(0);
+    st.evenements.length = 0;
+    collisionsPatineurs(st);
+    const types = st.evenements.map((e) => e.type);
+    expect(types).toContain('charge');
+    expect(types).toContain('onde');
+    expect(types.filter((t) => t === 'etincelles').length).toBe(2);
+    expect(st.stats.checks[s.eq]).toBe(1);
+    expect(s.elanT).toBe(0);
+    expect(o.sonne).toBeGreaterThan(0);
+  });
+});

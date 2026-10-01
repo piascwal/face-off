@@ -764,6 +764,16 @@ trois autres s'enchaînent en 0,32 s (`TIR_ANIM`, `core/constants.ts`), puis le
 patinage reprend. L'ordinateur joue le même geste. Le joueur doré d'un bonus
 garde son or pendant le geste.
 
+**Mise en échec.** Une seule image (`echec-<id>.png`, convertie depuis
+`assets/sprites-src/echec.jpg`, même grille et même échelle que les autres
+dessins, repeinte par équipe avec ses variantes de visage). Elle remplace le
+patinage pendant tout l'élan du bouton ÉCHEC sans le palet (`elanT`, déjà
+transmis en Wi-Fi) et 0,12 s après (choc ou glisse). Pendant l'élan : trois
+images fantômes et des traits de vitesse derrière le joueur ; au choc, en plus
+du flash et de la secousse, une onde blanche et des étincelles blanches et
+dorées (`core/physics.ts`). Le test `e2e/echec.mjs` déclenche un vrai élan et
+capture la pose et le choc.
+
 **Écran des maillots.** Le joueur y est vu de face (`portrait-<id>.png`,
 converti depuis `assets/sprites-src/portrait.jpg` comme les autres dessins),
 aux couleurs du maillot choisi, avec l'écusson sur la poitrine ; la crosse est

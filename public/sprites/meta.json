@@ -63,6 +63,17 @@
     "echelle": 0.28,
     "decalage": 10
   },
+  "echec": {
+    "tileW": 138,
+    "tileH": 109,
+    "pied": {
+      "x": 63.1,
+      "y": 108
+    },
+    "tete": 2,
+    "echelle": 0.28,
+    "decalage": 10
+  },
   "celebration": {
     "tileW": 134,
     "tileH": 148,

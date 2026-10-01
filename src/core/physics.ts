@@ -259,7 +259,11 @@ export function collisionsPatineurs(state: MatchState): void {
       s.elanT = 0;
       state.evenements.push({ type: 'secousse', force: 3 });
       state.evenements.push({ type: 'charge' });
-      state.evenements.push({ type: 'etincelles', x: (s.x + o.x) / 2, y: (s.y + o.y) / 2 - 4, n: 10, c: '#ffffff' });
+      const ix = (s.x + o.x) / 2;
+      const iy = (s.y + o.y) / 2 - 4;
+      state.evenements.push({ type: 'etincelles', x: ix, y: iy, n: 10, c: '#ffffff' });
+      state.evenements.push({ type: 'etincelles', x: ix, y: iy, n: 8, c: '#ffd35c' });
+      state.evenements.push({ type: 'onde', x: ix, y: iy + 3, r: 24, c: '#ffffff' });
       state.stats.checks[s.eq]++;
       if (s.humain || o.humain) state.evenements.push({ type: 'vibre', ms: 35 });
       break;

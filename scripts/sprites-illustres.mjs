@@ -69,6 +69,8 @@ export async function chargeSources(dossier) {
     portraitRoles: await lis('portrait-roles.png'),
     tir: await lis('tir.png'),
     tirRoles: await lis('tir-roles.png'),
+    echec: await lis('echec.png'),
+    echecRoles: await lis('echec-roles.png'),
     chute: await lis('chute.png'),
     chuteRoles: await lis('chute-roles.png'),
     celebration: await lis('celebration.png'),
@@ -262,6 +264,12 @@ export function feuillePortrait(S, eq, logo) {
 export function feuilleTir(S, eq, logo) {
   const { tileW, tileH, images } = S.meta.tir;
   return feuilleDeuxSens(repeint(S.tir, S.tirRoles, S.meta.roles, eq, logo, tileW, images), tileW, tileH, images);
+}
+
+/** Mise en échec : une seule image (vers la droite), puis la même en miroir. */
+export function feuilleEchec(S, eq, logo) {
+  const { tileW, tileH } = S.meta.echec;
+  return feuilleDeuxSens(repeint(S.echec, S.echecRoles, S.meta.roles, eq, logo, tileW, 1), tileW, tileH, 1);
 }
 
 /** Défenseur esquivé : plongeon puis allongé (tête vers la droite), puis les mêmes en miroir. */

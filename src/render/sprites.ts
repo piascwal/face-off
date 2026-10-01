@@ -32,6 +32,8 @@ export interface MetaSprites {
    * casque dans la case, par image.
    */
   tir: { tileW: number; tileH: number; images: number; pied: Point; tete: number[]; echelle: number; decalage: number };
+  /** Mise en échec (coup d'épaule) : une seule image, rangée 0 vers la droite, 1 vers la gauche. */
+  echec: { tileW: number; tileH: number; images: number; pied: Point; tete: number; echelle: number; decalage: number };
   /** Joueur de face de l'écran des maillots (crosse à droite, puis en miroir). */
   portrait: { tileW: number; tileH: number };
   /**
@@ -54,6 +56,7 @@ const META_DEFAUT: MetaSprites = {
   joueur: { tileW: 133, tileH: 105, images: 4, arret: 0, pied: { x: 52, y: 101 }, tete: 0, echelle: 0.28, decalage: 10 },
   gardien: { tileW: 132, tileH: 115, pied: { x: 71, y: 113 }, echelle: 0.2, decalage: -41 },
   tir: { tileW: 153, tileH: 120, images: 4, pied: { x: 72.9, y: 119 }, tete: [18, 18, 19, 19], echelle: 0.28, decalage: 10 },
+  echec: { tileW: 138, tileH: 109, images: 1, pied: { x: 63.1, y: 108 }, tete: 2, echelle: 0.28, decalage: 10 },
   portrait: { tileW: 92, tileH: 116 },
   chute: { tileW: 176, tileH: 102, images: 2, pied: { x: 88, y: 43 }, tete: [{ x: 114, y: 31 }, { x: 125, y: 39 }], echelle: 0.22 },
   celebration: { tileW: 134, tileH: 148, images: 4, reference: 122 },
@@ -117,6 +120,8 @@ export class BanqueSprites {
   private chutes = new Map<string, HTMLImageElement>();
   private tirs = new Map<string, HTMLImageElement>();
   private visagesTir: HTMLImageElement | null = null;
+  private echecs = new Map<string, HTMLImageElement>();
+  private visagesEchec: HTMLImageElement | null = null;
   private celebrations = new Map<string, HTMLImageElement>();
   private visages: HTMLImageElement | null = null;
   private dores = new Map<string, HTMLCanvasElement>();
@@ -135,6 +140,10 @@ export class BanqueSprites {
       (img) => (this.visagesTir = img),
       () => undefined,
     );
+    chargeImage(`${base}/visages-echec.png`).then(
+      (img) => (this.visagesEchec = img),
+      () => undefined,
+    );
   }
 
   /** Précharge les feuilles d'une équipe (idempotent) — à appeler avant un match. */
@@ -146,6 +155,10 @@ export class BanqueSprites {
       // le geste de tir arrive à part : sans lui, le joueur garde sa pose de patinage
       chargeImage(`${this.base}/tir-${teamId}.png`).then(
         (img) => this.tirs.set(teamId, img),
+        () => undefined,
+      );
+      chargeImage(`${this.base}/echec-${teamId}.png`).then(
+        (img) => this.echecs.set(teamId, img),
         () => undefined,
       );
       const [s, g, p, c, ce] = await Promise.all([
@@ -201,6 +214,28 @@ export class BanqueSprites {
     const col = Math.min(images - 1, Math.max(0, frame));
     const rang = (((variante % n) + n) % n) + (gauche ? n : 0);
     return { img, rect: { sx: col * tileW, sy: rang * tileH, sw: tileW, sh: tileH } };
+  }
+
+  /** La pose de la mise en échec (une seule image). */
+  spriteEchec(teamId: string, gauche: boolean): { img: HTMLImageElement; rect: Rect } | null {
+    const img = this.echecs.get(teamId);
+    if (!img) return null;
+    const { tileW, tileH } = this.meta.echec;
+    return { img, rect: { sx: 0, sy: (gauche ? 1 : 0) * tileH, sw: tileW, sh: tileH } };
+  }
+
+  spriteEchecDore(teamId: string, gauche: boolean): { img: HTMLCanvasElement; rect: Rect } | null {
+    return this.dore(`echec:${teamId}`, this.spriteEchec(teamId, gauche));
+  }
+
+  /** Calque du visage `variante` sur la pose de mise en échec. */
+  spriteVisageEchec(variante: number, gauche: boolean): { img: HTMLImageElement; rect: Rect } | null {
+    const img = this.visagesEchec;
+    const n = this.meta.visages;
+    if (!img || n < 2) return null;
+    const { tileW, tileH } = this.meta.echec;
+    const rang = (((variante % n) + n) % n) + (gauche ? n : 0);
+    return { img, rect: { sx: 0, sy: rang * tileH, sw: tileW, sh: tileH } };
   }
 
   /** La version dorée d'une case : la feuille entière est repeinte une fois, puis gardée. */
