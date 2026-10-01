@@ -1,5 +1,6 @@
 export * from './celebration';
 export * from './controls-overlay';
+export * from './aide-commandes';
 export * from './effects';
 export * from './entities-render';
 export * from './fins';

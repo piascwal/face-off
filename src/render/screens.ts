@@ -15,17 +15,14 @@ export interface EtatMenu {
   niveauIdx: number;
   dureeIdx: number;
   effectifIdx: number;
-  son: boolean;
-  victoires: number;
-  matchs: number;
-  tactile: boolean;
+  bonus: boolean;
   /** Numéro de version de l'app, en petit en bas à droite. */
   version: string;
   onMode: () => void;
   onNiveau: () => void;
   onDuree: () => void;
   onEffectif: () => void;
-  onSon: () => void;
+  onBonus: () => void;
   onJouer: () => void;
   onReseau: () => void;
   onAvance: () => void;
@@ -57,7 +54,7 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
     ['NIVEAU', NIVEAUX[menu.niveauIdx]!.nom, menu.onNiveau],
     ['DUREE', `${DUREES[menu.dureeIdx]! / 60} MIN`, menu.onDuree],
     ['EQUIPES', `${EFFECTIFS[menu.effectifIdx]} CONTRE ${EFFECTIFS[menu.effectifIdx]}`, menu.onEffectif],
-    ['SON', menu.son ? 'OUI' : 'NON', menu.onSon],
+    ['BONUS', menu.bonus ? 'OUI' : 'NON', menu.onBonus],
   ];
   lignes.forEach(([k, v, act], i) => {
     const y = py + 5 + i * 14;
@@ -74,30 +71,13 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
   });
   bouton(g, boutons, 'MULTI WIFI', cx + 4, jy, 84, 22, menu.onReseau, { couleur: '#1f7fb3', clair: '#6fd0ff', fonce: '#0f4d73' });
   bouton(g, boutons, 'REGLAGES AVANCES', cx - 60, jy + 28, 120, 13, menu.onAvance, { couleur: '#232a58' });
-  const bas = py + ph + 6;
   texte(g, menu.version, W - 3, H - 9, '#4a5380', 1, 'd');
-  const bilan = menu.coupe
-    ? menu.tourCoupe
-      ? `COUPE EN COURS : ${menu.tourCoupe}`
-      : 'NOUVELLE COUPE : 8 EQUIPES, 3 TOURS'
-    : menu.matchs
-      ? `VICTOIRES ${menu.victoires} / ${menu.matchs}`
-      : 'PREMIER MATCH ?';
-  if (bas + 8 < H) texte(g, bilan, cx, bas, menu.coupe ? C.or : C.gris, 1, 'c');
-  if (bas + 20 < H) {
-    texte(
-      g,
-      menu.tactile ? 'GAUCHE : PATINER   DROITE : TIR / CROSSE, PASSE, SPRINT / ÉCHEC' : 'FLECHES  ESPACE : TIR / CROSSE  L : PASSE  MAJ : SPRINT / ESQUIVE / ÉCHEC',
-      cx,
-      bas + 11,
-      '#6f7aa6',
-      1,
-      'c',
-    );
-  }
+  const bas = py + ph + 6;
+  if (menu.coupe && bas + 8 < H) texte(g, menu.tourCoupe ? `COUPE EN COURS : ${menu.tourCoupe}` : 'NOUVELLE COUPE : 8 EQUIPES, 3 TOURS', cx, bas, C.or, 1, 'c');
 }
 
 export interface EtatAvance {
+  son: boolean;
   assistTir: boolean;
   assistPasse: boolean;
   changementAuto: boolean;
@@ -108,6 +88,8 @@ export interface EtatAvance {
   onChangementAuto: () => void;
   onSecousses: () => void;
   onRalenti: () => void;
+  onSon: () => void;
+  onCommandes: () => void;
   onRetour: () => void;
 }
 
@@ -123,10 +105,11 @@ export function dessineAvance(g: CanvasRenderingContext2D, boutons: ZoneBouton[]
   texte(g, 'REGLAGES AVANCES', cx, 4, C.blanc, 1, 'c');
 
   const pw = 234;
-  const ph = 100;
-  const py = Math.round(H * 0.18);
+  const ph = 108;
+  const py = Math.max(14, Math.round(H * 0.18) - 10);
   panneau(g, cx - pw / 2, py, pw, ph);
   const lignes: [string, string, () => void][] = [
+    ['SON', menu.son ? 'OUI' : 'NON', menu.onSon],
     ['ASSISTANCE TIR', menu.assistTir ? 'OUI' : 'NON', menu.onAssistTir],
     ['ASSISTANCE PASSE', menu.assistPasse ? 'OUI' : 'NON', menu.onAssistPasse],
     ['CHGT AUTO JOUEUR', menu.changementAuto ? 'OUI' : 'NON', menu.onChangementAuto],
@@ -134,12 +117,12 @@ export function dessineAvance(g: CanvasRenderingContext2D, boutons: ZoneBouton[]
     ['RALENTI DES BUTS', menu.ralentiButs ? 'OUI' : 'NON', menu.onRalenti],
   ];
   lignes.forEach(([k, v, act], i) => {
-    const y = py + 6 + i * 17;
+    const y = py + 6 + i * 16;
     texte(g, k, cx - pw / 2 + 10, y + 4, C.gris, 1, 'g');
     bouton(g, boutons, `< ${v} >`, cx + pw / 2 - 106, y, 96, 13, act, { couleur: '#232a58' });
   });
-  texte(g, 'CHANGE VRAIMENT LA PARTIE, PAS JUSTE L\'AFFICHAGE', cx, py + ph + 8, '#6f7aa6', 1, 'c');
-  bouton(g, boutons, '< RETOUR', cx - 45, py + ph + 20, 90, 16, menu.onRetour, { couleur: '#232a58', e: 1 });
+  bouton(g, boutons, '< RETOUR', cx - 95, py + ph + 8, 90, 16, menu.onRetour, { couleur: '#232a58', e: 1 });
+  bouton(g, boutons, 'COMMANDES >', cx + 5, py + ph + 8, 90, 16, menu.onCommandes, { couleur: '#2d3a8c', e: 1 });
 }
 
 export function dessinePause(

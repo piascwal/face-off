@@ -1,7 +1,8 @@
 /**
  * Parcours solo au clavier, comme un joueur : menu, choix des équipes et des
  * maillots (avec retour arrière), match, pause et reprise, fin de match
- * (image puis statistiques), rejouer, et le bilan des victoires.
+ * (image puis statistiques), rejouer, le bilan des victoires et l'aide des
+ * commandes (réglages avancés).
  */
 import { attends } from './outils.mjs';
 
@@ -78,4 +79,20 @@ export default async function solo(env) {
   await touche('Escape');
   await p.evaluate(() => window.faceOff.retourMenu());
   env.verifie((await ecran()) === 'menu', 'retour au menu');
+
+  // réglages avancés > commandes : onglets tactile / clavier, retours en arrière
+  await p.evaluate(() => (window.faceOff.ecranUI = 'avance'));
+  await p.evaluate(() => window.faceOff.solo.ouvreCommandes());
+  env.verifie((await ecran()) === 'commandes', 'écran des commandes');
+  const onglet = () => p.evaluate(() => window.faceOff.solo.ongletCommandes);
+  const o1 = await onglet();
+  await env.capture(p, `7-commandes-${o1}`);
+  await touche('ArrowRight');
+  const o2 = await onglet();
+  env.verifie(o1 !== o2, `flèche : onglet ${o1} -> ${o2}`);
+  await env.capture(p, `8-commandes-${o2}`);
+  await touche('Escape');
+  env.verifie((await ecran()) === 'avance', 'ÉCHAP : retour aux réglages avancés');
+  await touche('Escape');
+  env.verifie((await ecran()) === 'menu', 'ÉCHAP : retour au menu');
 }

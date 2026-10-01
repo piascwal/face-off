@@ -5,6 +5,7 @@ import { trouveEquipe } from '@core/teams';
 import type { MatchState } from '@core/types';
 import {
   C,
+  dessineAideCommandes,
   dessineAvance,
   dessineChoixMaillots,
   dessineFin,
@@ -16,11 +17,13 @@ import {
   type CarteEquipe,
   type CoteMaillot,
   type EquipeVisuelle,
+  type EtatAideCommandes,
   type EtatAvance,
   type EtatChoixMaillots,
   type EtatFin,
   type EtatMenu,
   type EtatSelectionEquipe,
+  type OngletCommandes,
   type Variante,
 } from '@render/index';
 import type { EcranUI } from './ecrans';
@@ -47,6 +50,8 @@ export class ParcoursSolo {
   varianteAdversaire: Variante = 'interieur';
   /** Niveau de difficulté du match en cours (en coupe, fractionnaire : il monte un peu à chaque tour). */
   niveauMatch = 1;
+  /** Onglet de l'écran des commandes (au départ : celui de l'appareil). */
+  ongletCommandes: OngletCommandes | null = null;
 
   constructor(private readonly app: GameApp) {}
 
@@ -72,6 +77,22 @@ export class ParcoursSolo {
   private fermeAvance(): void {
     this.app.audio.clic();
     this.app.ecranUI = 'menu';
+  }
+
+  private ouvreCommandes(): void {
+    this.app.audio.clic();
+    this.ongletCommandes ??= this.app.entrees.tactile ? 'tactile' : 'clavier';
+    this.app.ecranUI = 'commandes';
+  }
+
+  private fermeCommandes(): void {
+    this.app.audio.clic();
+    this.app.ecranUI = 'avance';
+  }
+
+  private changeOngletCommandes(o: OngletCommandes): void {
+    this.app.audio.clic();
+    this.ongletCommandes = o;
   }
 
   private tourneJoueur(sens: 1 | -1): void {
@@ -174,9 +195,14 @@ export class ParcoursSolo {
       else if (ecran === 'equipes') this.confirmeSelection();
       else if (ecran === 'maillots') this.confirmeMaillots();
       else if (ecran === 'avance') this.fermeAvance();
+      else if (ecran === 'commandes') this.fermeCommandes();
     }
     if (e.code === 'Escape' && ecran === 'maillots') this.retourChoixEquipes();
     if (e.code === 'Escape' && ecran === 'avance') this.fermeAvance();
+    if (e.code === 'Escape' && ecran === 'commandes') this.fermeCommandes();
+    if (ecran === 'commandes' && !repete && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+      this.changeOngletCommandes(this.ongletCommandes === 'tactile' ? 'clavier' : 'tactile');
+    }
     if (e.code === 'Escape' && ecran === 'equipes') this.app.retourMenu();
     if (ecran === 'equipes' && !repete) {
       // pensé « manette » : gauche/droite pour votre équipe, haut/bas pour l'adversaire
@@ -203,6 +229,9 @@ export class ParcoursSolo {
         return true;
       case 'avance':
         dessineAvance(g, boutons, W, H, this.avanceProps());
+        return true;
+      case 'commandes':
+        dessineAideCommandes(g, boutons, W, H, temps, this.commandesProps());
         return true;
       case 'equipes':
         dessineSelectionEquipe(g, boutons, W, H, this.selectionProps());
@@ -240,17 +269,13 @@ export class ParcoursSolo {
       niveauIdx: pref.niveau,
       dureeIdx: pref.duree,
       effectifIdx: pref.effectif,
-      son: pref.son,
-      victoires: pref.victoires[pref.niveau] ?? 0,
-      matchs: pref.matchs[pref.niveau] ?? 0,
-      tactile: app.entrees.tactile,
+      bonus: pref.bonus,
       version: __VERSION_APP__,
       onNiveau: bascule('niveau', NIVEAUX.length),
       onDuree: bascule('duree', DUREES.length),
       onEffectif: bascule('effectif', EFFECTIFS.length),
-      onSon: () => {
-        pref.son = !pref.son;
-        app.audio.muet(!pref.son);
+      onBonus: () => {
+        pref.bonus = !pref.bonus;
         sauvePreferences(pref);
       },
       onJouer: () => this.jouer(),
@@ -267,6 +292,7 @@ export class ParcoursSolo {
       sauvePreferences(pref);
     };
     return {
+      son: pref.son,
       assistTir: pref.assistTir,
       assistPasse: pref.assistPasse,
       changementAuto: pref.changementAuto,
@@ -281,7 +307,21 @@ export class ParcoursSolo {
         app.effets.intensiteEcran = pref.secoussesReduites ? 0.4 : 1;
         sauvePreferences(pref);
       },
+      onSon: () => {
+        pref.son = !pref.son;
+        app.audio.muet(!pref.son);
+        sauvePreferences(pref);
+      },
+      onCommandes: () => this.ouvreCommandes(),
       onRetour: () => this.fermeAvance(),
+    };
+  }
+
+  private commandesProps(): EtatAideCommandes {
+    return {
+      onglet: this.ongletCommandes ?? 'clavier',
+      onOnglet: (o) => this.changeOngletCommandes(o),
+      onRetour: () => this.fermeCommandes(),
     };
   }
 

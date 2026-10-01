@@ -28,6 +28,8 @@ export interface Preferences {
   mode: 'classique' | 'coupe';
   /** Coupe en cours (reprise au prochain lancement), ou null. */
   coupe: EtatCoupe | null;
+  /** Bonus (power-ups) activés en match. */
+  bonus: boolean;
 }
 
 export interface BilanDuel {
@@ -57,6 +59,7 @@ const DEFAUT: Preferences = {
   duels: {},
   mode: 'classique',
   coupe: null,
+  bonus: true,
 };
 
 const SURNOMS = ['LYNX', 'ORQUE', 'AIGLE', 'LOUP', 'OURS', 'PUMA', 'FAUCON', 'BISON', 'RENARD', 'TIGRE', 'COBRA', 'HIBOU', 'REQUIN', 'ZEBRE'];

@@ -7,6 +7,7 @@ export type EcranUI =
   // solo (parcours-solo.ts)
   | 'menu'
   | 'avance'
+  | 'commandes'
   | 'equipes'
   | 'maillots'
   | 'pause'
@@ -24,4 +25,4 @@ export type EcranUI =
   | 'fin';
 
 /** Écrans de menu plein cadre : ni tableau d'affichage ni bandeau par-dessus. */
-export const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'equipes', 'maillots', 'coupeChoix', 'coupe', 'lan', 'lanConfig', 'salon', 'lanChoix', 'lanSpect'];
+export const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'commandes', 'equipes', 'maillots', 'coupeChoix', 'coupe', 'lan', 'lanConfig', 'salon', 'lanChoix', 'lanSpect'];
