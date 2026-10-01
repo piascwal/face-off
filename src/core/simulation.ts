@@ -96,7 +96,7 @@ export function pas(
       state.evenements.push({ type: 'sifflet', long: false });
     }
   } else if (state.phase === 'jeu') {
-    if (state.mode === 'match' && !state.prolong) {
+    if (state.mode === 'match' && !state.prolong && !state.entrainement) {
       state.horloge -= dt;
       if (state.horloge <= 0) {
         state.horloge = 0;

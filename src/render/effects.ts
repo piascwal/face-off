@@ -67,6 +67,9 @@ export class SystemeEffets {
   particules: Particule[] = [];
   bulles: Bulle[] = [];
   ondes: Onde[] = [];
+  /** Gamelle : brouillage de l'écran (s restantes), et « -1 » affiché sur le score de chaque équipe (s restantes). */
+  glitch = 0;
+  malus: [number, number] = [0, 0];
   secousse = 0;
   flash = 0;
   /** Multiplicateur des secousses d'écran et flashs (réglage avancé, accessibilité). */
@@ -149,6 +152,10 @@ export class SystemeEffets {
         case 'bulle':
           this.bulle(ev.txt, ev.x, ev.y, ev.c);
           break;
+        case 'glitch':
+          this.glitch = 0.9;
+          this.malus[ev.eq] = 2.5;
+          break;
         case 'onde':
           this.ondes.push({ x: ev.x, y: ev.y, r: ev.r, c: ev.c, vie: 0.35, max: 0.35 });
           break;
@@ -190,6 +197,8 @@ export class SystemeEffets {
       b.y -= 14 * dt;
     }
     this.bulles = this.bulles.filter((b) => b.vie > 0);
+    this.glitch = Math.max(0, this.glitch - dt);
+    this.malus = [Math.max(0, this.malus[0] - dt), Math.max(0, this.malus[1] - dt)];
     for (const o of this.ondes) o.vie -= dt;
     this.ondes = this.ondes.filter((o) => o.vie > 0);
     this.secousse = Math.max(0, this.secousse - dt * 14);
@@ -204,6 +213,8 @@ export class SystemeEffets {
     this.particules = [];
     this.bulles = [];
     this.ondes = [];
+    this.glitch = 0;
+    this.malus = [0, 0];
     this.banniere = null;
   }
 }

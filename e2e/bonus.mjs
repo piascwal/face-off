@@ -66,13 +66,17 @@ export default async function bonus(env) {
   await env.capture(p, '5-double');
 
   // freeze : tout le monde est pris dans la glace, sauf le joueur doré
-  const donne = (id) =>
-    p.evaluate((i) => {
+  // un tir de bonus peut marquer : on attend alors la remise en jeu avant l'étape suivante
+  const enJeu = () => env.attendsQue(p, () => window.faceOff.state.phase === 'jeu' && !window.faceOff.ralenti.actif, undefined, 12000);
+  const donne = async (id) => {
+    await enJeu();
+    await p.evaluate((i) => {
       const pv = window.faceOff.state.pouvoirs[0];
       pv.actif = null;
       pv.pret = i;
       pv.tirage = 0;
     }, id);
+  };
   await donne('freeze');
   await touche('KeyB');
   env.verifie((await pv(0)).actif === 'freeze', 'touche B : FREEZE en cours');
@@ -156,6 +160,49 @@ export default async function bonus(env) {
   const guide = await p.evaluate(() => ({ actif: window.faceOff.state.pouvoirs[0].actif, tient: window.faceOff.state.controles[0].tient }));
   env.verifie(guide.actif === null && !guide.tient, 'doigt relevé : tir guidé parti');
 
+  // surnombre : un renfort doré et semi-transparent entre sur la glace
+  await donne('surnombre');
+  const n0 = await p.evaluate(() => window.faceOff.state.patineurs.length);
+  await touche('KeyB');
+  await attends(400);
+  const n1 = await p.evaluate(() => window.faceOff.state.patineurs.filter((s) => s.renfort).length);
+  env.verifie(n1 === 1 && (await p.evaluate(() => window.faceOff.state.patineurs.length)) === n0 + 1, 'touche B : SURNOMBRE, un renfort entre');
+  await env.capture(p, '9a-surnombre');
+
+  // gamelle : on marque pendant le bonus, l'adversaire perd un but
+  await enJeu();
+  await p.evaluate(() => {
+    const st = window.faceOff.state;
+    st.score = [0, 2];
+    const pv = st.pouvoirs[0];
+    pv.actif = null;
+    pv.pret = 'gamelle';
+    pv.tirage = 0;
+  });
+  await touche('KeyB');
+  env.verifie((await pv(0)).actif === 'gamelle', 'touche B : GAMELLE en cours');
+  await attends(300);
+  await env.capture(p, '9b-gamelle-menace');
+  await p.evaluate(() => {
+    const st = window.faceOff.state;
+    const app = window.faceOff;
+    for (const s of st.patineurs) s.y = app.rink.cy + 60;
+    st.gardiens[1].a = 1.3;
+    st.gardiens[1].vit = 0;
+    const pal = st.palet;
+    if (pal.porteur) pal.porteur.tient = false;
+    pal.porteur = null;
+    pal.x = app.rink.butD - 12;
+    pal.y = app.rink.cy - 10;
+    pal.vx = 420;
+    pal.vy = 0;
+  });
+  env.verifie(await env.attendsQue(p, () => window.faceOff.state.phase === 'but', undefined, 2000), 'but marqué');
+  await attends(150);
+  await env.capture(p, '9c-gamelle-glitch');
+  const sc = await p.evaluate(() => window.faceOff.state.score);
+  env.verifie(sc[0] === 1 && sc[1] === 1, `but + gamelle : 0-2 devient 1-1 (${sc})`);
+
   // option du menu : sans bonus, pas de jauge
   await p.evaluate(() => {
     window.faceOff.pref.bonus = false;
@@ -163,5 +210,23 @@ export default async function bonus(env) {
   });
   await attends(300);
   env.verifie((await pv(0)) === null, 'option BONUS NON : aucun bonus en match');
-  await env.capture(p, '9-sans-bonus');
+  await env.capture(p, '9d-sans-bonus');
+
+  // mode entraînement (réglages avancés) : grille des bonus, choix gardé, match sans chrono
+  await p.evaluate(() => window.faceOff.retourMenu());
+  await p.evaluate(() => (window.faceOff.ecranUI = 'avance'));
+  await p.evaluate(() => window.faceOff.solo.ouvreEntrainement());
+  env.verifie((await p.evaluate(() => window.faceOff.ecranUI)) === 'entrainement', 'écran entraînement');
+  await touche('ArrowDown');
+  await touche('ArrowRight');
+  const choix = await p.evaluate(() => window.faceOff.pref.bonusEntrainement);
+  await env.capture(p, '10-entrainement');
+  await touche('Enter');
+  env.verifie((await p.evaluate(() => window.faceOff.ecranUI)) === 'jeu', 'ENTRÉE : match d\'entraînement lancé');
+  env.verifie((await p.evaluate(() => window.faceOff.state.entrainement)) === choix, `bonus d'entraînement : ${choix}`);
+  env.verifie(await env.attendsQue(p, () => window.faceOff.state.pouvoirs?.[0].pret === window.faceOff.pref.bonusEntrainement, undefined, 4000), 'le bonus choisi est prêt');
+  const h0 = await p.evaluate(() => window.faceOff.state.horloge);
+  await attends(600);
+  env.verifie((await p.evaluate(() => window.faceOff.state.horloge)) === h0, 'pas de chrono en entraînement');
+  await env.capture(p, '11-entrainement-match');
 }

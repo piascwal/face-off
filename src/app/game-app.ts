@@ -471,13 +471,14 @@ export class GameApp {
       this.equipesActuelles,
       lan.spectateur ? null : lan.eqLocal,
     );
+    if (this.effets.glitch > 0) this.brouille(this.effets.glitch);
     g.setTransform(E, 0, 0, E, 0, 0);
     const enMatch = !ECRANS_MENU.includes(this.ecranUI);
     // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
     if (enMatch) {
       if (!ralenti) dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, temps);
       if (!ralenti) dessineJaugesBonus(g, this.W, state, lan.spectateur ? null : lan.eqLocal, temps, !this.entrees.tactile);
-      dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
+      dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles, this.effets.malus);
     }
     if (!ralenti && (this.ecranUI === 'menu' || enMatch)) dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
     // le buteur qui fête son but passe au premier plan, devant l'écusson et le bandeau
@@ -498,6 +499,37 @@ export class GameApp {
       g.fillRect(0, 0, this.W, this.H);
     }
     if (this.attenteDemarrage && this.ecranUI === 'menu') this.dessineEcranDemarrage(g, temps);
+  }
+
+  /**
+   * Gamelle : brouillage de l'image façon signal vidéo perdu. Des bandes de
+   * l'image glissent de côté, d'autres se teintent de rouge ou de cyan ;
+   * l'effet s'atténue en `force` secondes.
+   */
+  private brouille(force: number): void {
+    const g = this.g;
+    const c = this.ecran;
+    const k = Math.min(1, force / 0.5);
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    const graine = Math.floor(performance.now() / 50);
+    const hasard = (i: number) => {
+      const x = Math.sin(graine * 12.9898 + i * 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    };
+    for (let i = 0; i < 7; i++) {
+      const h = Math.round((4 + hasard(i) * 22) * this.ECHELLE);
+      const y = Math.round(hasard(i + 10) * (c.height - h));
+      const dx = Math.round((hasard(i + 20) - 0.5) * 30 * this.ECHELLE * k);
+      g.drawImage(c, 0, y, c.width, h, dx, y, c.width, h);
+      if (i % 2 === 0) {
+        g.globalAlpha = 0.22 * k;
+        g.fillStyle = i % 4 === 0 ? '#ff2a4a' : '#2ae8ff';
+        g.fillRect(0, y, c.width, h);
+        g.globalAlpha = 1;
+      }
+    }
+    g.restore();
   }
 
   /**

@@ -61,7 +61,7 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 | `solo` | Au clavier : menu, choix des équipes et maillots (avec retour), match, pause, fin, rejouer, bilan, écran des commandes |
 | `coupe` | Mode coupe : choix, tableau, dévoilement, élimination, titre |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
-| `bonus` | Bonus en solo : jauge, tirage, bouton BONUS au doigt et touche B (et tir depuis BONUS), joueur doré, « 2X », freeze, inversion, tir surpuissant, option du menu |
+| `bonus` | Bonus en solo : jauge, tirage, bouton BONUS au doigt et touche B (et tir depuis BONUS), joueur doré, « 2X », freeze, inversion, tir surpuissant, surnombre, gamelle, option du menu, mode entraînement |
 | `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), invité qui ne revient pas, coupure pendant le choix des équipes |
 
 En local, Chromium doit être installé une fois : `npx playwright install chromium`.
@@ -666,13 +666,15 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
   pourra plus tard donner plus souvent les bonus puissants à l'équipe menée.
 - **L'utilisation.** On a 10 s de jeu pour déclencher le bonus
   (`PRET_MAX_S`, une barre fond sous « PRET ! »), sinon il est perdu :
-  bouton **BONUS** (au-dessus de PASSE, il n'apparaît qu'à ce moment) ou
-  touche **B**. Pour un bonus de tir (guidé, surpuissant), ce bouton
+  bouton **BONUS** (au-dessus de PASSE, avec l'icône du bonus ; il
+  n'apparaît qu'à ce moment) ou touche **B**. Pour un bonus de tir (guidé, surpuissant), ce bouton
   déclenche le bonus et sert aussi de bouton de tir : on maintient pour
   charger, on glisse pour viser, on relâche pour tirer. Pendant qu'un bonus
   est en main ou en cours, les passes ne remplissent pas la jauge.
   L'ordinateur s'en sert aussi : quand il a le palet (près de la cage pour
-  les bonus de tir), au plus tard après 6 s.
+  les bonus de tir et la gamelle), au plus tard après 6 s.
+- **Un but met fin aux bonus en cours**, des deux côtés. Un bonus prêt mais
+  pas encore déclenché reste en main.
 - **Le joueur doré.** Le joueur piloté devient doré (maillot, crosse et
   visage) avec une auréole. Pendant les 2 dernières secondes, il clignote
   entre doré et normal, de plus en plus vite.
@@ -689,17 +691,20 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 | Mode savon | toute mise en échec contre l'équipe se transforme en esquive, étincelles bleues | 8 s |
 | Inversion | les déplacements des adversaires partent à l'envers (l'ordinateur aussi), spirales au-dessus de leur tête | 5 s |
 | Ricochet | le palet joué par l'équipe repart des bandes plus vite (×1,12, 480 px/s max), traînée néon | 8 s |
+| Surnombre | un coéquipier de plus saute du banc (doré, semi-transparent, piloté par l'ordinateur ou par vous si vous changez de joueur), puis repart | 10 s |
+| Gamelle | si l'équipe marque pendant le bonus, l'adversaire perd un but (jamais sous zéro) ; « -1 ? » clignote sous son score, brouillage de l'écran au moment du but | 10 s |
 | But x2 | le prochain but de l'équipe compte double ; « 2X » au-dessus de la cage adverse | jusqu'au but |
 
-Prévu ensuite (lot 3) : gamelle (−1 but à l'adversaire si l'on marque dans
-les 10 s), surnombre, mode entraînement. Ils ne sortent pas encore au tirage
-(`dispo` dans `DEF_POUVOIRS`).
+**Mode entraînement** (Réglages avancés > ENTRAINEMENT) : on choisit un
+bonus dans la grille des 10 (le choix est gardé), puis un match sans chrono
+contre l'ordinateur. Le bonus choisi revient peu après chaque usage et ne se
+perd pas ; l'adversaire n'a pas de bonus. PAUSE > ABANDONNER pour sortir.
 
 Code : `core/pouvoirs.ts` (règles, tirage, effets, IA ; testé dans
 `tests/pouvoirs.test.ts`), `render/hud-bonus.ts` et `render/icones-bonus.ts`
 (jauges, tirage, bouton), feuille dorée calculée à la volée
 (`BanqueSprites.spriteJoueurDore`). En Wi-Fi, les bonus voyagent dans
-l'instantané (protocole v14) et l'appui sur BONUS comme les autres appuis.
+l'instantané (protocole v15) et l'appui sur BONUS comme les autres appuis.
 
 L'aide des commandes (tactile et clavier) est dans **Réglages avancés >
 Commandes**.

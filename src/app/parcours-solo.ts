@@ -1,12 +1,15 @@
 import { coupeTerminee, NOMS_TOURS } from '@core/coupe';
 import { DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from '@core/constants';
 import { creePartie, type OptionsPartie } from '@core/rules';
+import { POUVOIRS } from '@core/pouvoirs';
 import { trouveEquipe } from '@core/teams';
-import type { MatchState } from '@core/types';
+import type { MatchState, PouvoirId } from '@core/types';
 import {
   C,
   dessineAideCommandes,
   dessineAvance,
+  dessineEntrainement,
+  COLONNES_ENTRAINEMENT,
   dessineChoixMaillots,
   dessineFin,
   dessineMenu,
@@ -19,6 +22,7 @@ import {
   type EquipeVisuelle,
   type EtatAideCommandes,
   type EtatAvance,
+  type EtatEntrainement,
   type EtatChoixMaillots,
   type EtatFin,
   type EtatMenu,
@@ -90,6 +94,32 @@ export class ParcoursSolo {
     this.app.ecranUI = 'avance';
   }
 
+  private ouvreEntrainement(): void {
+    this.app.audio.clic();
+    this.app.ecranUI = 'entrainement';
+  }
+
+  private choisitEntrainement(id: PouvoirId): void {
+    this.app.audio.clic();
+    this.app.pref.bonusEntrainement = id;
+    sauvePreferences(this.app.pref);
+  }
+
+  /** Flèches dans la grille des bonus (5 colonnes, 2 rangées, on boucle). */
+  private deplaceEntrainement(dx: number, dy: number): void {
+    const n = POUVOIRS.length;
+    const i = POUVOIRS.indexOf(this.app.pref.bonusEntrainement);
+    this.choisitEntrainement(POUVOIRS[(i + dx + dy * COLONNES_ENTRAINEMENT + n) % n]!);
+  }
+
+  /** Entraînement : votre équipe contre l'adversaire du moment, sans chrono, le bonus choisi revient sans cesse. */
+  lanceEntrainement(): void {
+    const app = this.app;
+    const def = EQUIPES_JOUABLES.find((e) => e.id === app.pref.equipeJoueur) ?? EQUIPES_JOUABLES[0]!;
+    const adverse = app.equipesActuelles[1].teamId === def.id ? EQUIPES_JOUABLES.find((e) => e.id !== def.id)! : (EQUIPES_JOUABLES.find((e) => e.id === app.equipesActuelles[1].teamId) ?? EQUIPES_JOUABLES[1]!);
+    this.lanceMatch(resoutEquipe(def, 'interieur'), resoutEquipe(adverse, 'exterieur'), app.pref.niveau, 'ENTRAINEMENT', app.pref.bonusEntrainement);
+  }
+
   private changeOngletCommandes(o: OngletCommandes): void {
     this.app.audio.clic();
     this.ongletCommandes = o;
@@ -141,7 +171,7 @@ export class ParcoursSolo {
   }
 
   /** Match contre l'ordinateur (niveau du menu, ou celui du tour en coupe). */
-  lanceMatch(equipeJoueur: EquipeVisuelle, equipeAdverse: EquipeVisuelle, niveau = this.app.pref.niveau, sousTitre?: string): void {
+  lanceMatch(equipeJoueur: EquipeVisuelle, equipeAdverse: EquipeVisuelle, niveau = this.app.pref.niveau, sousTitre?: string, entrainement?: PouvoirId): void {
     const app = this.app;
     const pref = app.pref;
     app.audio.init();
@@ -163,6 +193,7 @@ export class ParcoursSolo {
       changementAuto: pref.changementAuto,
       dureeBut: dureeBut(pref.ralentiButs),
       pouvoirs: pref.bonus,
+      entrainement,
     };
     app.demarreRalenti(options);
     app.state = creePartie(app.rink!, options);
@@ -197,6 +228,14 @@ export class ParcoursSolo {
       else if (ecran === 'maillots') this.confirmeMaillots();
       else if (ecran === 'avance') this.fermeAvance();
       else if (ecran === 'commandes') this.fermeCommandes();
+      else if (ecran === 'entrainement') this.lanceEntrainement();
+    }
+    if (e.code === 'Escape' && ecran === 'entrainement') this.fermeCommandes();
+    if (ecran === 'entrainement' && !repete) {
+      if (e.code === 'ArrowLeft') this.deplaceEntrainement(-1, 0);
+      else if (e.code === 'ArrowRight') this.deplaceEntrainement(1, 0);
+      else if (e.code === 'ArrowUp') this.deplaceEntrainement(0, -1);
+      else if (e.code === 'ArrowDown') this.deplaceEntrainement(0, 1);
     }
     if (e.code === 'Escape' && ecran === 'maillots') this.retourChoixEquipes();
     if (e.code === 'Escape' && ecran === 'avance') this.fermeAvance();
@@ -233,6 +272,9 @@ export class ParcoursSolo {
         return true;
       case 'commandes':
         dessineAideCommandes(g, boutons, W, H, temps, this.commandesProps());
+        return true;
+      case 'entrainement':
+        dessineEntrainement(g, boutons, W, H, temps, this.entrainementProps());
         return true;
       case 'equipes':
         dessineSelectionEquipe(g, boutons, W, H, this.selectionProps());
@@ -314,7 +356,17 @@ export class ParcoursSolo {
         sauvePreferences(pref);
       },
       onCommandes: () => this.ouvreCommandes(),
+      onEntrainement: () => this.ouvreEntrainement(),
       onRetour: () => this.fermeAvance(),
+    };
+  }
+
+  private entrainementProps(): EtatEntrainement {
+    return {
+      choix: this.app.pref.bonusEntrainement,
+      onChoix: (id) => this.choisitEntrainement(id),
+      onJouer: () => this.lanceEntrainement(),
+      onRetour: () => this.fermeCommandes(),
     };
   }
 

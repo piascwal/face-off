@@ -18,6 +18,7 @@ import {
 import {
   cassePasses,
   DEF_POUVOIRS,
+  gamelle,
   estDore,
   estGele,
   finPouvoir,
@@ -515,6 +516,11 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
   const double = pouvoirActif(state, eq, 'double');
   state.score[eq] += double ? 2 : 1;
   if (double) finPouvoir(state, eq);
+  // bonus « gamelle » : le but enlève en plus un but à l'adversaire
+  const malus = gamelle(state, eq);
+  // un but met fin aux bonus encore en cours, des deux côtés (un bonus prêt reste en main)
+  finPouvoir(state, 0);
+  finPouvoir(state, 1);
   cassePasses(state, 0);
   cassePasses(state, 1);
   state.palet.guide = null;
@@ -535,7 +541,7 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
   state.evenements.push({
     type: 'annonce',
     // un but au bout d'un vrai jeu de passes se fête plus fort
-    txt: double ? `${DEF_POUVOIRS.double.nom} !` : collectif ? 'BUT COLLECTIF !' : 'BUT !',
+    txt: malus ? 'BUT + GAMELLE !' : double ? `${DEF_POUVOIRS.double.nom} !` : collectif ? 'BUT COLLECTIF !' : 'BUT !',
     sous: collectif ? `${p.passes} PASSES  ${state.score[0]} - ${state.score[1]}` : `${state.score[0]} - ${state.score[1]}`,
     c: '#ffd35c',
     duree: ANNONCE_BUT_S,

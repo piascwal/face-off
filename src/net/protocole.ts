@@ -1,4 +1,5 @@
-import { POUVOIRS } from '@core/pouvoirs';
+import { nouveauPatineur } from '@core/entities';
+import { POUVOIRS, RANG_RENFORT } from '@core/pouvoirs';
 import type { EtatPouvoirs, GameEvent, GamePhase, InputIntent, MatchState, Rink, StatsMatch, TeamId } from '@core/types';
 import { angDiff } from '@core/utils';
 import { APPAREIL_SUR, estReaction, lisAction, lisEtatPartie, type ActionLan, type EtatPartieLan, type Reaction } from './partie';
@@ -124,6 +125,7 @@ const TYPES_EVENEMENTS = new Set<GameEvent['type']>([
   'annonce',
   'pouvoir',
   'onde',
+  'glitch',
 ]);
 
 /** Prépare les évènements d'un pas pour l'envoi (les références d'objets ne voyagent pas). */
@@ -202,6 +204,9 @@ export interface EtatPatineur {
   tient: boolean;
   arme: boolean;
   humain: boolean;
+  /** Équipe, et renfort du bonus surnombre (joueur en plus, ajouté en fin de liste). */
+  eq: TeamId;
+  renfort: boolean;
 }
 
 export interface EtatGardien {
@@ -319,7 +324,7 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
     const s = state.patineurs[i]!;
     for (const v of [s.x, s.y, s.vx, s.vy, s.face, s.charge, s.elanT, s.elanCd, s.sonne, s.anim, s.ex, s.ey, s.esquiveT, s.prepaEchecT, s.chuteT, s.chuteD, s.flashT]) f(v);
     f(s.vise ?? NaN);
-    u8((s.tient ? 1 : 0) | (s.arme ? 2 : 0) | (s.humain ? 4 : 0));
+    u8((s.tient ? 1 : 0) | (s.arme ? 2 : 0) | (s.humain ? 4 : 0) | (s.renfort ? 8 : 0) | (s.eq === 1 ? 16 : 0));
   }
   for (const gk of state.gardiens) for (const v of [gk.a, gk.x, gk.y, gk.tient, gk.secoue]) f(v);
   const p = state.palet;
@@ -421,6 +426,8 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
       tient: (b & 1) !== 0,
       arme: (b & 2) !== 0,
       humain: (b & 4) !== 0,
+      renfort: (b & 8) !== 0,
+      eq: b & 16 ? 1 : 0,
     });
   }
   const gardien = (): EtatGardien => ({ a: f(), x: f(), y: f(), tient: f(), secoue: f() });
@@ -483,6 +490,18 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
   state.combo = [...b.combo];
   state.stats = { passes: [...b.stats.passes], checks: [...b.stats.checks], comboMax: [...b.stats.comboMax], possession: [...b.stats.possession] };
 
+  // surnombre : le renfort arrive et repart en fin de liste ; on aligne la liste locale sur celle de l'hôte
+  const L = state.patineurs;
+  while (L.length > b.patineurs.length) L.pop();
+  b.patineurs.forEach((sb, i) => {
+    const s = L[i];
+    if (!s || s.eq !== sb.eq || s.renfort !== sb.renfort) {
+      const nv = nouveauPatineur(sb.eq, sb.renfort ? RANG_RENFORT : (s?.rang ?? 0));
+      nv.renfort = sb.renfort;
+      if (s) L[i] = nv;
+      else L.push(nv);
+    }
+  });
   const n = Math.min(state.patineurs.length, b.patineurs.length);
   for (let i = 0; i < n; i++) {
     const s = state.patineurs[i]!;

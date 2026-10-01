@@ -38,6 +38,8 @@ export type Poste = 'centre' | 'ailier' | 'defenseur';
  */
 export function posteDe(s: Skater, nb: number): { poste: Poste; couloir: number } {
   const cote = Math.sign(decalageRang(s.rang, 1));
+  // le renfort du bonus surnombre vient attaquer dans l'axe
+  if (s.renfort) return { poste: 'ailier', couloir: 0 };
   if (s.rang === 0) return { poste: 'centre', couloir: 0 };
   if (nb <= 2) return { poste: 'defenseur', couloir: 0 };
   if (nb === 3) return s.rang === 1 ? { poste: 'ailier', couloir: cote * DEMARQUAGE.couloirAilier } : { poste: 'defenseur', couloir: cote * 0.08 };

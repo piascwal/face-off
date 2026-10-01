@@ -128,7 +128,8 @@ export function dessineJaugesBonus(g: CanvasRenderingContext2D, W: number, state
   const moi: TeamId = eqLocal ?? 0;
   const eux: TeamId = moi === 0 ? 1 : 0;
   dessineJaugeBonus(g, 6, 5, pv[moi], temps, false, clavier && eqLocal !== null);
-  dessineJaugeBonus(g, W - 6, 24, pv[eux], temps, true, false);
+  // en entraînement, l'adversaire n'a pas de bonus
+  if (!state.entrainement) dessineJaugeBonus(g, W - 6, 24, pv[eux], temps, true, false);
 }
 
 /** Bouton BONUS (tactile), au-dessus de PASSE : pastille dorée avec l'icône, anneau qui pulse. */
@@ -142,9 +143,9 @@ export function dessineBoutonBonus(g: CanvasRenderingContext2D, W: number, H: nu
   disque(g, z.x, z.y + (appui ? 1 : 0), z.r - 1, '#e8a820');
   if (!appui) disque(g, z.x, z.y + 1, z.r - 3, '#ffc93c');
   g.globalAlpha = 1;
-  disque(g, z.x, z.y, 9, '#20243a');
-  dessineIconeBonus(g, id, z.x, z.y, 14);
+  // l'icône du bonus, en grand, fait office de libellé
+  disque(g, z.x, z.y + (appui ? 1 : 0), z.r - 3, '#20243a');
+  dessineIconeBonus(g, id, z.x, z.y + (appui ? 1 : 0), 18);
   // bonus de tir : la charge du tir s'affiche autour du bouton, comme sur TIR
   if (charge !== null) anneau(g, z.x, z.y, z.r + 2, C.blanc, charge, 2);
-  texte(g, 'BONUS', z.x, z.y - z.r - 10, C.or, 1, 'c');
 }

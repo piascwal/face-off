@@ -86,7 +86,7 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
   // un joueur repris en main abandonne la mise en échec que l'IA préparait
   s.prepaEchecT = 0;
   const actif = state.phase === 'jeu';
-  if (intent.bonusAppui && actif) activePouvoir(state, s.eq, s);
+  if (intent.bonusAppui && actif) activePouvoir(rink, state, s.eq, s);
   // sans le palet, le gros bouton donne un coup de CROSSE
   if (intent.tirAppui && actif && !s.tient) coupDeCrosse(state, s);
   if (intent.tirTenu && s.tient && !s.arme && actif) {

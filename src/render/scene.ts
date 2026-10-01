@@ -28,7 +28,8 @@ function aspectBonus(state: MatchState, s: Skater): AspectBonus | null {
   const gele = estGele(state, s);
   const confus = estInverse(state, s.eq);
   const pv = state.pouvoirs[s.eq];
-  const dore = !!pv.actif && joueurDore(state, s.eq) === s;
+  // le renfort du surnombre est toujours doré (et semi-transparent)
+  const dore = (!!pv.actif && joueurDore(state, s.eq) === s) || s.renfort;
   if (!dore && !gele && !confus) return null;
   let or = dore;
   if (dore && pv.reste < ALERTE_FIN_S) {
@@ -36,7 +37,7 @@ function aspectBonus(state: MatchState, s: Skater): AspectBonus | null {
     const u = ALERTE_FIN_S - pv.reste;
     or = Math.floor((3 * u + 2.5 * u * u) * 2) % 2 === 0;
   }
-  return { or, vitesse: dore && pv.actif === 'vitesse', gele, confus };
+  return { or, vitesse: dore && pv.actif === 'vitesse', gele, confus, fantome: s.renfort };
 }
 
 /**

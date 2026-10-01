@@ -62,11 +62,11 @@ describe('bonus : jauge de passes et tirage', () => {
     expect(pv.passes).toBe(0);
     expect(st.evenements.some((e) => e.type === 'pouvoir' && e.quoi === 'tirage')).toBe(true);
     // pendant le tirage, on ne peut pas encore le déclencher
-    expect(activePouvoir(st, 0, st.controles[0])).toBe(false);
+    expect(activePouvoir(rink, st, 0, st.controles[0])).toBe(false);
     majPouvoirs(st, TIRAGE_S + 0.01);
     expect(st.evenements.some((e) => e.type === 'pouvoir' && e.quoi === 'pret')).toBe(true);
     expect(pouvoirPret(st, 0)).toBe(true);
-    expect(activePouvoir(st, 0, st.controles[0])).toBe(true);
+    expect(activePouvoir(rink, st, 0, st.controles[0])).toBe(true);
     expect(pv.actif).not.toBeNull();
     expect(pv.pret).toBeNull();
     // le prochain bonus demande toujours le même nombre de passes
@@ -78,7 +78,7 @@ describe('bonus : jauge de passes et tirage', () => {
     donne(st, 0, 'vitesse');
     passes(st, 0, 5);
     expect(st.pouvoirs![0].passes).toBe(0);
-    activePouvoir(st, 0, st.controles[0]);
+    activePouvoir(rink, st, 0, st.controles[0]);
     passes(st, 0, 5);
     expect(st.pouvoirs![0].passes).toBe(0);
   });
@@ -142,7 +142,7 @@ describe('bonus : jauge de passes et tirage', () => {
   it('la durée d’un bonus ne s’écoule que pendant le jeu', () => {
     const st = partie();
     donne(st, 0, 'vitesse');
-    activePouvoir(st, 0, st.controles[0]);
+    activePouvoir(rink, st, 0, st.controles[0]);
     st.phase = 'but';
     majPouvoirs(st, 10);
     expect(st.pouvoirs![0].actif).toBe('vitesse');
@@ -160,7 +160,7 @@ describe('bonus : effets', () => {
       const s = st.controles[0]!;
       if (avecBonus) {
         donne(st, 0, 'vitesse');
-        activePouvoir(st, 0, s);
+        activePouvoir(rink, st, 0, s);
       }
       s.x = rink.cx - 100;
       s.y = rink.cy;
@@ -176,7 +176,7 @@ describe('bonus : effets', () => {
   it('but x2 : le but compte double, puis le bonus est consommé', () => {
     const st = partie();
     donne(st, 0, 'double');
-    activePouvoir(st, 0, st.controles[0]);
+    activePouvoir(rink, st, 0, st.controles[0]);
     for (const s of st.patineurs) s.y = rink.cy + 60;
     // gardien figé tout en bas de sa cage : le tir rentre en haut
     st.gardiens[1].a = 1.3;
@@ -200,7 +200,7 @@ describe('bonus : effets', () => {
     s.tient = true;
     st.palet.porteur = s;
     donne(st, 0, 'guide');
-    activePouvoir(st, 0, s);
+    activePouvoir(rink, st, 0, s);
     // tir parallèle à la ligne de but : sans guidage, il passerait loin de la cage
     tir(st, rink, s, 0, 1);
     expect(st.palet.guide).not.toBeNull();
@@ -217,7 +217,7 @@ describe('bonus : effets', () => {
       const s = st.controles[0]!;
       if (avecBonus) {
         donne(st, 0, 'ricochet');
-        activePouvoir(st, 0, s);
+        activePouvoir(rink, st, 0, s);
       }
       for (const o of st.patineurs) o.y = rink.cy + 80;
       const p = st.palet;
@@ -238,7 +238,7 @@ describe('bonus : effets', () => {
   it('mode savon : une mise en échec contre l’équipe glisse en esquive', () => {
     const st = partie();
     donne(st, 0, 'savon');
-    activePouvoir(st, 0, st.controles[0]);
+    activePouvoir(rink, st, 0, st.controles[0]);
     const cible = st.controles[0]!;
     const attaquant = st.patineurs.find((s) => s.eq === 1)!;
     cible.x = rink.cx;
@@ -278,7 +278,7 @@ describe('bonus : lot 2', () => {
       st.palet.porteur = s;
       if (avecBonus) {
         donne(st, 0, 'puissant');
-        activePouvoir(st, 0, s);
+        activePouvoir(rink, st, 0, s);
       }
       // un adversaire planté sur la route du tir
       const cible = st.patineurs.find((o) => o.eq === 1)!;
@@ -304,7 +304,7 @@ describe('bonus : lot 2', () => {
     st.humains = [true, false];
     const moi = st.controles[0]!;
     donne(st, 0, 'freeze');
-    activePouvoir(st, 0, moi);
+    activePouvoir(rink, st, 0, moi);
     for (const s of st.patineurs) {
       s.vx = 50;
       s.vy = 0;
@@ -329,10 +329,119 @@ describe('bonus : lot 2', () => {
       if (st.controles[eq] !== s) prendPalet(st, s);
     }
     donne(st, 0, 'inversion');
-    activePouvoir(st, 0, st.controles[0]);
+    activePouvoir(rink, st, 0, st.controles[0]);
     pas(rink, st, 1 / 120, () => ({ ...INTENT_VIDE, ix: 1 }));
     expect(st.controles[0]!.ex).toBe(1);
     expect(st.controles[1]!.ex).toBe(-1);
+  });
+});
+
+describe('bonus : lot 3', () => {
+  /** Tir qui rentre dans la cage de droite (équipe 0), gardien écarté. */
+  function marqueA0(st: MatchState): void {
+    for (const s of st.patineurs) s.y = rink.cy + 60;
+    st.gardiens[1].a = 1.3;
+    st.gardiens[1].vit = 0;
+    const p = st.palet;
+    p.porteur = null;
+    p.x = rink.butD - 12;
+    p.y = rink.cy - 10;
+    p.vx = 420;
+    p.vy = 0;
+    for (let i = 0; i < 30 && st.phase === 'jeu'; i++) pas(rink, st, 1 / 120);
+  }
+
+  it('gamelle : un but dans les 10 s enlève un but à l’adversaire (jamais sous zéro)', () => {
+    const st = partie();
+    st.score = [0, 2];
+    donne(st, 0, 'gamelle');
+    activePouvoir(rink, st, 0, st.controles[0]);
+    marqueA0(st);
+    expect(st.score).toEqual([1, 1]);
+    expect(st.pouvoirs![0].actif).toBeNull();
+    expect(st.evenements.some((e) => e.type === 'glitch' && e.eq === 1)).toBe(true);
+
+    const zero = partie();
+    donne(zero, 0, 'gamelle');
+    activePouvoir(rink, zero, 0, zero.controles[0]);
+    marqueA0(zero);
+    expect(zero.score).toEqual([1, 0]);
+  });
+
+  it('un but met fin aux bonus en cours des deux équipes, un bonus prêt reste en main', () => {
+    const st = partie();
+    donne(st, 1, 'inversion');
+    activePouvoir(rink, st, 1, st.patineurs.find((s) => s.eq === 1)!);
+    donne(st, 0, 'ricochet');
+    marqueA0(st);
+    expect(st.score[0]).toBe(1);
+    expect(st.pouvoirs![1].actif).toBeNull();
+    expect(st.pouvoirs![0].pret).toBe('ricochet');
+  });
+
+  it('gamelle : sans but dans les 10 s, rien ne se passe', () => {
+    const st = partie();
+    st.score = [0, 2];
+    donne(st, 0, 'gamelle');
+    activePouvoir(rink, st, 0, st.controles[0]);
+    majPouvoirs(st, DEF_POUVOIRS.gamelle.duree + 0.1);
+    expect(st.pouvoirs![0].actif).toBeNull();
+    expect(st.score).toEqual([0, 2]);
+  });
+
+  it('surnombre : un renfort entre pour la durée du bonus, puis repart', () => {
+    const st = partie();
+    const n = st.patineurs.length;
+    donne(st, 0, 'surnombre');
+    activePouvoir(rink, st, 0, st.controles[0]);
+    const renfort = st.patineurs.find((s) => s.renfort)!;
+    expect(st.patineurs).toHaveLength(n + 1);
+    expect(renfort.eq).toBe(0);
+    // il joue : l'IA le fait patiner
+    for (let i = 0; i < 120; i++) pas(rink, st, 1 / 120);
+    expect(Math.hypot(renfort.vx, renfort.vy)).toBeGreaterThan(0);
+    // on lui donne le palet et la main, puis le bonus se termine
+    prendPalet(st, renfort);
+    majPouvoirs(st, DEF_POUVOIRS.surnombre.duree);
+    expect(st.patineurs).toHaveLength(n);
+    expect(st.palet.porteur).toBeNull();
+    expect(st.controles[0]).not.toBe(renfort);
+    expect(st.patineurs).toContain(st.controles[0]);
+  });
+
+  it('surnombre en Wi-Fi : le client ajoute puis retire le renfort', () => {
+    const hote = partie();
+    hote.humains = [true, true];
+    const client = partie();
+    donne(hote, 1, 'surnombre');
+    activePouvoir(rink, hote, 1, hote.controles[1]);
+    let inst = decodeInstantane(encodeInstantane(hote, rink, 1))!;
+    appliqueInstantane(client, inst, inst, 1, rink);
+    expect(client.patineurs).toHaveLength(hote.patineurs.length);
+    expect(client.patineurs.at(-1)!.renfort).toBe(true);
+    expect(client.patineurs.at(-1)!.eq).toBe(1);
+    majPouvoirs(hote, DEF_POUVOIRS.surnombre.duree);
+    inst = decodeInstantane(encodeInstantane(hote, rink, 2))!;
+    appliqueInstantane(client, inst, inst, 1, rink);
+    expect(client.patineurs.some((s) => s.renfort)).toBe(false);
+  });
+
+  it('entraînement : pas de chrono, le bonus choisi revient après chaque usage, l’adversaire n’en a pas', () => {
+    const st = creePartie(rink, { mode: 'match', niveauIdx: 1, dureeIdx: 1, effectifIdx: 1, entrainement: 'vitesse' });
+    st.phase = 'jeu';
+    const h0 = st.horloge;
+    for (let i = 0; i < 240; i++) pas(rink, st, 1 / 120);
+    expect(st.horloge).toBe(h0);
+    expect(st.pouvoirs![0].pret).toBe('vitesse');
+    activePouvoir(rink, st, 0, st.controles[0]);
+    majPouvoirs(st, DEF_POUVOIRS.vitesse.duree + 0.1);
+    majPouvoirs(st, 1);
+    expect(st.pouvoirs![0].pret).toBe('vitesse');
+    // il ne se perd pas
+    majPouvoirs(st, 30);
+    expect(st.pouvoirs![0].pret).toBe('vitesse');
+    passes(st, 1, 10);
+    expect(st.pouvoirs![1].pret).toBeNull();
   });
 });
 

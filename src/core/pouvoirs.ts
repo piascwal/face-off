@@ -1,3 +1,4 @@
+import { nouveauPatineur } from './entities';
 import { butAttaque } from './shooting';
 import type { EtatPouvoirs, MatchState, PouvoirId, Rink, Skater, TeamId } from './types';
 
@@ -29,8 +30,8 @@ export const DEF_POUVOIRS: Record<PouvoirId, DefPouvoir> = {
   savon: { nom: 'MODE SAVON', duree: 8, dore: true, dispo: true },
   inversion: { nom: 'INVERSION', duree: 5, dore: true, dispo: true },
   ricochet: { nom: 'RICOCHET', duree: 8, dore: true, dispo: true },
-  surnombre: { nom: 'SURNOMBRE', duree: 10, dore: false, dispo: false },
-  gamelle: { nom: 'GAMELLE', duree: 10, dore: true, dispo: false },
+  surnombre: { nom: 'SURNOMBRE', duree: 10, dore: false, dispo: true },
+  gamelle: { nom: 'GAMELLE', duree: 10, dore: true, dispo: true },
   double: { nom: 'BUT X2', duree: Infinity, dore: false, dispo: true },
 };
 
@@ -75,6 +76,10 @@ export const PUISSANT_CHUTE = 2;
 export const PUISSANT_PORTEE = 4;
 /** En dessous de cette vitesse (px/s), le tir surpuissant est retombé : il ne renverse plus personne. */
 export const PUISSANT_VMIN = 160;
+/** Surnombre : rang donné au renfort (hors des rangs de l'effectif, pour le reconnaître). */
+export const RANG_RENFORT = 9;
+/** Mode entraînement : délai (s) avant que le bonus choisi revienne, après usage. */
+export const ENTRAINEMENT_RETOUR_S = 0.8;
 /** L'ordinateur utilise de toute façon son bonus au bout de ce temps (s). */
 export const IA_ATTENTE_MAX = 6;
 
@@ -122,8 +127,9 @@ export const estDore = (state: MatchState, s: Skater): boolean => state.pouvoirs
 /** Une passe réussie de plus pour l'équipe : au seuil, un bonus est tiré. */
 export function comptePasse(state: MatchState, eq: TeamId, qui: Skater): void {
   const p = state.pouvoirs?.[eq];
-  // bonus déjà en main ou en cours : les passes ne remplissent plus la jauge
-  if (!p || p.pret !== null || p.actif !== null) return;
+  // bonus déjà en main ou en cours : les passes ne remplissent plus la jauge ;
+  // en entraînement, pas de jauge (le bonus choisi revient tout seul)
+  if (!p || p.pret !== null || p.actif !== null || state.entrainement) return;
   p.passes++;
   if (p.passes < p.seuil) return;
   p.passes = 0;
@@ -141,7 +147,7 @@ export function cassePasses(state: MatchState, eq: TeamId): void {
 }
 
 /** Déclenche le bonus prêt de l'équipe ; `qui` : le joueur qui le déclenche (doré pour l'ordinateur). */
-export function activePouvoir(state: MatchState, eq: TeamId, qui: Skater | null): boolean {
+export function activePouvoir(rink: Rink, state: MatchState, eq: TeamId, qui: Skater | null): boolean {
   const p = state.pouvoirs?.[eq];
   if (!p || !pouvoirPret(state, eq) || state.phase !== 'jeu') return false;
   const id = p.pret!;
@@ -151,6 +157,7 @@ export function activePouvoir(state: MatchState, eq: TeamId, qui: Skater | null)
   p.dore = qui?.rang ?? -1;
   p.passes = 0;
   state.evenements.push({ type: 'pouvoir', eq, quoi: 'active', id: POUVOIRS.indexOf(id) });
+  if (id === 'surnombre') ajouteRenfort(rink, state, eq);
   if (qui) {
     state.evenements.push({ type: 'bulle', txt: `${DEF_POUVOIRS[id].nom} !`, x: qui.x, y: qui.y - 24, c: '#ffd35c' });
     state.evenements.push({ type: 'etincelles', x: qui.x, y: qui.y - 6, n: 14, c: '#ffd35c' });
@@ -164,6 +171,7 @@ export function finPouvoir(state: MatchState, eq: TeamId): void {
   const p = state.pouvoirs?.[eq];
   if (!p?.actif) return;
   state.evenements.push({ type: 'pouvoir', eq, quoi: 'fin', id: POUVOIRS.indexOf(p.actif) });
+  if (p.actif === 'surnombre') retireRenfort(state, eq);
   p.actif = null;
   p.reste = 0;
   p.dore = -1;
@@ -183,7 +191,18 @@ export function majPouvoirs(state: MatchState, dt: number): void {
       p.tirage = Math.max(0, p.tirage - dt);
       if (p.tirage === 0 && p.pret) state.evenements.push({ type: 'pouvoir', eq, quoi: 'pret', id: POUVOIRS.indexOf(p.pret) });
     }
-    if (p.pret && p.tirage <= 0 && state.phase === 'jeu') {
+    // entraînement : le bonus choisi revient peu après chaque usage, et ne se perd pas
+    if (state.entrainement && state.humains[eq]) {
+      if (!p.pret && !p.actif) {
+        p.attente += dt;
+        if (p.attente >= ENTRAINEMENT_RETOUR_S) {
+          p.pret = state.entrainement;
+          p.tirage = 0;
+          p.attente = 0;
+          state.evenements.push({ type: 'pouvoir', eq, quoi: 'pret', id: POUVOIRS.indexOf(p.pret) });
+        }
+      }
+    } else if (p.pret && p.tirage <= 0 && state.phase === 'jeu') {
       p.attente += dt;
       // pas déclenché à temps : le bonus est perdu
       if (p.attente >= PRET_MAX_S) {
@@ -285,6 +304,64 @@ export function renversePuissant(state: MatchState): void {
   }
 }
 
+/**
+ * Surnombre : un coéquipier de plus saute sur la glace depuis le banc (bord
+ * haut de la patinoire, à hauteur du palet), avec un flash d'apparition.
+ */
+function ajouteRenfort(rink: Rink, state: MatchState, eq: TeamId): void {
+  const s = nouveauPatineur(eq, RANG_RENFORT);
+  s.renfort = true;
+  s.vit = state.nivEq[eq].vit;
+  s.x = Math.max(rink.x + 30, Math.min(rink.x + rink.w - 30, state.palet.x));
+  s.y = rink.y + 8;
+  s.vy = 140;
+  s.face = Math.PI / 2;
+  state.patineurs.push(s);
+  state.evenements.push({ type: 'onde', x: s.x, y: s.y, r: 24, c: '#ffd35c' });
+  state.evenements.push({ type: 'etincelles', x: s.x, y: s.y - 6, n: 18, c: '#ffd35c' });
+  state.evenements.push({ type: 'flash', force: 0.25 });
+  state.evenements.push({ type: 'bulle', txt: 'RENFORT !', x: s.x, y: s.y + 4, c: '#ffd35c' });
+}
+
+/** Fin du surnombre : le renfort repart (il lâche le palet, la main passe à un coéquipier). */
+function retireRenfort(state: MatchState, eq: TeamId): void {
+  const r = state.patineurs.find((s) => s.eq === eq && s.renfort);
+  if (!r) return;
+  const p = state.palet;
+  if (p.porteur === r) {
+    p.porteur = null;
+    p.vx = r.vx;
+    p.vy = r.vy;
+  }
+  if (p.passe?.vers === r) p.passe = null;
+  if (state.reception?.qui === r) state.reception = null;
+  state.patineurs.splice(state.patineurs.indexOf(r), 1);
+  if (state.controles[eq] === r) {
+    // la main revient au coéquipier le plus proche du palet
+    let best: Skater | null = null;
+    for (const s of state.patineurs) {
+      if (s.eq === eq && (!best || Math.hypot(s.x - p.x, s.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y))) best = s;
+    }
+    state.controles[eq] = best;
+    if (best) best.humain = true;
+  }
+  state.evenements.push({ type: 'onde', x: r.x, y: r.y, r: 20, c: '#ffd35c' });
+  state.evenements.push({ type: 'etincelles', x: r.x, y: r.y - 6, n: 12, c: '#ffd35c' });
+}
+
+/**
+ * Gamelle : l'équipe vient de marquer avec le bonus en cours. L'adversaire
+ * perd un but (sans descendre sous zéro), et le bonus est consommé.
+ */
+export function gamelle(state: MatchState, eq: TeamId): boolean {
+  if (!pouvoirActif(state, eq, 'gamelle')) return false;
+  const adv: TeamId = eq === 0 ? 1 : 0;
+  state.score[adv] = Math.max(0, state.score[adv] - 1);
+  finPouvoir(state, eq);
+  state.evenements.push({ type: 'glitch', eq: adv });
+  return true;
+}
+
 /** Freeze : le joueur est-il pris dans la glace (tout le monde sauf le joueur doré de l'équipe qui l'a déclenché) ? */
 export function estGele(state: MatchState, s: Skater): boolean {
   const pv = state.pouvoirs;
@@ -320,6 +397,7 @@ export function iaPouvoirs(rink: Rink, state: MatchState): void {
         break;
       case 'guide':
       case 'puissant':
+      case 'gamelle':
         go ||= !!nous && Math.abs(nous.x - butAttaque(rink, eq)) < rink.w * 0.4;
         break;
       default:
@@ -327,7 +405,7 @@ export function iaPouvoirs(rink: Rink, state: MatchState): void {
     }
     if (!go) continue;
     const qui = nous ?? plusProcheDuPalet(state, eq);
-    activePouvoir(state, eq, qui);
+    activePouvoir(rink, state, eq, qui);
   }
 }
 

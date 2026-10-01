@@ -90,6 +90,7 @@ export interface EtatAvance {
   onRalenti: () => void;
   onSon: () => void;
   onCommandes: () => void;
+  onEntrainement: () => void;
   onRetour: () => void;
 }
 
@@ -121,8 +122,9 @@ export function dessineAvance(g: CanvasRenderingContext2D, boutons: ZoneBouton[]
     texte(g, k, cx - pw / 2 + 10, y + 4, C.gris, 1, 'g');
     bouton(g, boutons, `< ${v} >`, cx + pw / 2 - 106, y, 96, 13, act, { couleur: '#232a58' });
   });
-  bouton(g, boutons, '< RETOUR', cx - 95, py + ph + 8, 90, 16, menu.onRetour, { couleur: '#232a58', e: 1 });
-  bouton(g, boutons, 'COMMANDES >', cx + 5, py + ph + 8, 90, 16, menu.onCommandes, { couleur: '#2d3a8c', e: 1 });
+  bouton(g, boutons, '< RETOUR', cx - 117, py + ph + 8, 70, 16, menu.onRetour, { couleur: '#232a58', e: 1 });
+  bouton(g, boutons, 'COMMANDES', cx - 41, py + ph + 8, 70, 16, menu.onCommandes, { couleur: '#2d3a8c', e: 1 });
+  bouton(g, boutons, 'ENTRAINEMENT', cx + 35, py + ph + 8, 82, 16, menu.onEntrainement, { couleur: '#2d3a8c', e: 1, texte: C.or });
 }
 
 export function dessinePause(

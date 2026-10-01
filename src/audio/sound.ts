@@ -150,6 +150,13 @@ export class MoteurAudio {
     this.ton(392, 0.16, 'square', 0.06, 330);
     this.ton(262, 0.3, 'square', 0.06, 196, 0.16);
   }
+  /** Gamelle : grésillement de signal brouillé. */
+  glitch(): void {
+    for (let i = 0; i < 5; i++) {
+      this.ton(80 + Math.random() * 900, 0.05, 'square', 0.06, undefined, i * 0.07);
+      this.souffle(0.05, 'bandpass', 1500 + Math.random() * 3000, 2, 0.15, i * 0.07 + 0.02);
+    }
+  }
   /** Fin d'un bonus : descente courte. */
   bonusFin(): void {
     this.ton(880, 0.18, 'square', 0.05, 330);
@@ -267,6 +274,9 @@ export function joueEvenements(son: MoteurAudio, evenements: GameEvent[]): void 
         break;
       case 'vibre':
         vibre(ev.ms);
+        break;
+      case 'glitch':
+        son.glitch();
         break;
       case 'pouvoir':
         if (ev.quoi === 'tirage') son.tirageBonus();

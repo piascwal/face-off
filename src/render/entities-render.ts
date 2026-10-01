@@ -134,6 +134,8 @@ export interface AspectBonus {
   gele: boolean;
   /** Inversion adverse : spirales de confusion au-dessus de la tête. */
   confus: boolean;
+  /** Renfort du surnombre : dessiné en semi-transparence. */
+  fantome: boolean;
 }
 
 /** Bloc de glace autour d'un joueur gelé (bonus freeze), avec deux reflets. */
@@ -248,6 +250,7 @@ export function dessinePatineur(
     corps(-s.vx * 0.1, -s.vy * 0.1);
     g.globalAlpha = 1;
   }
+  if (bonus?.fantome) g.globalAlpha = 0.62;
   if (or) {
     // auréole : le joueur doré brille (le flou d'ombre est en pixels d'écran)
     g.save();
@@ -256,6 +259,7 @@ export function dessinePatineur(
     corps();
     g.restore();
   } else corps();
+  g.globalAlpha = 1;
   // freeze : silhouette bleutée dans un bloc de glace
   if (bonus?.gele && sprite) {
     g.globalAlpha = 0.45;

@@ -47,6 +47,8 @@ export interface Skater {
   chuteT: number;
   /** Durée totale de la chute en cours (s), pour savoir quand passer du plongeon à allongé. */
   chuteD: number;
+  /** Joueur en renfort (bonus surnombre) : il repart à la fin du bonus. */
+  renfort: boolean;
   /** Flash blanc d'impact (s restantes). */
   flashT: number;
   anim: number;
@@ -189,6 +191,8 @@ export type GameEvent =
   | { type: 'pouvoir'; eq: TeamId; quoi: 'tirage' | 'pret' | 'active' | 'fin' | 'perdu'; id: number }
   // onde de choc circulaire (rendu) : rayon final `r` (px)
   | { type: 'onde'; x: number; y: number; r: number; c: string }
+  // gamelle : brouillage de l'écran, et « -1 » sur le score de l'équipe `eq`
+  | { type: 'glitch'; eq: TeamId }
   // `c` est une couleur neutre de repli ; quand `eq` est fourni, le rendu
   // préfère la couleur de maillot de cette équipe (core ne connaît pas les
   // couleurs de maillot — voir render/team-visuals.ts).
@@ -250,6 +254,8 @@ export interface MatchState {
   combo: [number, number];
   /** Bonus de chaque équipe ; null quand les bonus sont désactivés (option du menu). */
   pouvoirs: [EtatPouvoirs, EtatPouvoirs] | null;
+  /** Mode entraînement : ce bonus revient sans cesse à l'équipe du joueur, pas de chrono. */
+  entrainement: PouvoirId | null;
   /** Dernière passe reçue (pour le tir sur réception) : qui, et à quel instant (`temps`). */
   reception: { qui: Skater; t: number } | null;
   /** Arrêt sur image (s) : la simulation se fige un court instant pour souligner une esquive. */

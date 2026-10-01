@@ -3,7 +3,7 @@ import { ANNONCE_BUT_S, DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from './co
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from './entities';
 import { cassePasses, etatPouvoirsInitial } from './pouvoirs';
 import { PROFIL_NEUTRE, type TeamProfile } from './teams';
-import { statsVides, type BonusEquipe, type GameMode, type LevelConfig, type MatchState, type Rink, type TeamId } from './types';
+import { statsVides, type PouvoirId, type BonusEquipe, type GameMode, type LevelConfig, type MatchState, type Rink, type TeamId } from './types';
 import { clamp, decalageRang } from './utils';
 
 export interface OptionsPartie {
@@ -33,6 +33,8 @@ export interface OptionsPartie {
   dureeBut?: number;
   /** Bonus (power-ups) en jeu ; jamais en démo. */
   pouvoirs?: boolean;
+  /** Mode entraînement : le bonus choisi revient sans cesse, pas de chrono (implique les bonus). */
+  entrainement?: PouvoirId;
 }
 
 /** Phase « but » sans ralenti : le bandeau, puis un court temps avant l'engagement. */
@@ -105,7 +107,8 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     marqueur: null,
     buteur: null,
     combo: [0, 0],
-    pouvoirs: opts.mode === 'match' && opts.pouvoirs ? [etatPouvoirsInitial(), etatPouvoirsInitial()] : null,
+    pouvoirs: opts.mode === 'match' && (opts.pouvoirs || opts.entrainement) ? [etatPouvoirsInitial(), etatPouvoirsInitial()] : null,
+    entrainement: opts.mode === 'match' ? (opts.entrainement ?? null) : null,
     reception: null,
     figeT: 0,
     evenements: [],

@@ -1,4 +1,6 @@
 import { lisCoupe, type EtatCoupe } from '../core/coupe';
+import { POUVOIRS } from '../core/pouvoirs';
+import type { PouvoirId } from '../core/types';
 
 const CLE = 'face-off-v1';
 
@@ -30,6 +32,8 @@ export interface Preferences {
   coupe: EtatCoupe | null;
   /** Bonus (power-ups) activés en match. */
   bonus: boolean;
+  /** Bonus choisi pour le mode entraînement (gardé d'une fois sur l'autre). */
+  bonusEntrainement: PouvoirId;
 }
 
 export interface BilanDuel {
@@ -60,6 +64,7 @@ const DEFAUT: Preferences = {
   mode: 'classique',
   coupe: null,
   bonus: true,
+  bonusEntrainement: 'guide',
 };
 
 const SURNOMS = ['LYNX', 'ORQUE', 'AIGLE', 'LOUP', 'OURS', 'PUMA', 'FAUCON', 'BISON', 'RENARD', 'TIGRE', 'COBRA', 'HIBOU', 'REQUIN', 'ZEBRE'];
@@ -88,6 +93,7 @@ export function chargePreferences(): Preferences {
   if (!pref.duels || typeof pref.duels !== 'object') pref.duels = {};
   if (pref.mode !== 'coupe') pref.mode = 'classique';
   pref.coupe = lisCoupe(pref.coupe);
+  if (!POUVOIRS.includes(pref.bonusEntrainement)) pref.bonusEntrainement = 'guide';
   if (modifie) sauvePreferences(pref);
   return pref;
 }
