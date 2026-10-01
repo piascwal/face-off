@@ -1,12 +1,32 @@
 import { describe, expect, it, vi } from 'vitest';
 import { coupDeCrosse, passeVers, pointCrosse, prendPalet, tir } from '../src/core/actions';
-import { bougePatineur, collisionsPatineurs, majPalet, recuperations, segmentsCage } from '../src/core/physics';
+import { BUT_DEMI } from '../src/core/constants';
+import {
+  bougePatineur,
+  collisionsPatineurs,
+  majGardien,
+  majPalet,
+  recuperations,
+  segmentsCage,
+} from '../src/core/physics';
 import {
   activePouvoir,
+  BLACKOUT_INTERCEPTION,
+  BLACKOUT_VOL,
   boutonBonus,
+  CAGE_GEANTE,
+  dansLeNoir,
+  demiCage,
+  effetActif,
+  estGele,
+  gardienEndormi,
+  HEROS_FREEZE_S,
+  joueurDore,
+  TREMBLEMENT_CHUTE,
   comptePasse,
   DEF_POUVOIRS,
   majPouvoirs,
+  POIDS_POUVOIRS,
   POUVOIRS,
   pouvoirPret,
   SEUIL_PASSES,
@@ -17,7 +37,13 @@ import { calculeRink } from '../src/core/rink';
 import { creePartie, engagement } from '../src/core/rules';
 import { pas } from '../src/core/simulation';
 import type { MatchState, PouvoirId, Skater, TeamId } from '../src/core/types';
-import { appliqueInstantane, decodeInstantane, EmetteurEntrees, encodeInstantane, EntreeDistante } from '../src/net/protocole';
+import {
+  appliqueInstantane,
+  decodeInstantane,
+  EmetteurEntrees,
+  encodeInstantane,
+  EntreeDistante,
+} from '../src/net/protocole';
 import { INTENT_VIDE } from '../src/core/types';
 
 const rink = calculeRink(400, 200);
@@ -133,17 +159,20 @@ describe('bonus : jauge de passes et tirage', () => {
     expect(st.pouvoirs![0].actif).toBeNull();
   });
 
-  it('tirage pondéré : seuls les bonus déjà en jeu sortent, chacun avec la même chance', () => {
+  it('tirage pondéré : seuls les bonus déjà en jeu sortent, selon leur poids (super héros deux fois plus rare)', () => {
     const st = partie();
     const dispo = POUVOIRS.filter((id) => DEF_POUVOIRS[id].dispo);
+    const total = dispo.reduce((t, id) => t + POIDS_POUVOIRS[id], 0);
     const compte = new Map<PouvoirId, number>();
-    const N = 1000;
+    const N = 2000;
     for (let i = 0; i < N; i++) {
       const id = tirePouvoir(st, 0, (i + 0.5) / N);
       compte.set(id, (compte.get(id) ?? 0) + 1);
     }
     expect([...compte.keys()].sort()).toEqual([...dispo].sort());
-    for (const n of compte.values()) expect(n).toBeCloseTo(N / dispo.length, -1);
+    for (const [id, n] of compte)
+      expect(Math.abs(n - (N * POIDS_POUVOIRS[id]) / total)).toBeLessThanOrEqual(2);
+    expect(POIDS_POUVOIRS.heros).toBe(POIDS_POUVOIRS.vitesse / 2);
   });
 
   it('bonus désactivés : pas de jauge, rien ne se passe', () => {
@@ -234,7 +263,15 @@ describe('bonus : effets', () => {
     prendPalet(st, porteur);
     // crosse contre crosse : le porteur regarde à droite, le voleur à gauche, face à face
     Object.assign(porteur, { x: rink.cx, y: rink.cy, face: 0, vx: 0, vy: 0 });
-    Object.assign(voleur, { x: rink.cx + 16, y: rink.cy, face: Math.PI, vx: 0, vy: 0, pokeT: -10, recupCd: 0 });
+    Object.assign(voleur, {
+      x: rink.cx + 16,
+      y: rink.cy,
+      face: Math.PI,
+      vx: 0,
+      vy: 0,
+      pokeT: -10,
+      recupCd: 0,
+    });
     coupDeCrosse(st, voleur);
     const hasard = vi.spyOn(Math, 'random').mockReturnValue(0);
     try {
@@ -360,7 +397,12 @@ describe('bonus : lot 3', () => {
   it('un but met fin à tous les bonus des deux équipes, même à un tirage en cours', () => {
     const st = partie();
     donne(st, 1, 'inversion');
-    activePouvoir(rink, st, 1, st.patineurs.find((s) => s.eq === 1)!);
+    activePouvoir(
+      rink,
+      st,
+      1,
+      st.patineurs.find((s) => s.eq === 1)!,
+    );
     donne(st, 0, 'freeze');
     st.pouvoirs![0].tirage = 1;
     marqueA0(st);
@@ -408,7 +450,13 @@ describe('bonus : lot 3', () => {
   });
 
   it('entraînement : pas de chrono, le bonus choisi revient après chaque usage, l’adversaire n’en a pas', () => {
-    const st = creePartie(rink, { mode: 'match', niveauIdx: 1, dureeIdx: 1, effectifIdx: 1, entrainement: 'vitesse' });
+    const st = creePartie(rink, {
+      mode: 'match',
+      niveauIdx: 1,
+      dureeIdx: 1,
+      effectifIdx: 1,
+      entrainement: 'vitesse',
+    });
     st.phase = 'jeu';
     const h0 = st.horloge;
     for (let i = 0; i < 240; i++) pas(rink, st, 1 / 120);
@@ -464,5 +512,148 @@ describe('bonus en Wi-Fi', () => {
     expect(i.elanAppui).toBe(true);
     expect('bonusAppui' in i).toBe(false);
     expect(hote.prochain(0.03).elanAppui).toBe(false);
+  });
+});
+
+describe('bonus : lot B', () => {
+  /** Le bonus `id` part pour l'équipe `eq` (fin du tirage pendant le jeu). */
+  function lance(st: MatchState, eq: TeamId, id: PouvoirId): void {
+    donne(st, eq, id);
+    majPouvoirs(rink, st, 1 / 120);
+    expect(st.pouvoirs![eq].actif).toBe(id);
+  }
+
+  it('super héros : vitesse, freeze des premières secondes, et un tir surpuissant qui ne coupe pas le reste', () => {
+    const st = partie();
+    st.humains = [true, false];
+    const moi = st.controles[0]!;
+    lance(st, 0, 'heros');
+    expect(effetActif(st, 0, 'vitesse')).toBe(true);
+    expect(effetActif(st, 0, 'freeze')).toBe(true);
+    expect(effetActif(st, 0, 'puissant')).toBe(true);
+    expect(boutonBonus(st, 0)).toBe('tir');
+    const adverse = st.patineurs.find((s) => s.eq === 1)!;
+    expect(estGele(st, adverse)).toBe(true);
+    expect(estGele(st, moi)).toBe(false);
+    // le tir surpuissant part, le reste du bonus continue
+    moi.tient = true;
+    st.palet.porteur = moi;
+    tir(st, rink, moi, 0, 0.6);
+    expect(st.palet.puissant).toBe(true);
+    expect(st.pouvoirs![0].actif).toBe('heros');
+    expect(effetActif(st, 0, 'puissant')).toBe(false);
+    expect(boutonBonus(st, 0)).toBeNull();
+    // après HEROS_FREEZE_S, les adversaires se dégèlent ; la vitesse reste
+    majPouvoirs(rink, st, HEROS_FREEZE_S + 0.05);
+    expect(estGele(st, adverse)).toBe(false);
+    expect(effetActif(st, 0, 'vitesse')).toBe(true);
+  });
+
+  it('tremblement : tout le monde tombe sauf le porteur du palet, coéquipiers compris', () => {
+    const st = partie();
+    const porteur = st.patineurs.find((s) => s.eq === 1)!;
+    prendPalet(st, porteur);
+    lance(st, 0, 'tremblement');
+    for (const s of st.patineurs) {
+      if (s === porteur) expect(s.chuteT).toBe(0);
+      else expect(s.chuteT).toBeCloseTo(TREMBLEMENT_CHUTE, 5);
+    }
+    expect(st.evenements.some((e) => e.type === 'secousse' && e.force >= 5)).toBe(true);
+  });
+
+  it('cage géante : la cage adverse double, le gardien garde sa taille ; un tir dans le coin élargi rentre', () => {
+    const st = partie();
+    lance(st, 0, 'geante');
+    expect(demiCage(st, 1)).toBe(BUT_DEMI * CAGE_GEANTE);
+    expect(demiCage(st, 0)).toBe(BUT_DEMI);
+    // le gardien ne sort pas de sa zone habituelle, même face à un palet tout au coin
+    st.palet.porteur = null;
+    st.palet.x = rink.butD - 30;
+    st.palet.y = rink.cy + BUT_DEMI * CAGE_GEANTE;
+    for (let i = 0; i < 120; i++) majGardien(rink, st, st.gardiens[1], 1 / 120);
+    expect(Math.abs(st.gardiens[1].y - rink.cy)).toBeLessThan(BUT_DEMI);
+    for (const s of st.patineurs) s.y = rink.cy + 80;
+    const p = st.palet;
+    p.porteur = null;
+    p.x = rink.butD - 12;
+    // là où il n'y avait que le poteau : dans la partie élargie, loin du gardien
+    st.gardiens[1].a = -1.3;
+    st.gardiens[1].vit = 0;
+    p.y = rink.cy + BUT_DEMI * CAGE_GEANTE - 5;
+    p.vx = 420;
+    p.vy = 0;
+    for (let i = 0; i < 30 && st.phase === 'jeu'; i++) pas(rink, st, 1 / 120);
+    expect(st.score[0]).toBe(1);
+    // le but met fin au bonus : la cage reprend sa taille
+    expect(demiCage(st, 1)).toBe(BUT_DEMI);
+  });
+
+  it('mini cage : sa propre cage rétrécit, un tir à côté ne rentre plus', () => {
+    const st = partie();
+    lance(st, 1, 'minicage');
+    expect(demiCage(st, 1)).toBeLessThan(BUT_DEMI / 2 + 1);
+    for (const s of st.patineurs) s.y = rink.cy + 80;
+    st.gardiens[1].a = -1.3;
+    st.gardiens[1].vit = 0;
+    const p = st.palet;
+    p.porteur = null;
+    p.x = rink.butD - 12;
+    p.y = rink.cy + BUT_DEMI - 4;
+    p.vx = 420;
+    p.vy = 0;
+    for (let i = 0; i < 30; i++) pas(rink, st, 1 / 120);
+    expect(st.score[0]).toBe(0);
+  });
+
+  it('gardien endormi : il ne bouge plus et n’attrape plus le palet', () => {
+    const st = partie();
+    lance(st, 0, 'endormi');
+    const gk = st.gardiens[1];
+    expect(gardienEndormi(st, 1)).toBe(true);
+    expect(gardienEndormi(st, 0)).toBe(false);
+    const a0 = gk.a;
+    st.palet.porteur = null;
+    st.palet.x = rink.butD - 40;
+    st.palet.y = rink.cy - 30;
+    for (let i = 0; i < 60; i++) majGardien(rink, st, gk, 1 / 120);
+    expect(gk.a).toBe(a0);
+    // un palet lent sur lui : il ne le bloque pas pour le garder
+    st.palet.x = gk.x - 6;
+    st.palet.y = gk.y;
+    st.palet.vx = 30;
+    st.palet.vy = 0;
+    for (let i = 0; i < 10; i++) majPalet(rink, st, 1 / 240, segmentsCage(rink, false));
+    expect(st.palet.porteur).not.toBe(gk);
+  });
+
+  it('blackout : l’équipe dans le noir intercepte moins bien et vole moins de palets', () => {
+    const st = partie();
+    lance(st, 0, 'blackout');
+    expect(dansLeNoir(st, 1)).toBe(true);
+    expect(dansLeNoir(st, 0)).toBe(false);
+    expect(BLACKOUT_INTERCEPTION).toBeLessThan(1);
+    expect(BLACKOUT_VOL).toBeLessThan(1);
+    // joueur doré : celui qu'on pilote, sous le projecteur
+    expect(joueurDore(st, 0)).toBe(st.controles[0]);
+  });
+
+  it('givre : un bonus d’écran seulement, qui finit au bout de sa durée', () => {
+    const st = partie();
+    lance(st, 1, 'givre');
+    majPouvoirs(rink, st, DEF_POUVOIRS.givre.duree + 0.01);
+    expect(st.pouvoirs![1].actif).toBeNull();
+  });
+
+  it('Wi-Fi : le tir déjà fait du super héros voyage dans l’instantané', () => {
+    const st = partie();
+    st.humains = [true, true];
+    lance(st, 1, 'heros');
+    st.pouvoirs![1].tirFait = true;
+    const inst = decodeInstantane(encodeInstantane(st, rink, 5))!;
+    const client = partie();
+    appliqueInstantane(client, inst, inst, 1, rink);
+    expect(client.pouvoirs![1].actif).toBe('heros');
+    expect(client.pouvoirs![1].tirFait).toBe(true);
+    expect(effetActif(client, 1, 'puissant')).toBe(false);
   });
 });

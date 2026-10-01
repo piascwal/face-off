@@ -1,3 +1,4 @@
+import { POUVOIRS } from '@core/pouvoirs';
 import type { GameEvent } from '@core/types';
 
 /**
@@ -140,6 +141,17 @@ export class MoteurAudio {
     this.ton(330, 0.35, 'square', 0.05, 1760, 0.02);
     this.souffle(0.3, 'highpass', 3000, 0.7, 0.12);
   }
+  /** Tremblement : grondement grave qui roule, et craquements. */
+  seisme(): void {
+    this.souffle(1.4, 'lowpass', 120, 1.5, 0.5);
+    this.ton(55, 1.2, 'sawtooth', 0.09, 38);
+    for (let i = 0; i < 4; i++) this.souffle(0.08, 'bandpass', 900 + i * 300, 3, 0.2, 0.15 + i * 0.22);
+  }
+  /** Blackout : le gros disjoncteur de l'aréna qui saute, puis un bourdonnement qui retombe. */
+  coupure(): void {
+    this.souffle(0.06, 'highpass', 2500, 1, 0.4);
+    this.ton(120, 0.6, 'square', 0.06, 50, 0.03);
+  }
   /** Fin d'un bonus : descente courte. */
   bonusFin(): void {
     this.ton(880, 0.18, 'square', 0.05, 330);
@@ -260,7 +272,11 @@ export function joueEvenements(son: MoteurAudio, evenements: GameEvent[]): void 
         break;
       case 'pouvoir':
         if (ev.quoi === 'tirage') son.tirageBonus();
-        else if (ev.quoi === 'active') son.bonusActive();
+        else if (ev.quoi === 'active') {
+          son.bonusActive();
+          if (POUVOIRS[ev.id] === 'tremblement') son.seisme();
+          else if (POUVOIRS[ev.id] === 'blackout') son.coupure();
+        }
         else son.bonusFin();
         break;
       default:

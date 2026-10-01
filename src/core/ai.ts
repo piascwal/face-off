@@ -1,5 +1,6 @@
 import { elan, esquive, ligneLibre, menaceEchec, meilleurReceveur, passeVers, tir } from './actions';
 import { ECHEC_PREPA, ECHEC_PREPA_MAX, VMAX } from './constants';
+import { demiCage } from './pouvoirs';
 import { angleVersCoinLoin, butAttaque, butDefendu, sensAttaque } from './shooting';
 import { equipe, plusProche } from './state-helpers';
 import type { MatchState, Rink, Skater } from './types';
@@ -327,7 +328,7 @@ export function pilotageIA(rink: Rink, state: MatchState, s: Skater, dt: number)
     s.charge = Math.min(1, s.charge + dt / 0.85);
     if (s.charge >= ia.but) {
       const gardien = state.gardiens[s.eq === 0 ? 1 : 0];
-      tir(state, rink, s, angleVersCoinLoin(rink, s.eq, s.x, s.y, gardien, state.nivEq[s.eq].err), s.charge);
+      tir(state, rink, s, angleVersCoinLoin(rink, s.eq, s.x, s.y, gardien, state.nivEq[s.eq].err, demiCage(state, s.eq === 0 ? 1 : 0)), s.charge);
     }
   }
   // pilotage : vitesse désirée moins vitesse actuelle

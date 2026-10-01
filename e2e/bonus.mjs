@@ -133,6 +133,52 @@ export default async function bonus(env) {
   env.verifie(parti.geste, 'le geste de tir (descente, impact, accompagnement) se joue');
   await env.capture(p, '8b-surpuissant');
 
+  // lot B : chaque bonus part, avec son rendu
+  env.verifie(await donne('heros'), 'SUPER HEROS en cours');
+  const heros = await p.evaluate(() => {
+    const st = window.faceOff.state;
+    return { geles: st.patineurs.filter((s) => s.eq === 1).map((s) => s.x) };
+  });
+  await attends(300);
+  const heros2 = await p.evaluate(() => window.faceOff.state.patineurs.filter((s) => s.eq === 1).map((s) => s.x));
+  env.verifie(heros.geles.every((x, i) => Math.abs(x - heros2[i]) < 0.01), 'SUPER HEROS : les adversaires sont gelés au début');
+  await env.capture(p, '10a-heros');
+
+  env.verifie(await donne('tremblement'), 'TREMBLEMENT en cours');
+  await attends(150);
+  const tremble = await p.evaluate(() => {
+    const st = window.faceOff.state;
+    const porteur = st.palet.porteur;
+    return { au_sol: st.patineurs.filter((s) => s !== porteur && s.chuteT > 0).length, total: st.patineurs.filter((s) => s !== porteur).length, secousse: window.faceOff.effets.secousse };
+  });
+  env.verifie(tremble.au_sol === tremble.total, `TREMBLEMENT : tout le monde au sol sauf le porteur (${tremble.au_sol}/${tremble.total})`);
+  env.verifie(tremble.secousse > 1, `TREMBLEMENT : l'écran tremble (${tremble.secousse.toFixed(1)})`);
+  await env.capture(p, '10b-tremblement');
+
+  env.verifie(await donne('givre'), 'GIVRE en cours');
+  await attends(700);
+  await env.capture(p, '10c-givre');
+
+  env.verifie(await donne('geante'), 'CAGE GEANTE en cours');
+  await attends(300);
+  await env.capture(p, '10d-cage-geante');
+
+  env.verifie(await donne('minicage'), 'MINI CAGE en cours');
+  await attends(300);
+  await env.capture(p, '10e-mini-cage');
+
+  env.verifie(await donne('endormi'), 'GARDIEN ENDORMI en cours');
+  const a0 = await p.evaluate(() => window.faceOff.state.gardiens[1].a);
+  await attends(500);
+  env.verifie((await p.evaluate(() => window.faceOff.state.gardiens[1].a)) === a0, 'GARDIEN ENDORMI : le gardien adverse ne bouge plus');
+  await env.capture(p, '10f-endormi');
+
+  await enJeu();
+  await donnePalet();
+  env.verifie(await donne('blackout'), 'BLACKOUT en cours');
+  await attends(700);
+  await env.capture(p, '10g-blackout');
+
   // surnombre : un renfort doré et semi-transparent entre sur la glace
   const n0 = await p.evaluate(() => window.faceOff.state.patineurs.filter((s) => !s.renfort).length);
   env.verifie(await donne('surnombre'), 'SURNOMBRE en cours');

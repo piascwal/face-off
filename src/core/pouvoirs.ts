@@ -1,4 +1,5 @@
 import { nouveauPatineur } from './entities';
+import { BUT_DEMI } from './constants';
 import type { EtatPouvoirs, MatchState, PouvoirId, Rink, Skater, TeamId } from './types';
 
 /**
@@ -10,7 +11,22 @@ import type { EtatPouvoirs, MatchState, PouvoirId, Rink, Skater, TeamId } from '
  * les bonus.
  */
 /** Ordre fixe : l'index d'un bonus dans cette liste est ce qui voyage en Wi-Fi. */
-export const POUVOIRS: PouvoirId[] = ['vitesse', 'puissant', 'freeze', 'savon', 'inversion', 'surnombre', 'double'];
+export const POUVOIRS: PouvoirId[] = [
+  'vitesse',
+  'puissant',
+  'freeze',
+  'savon',
+  'inversion',
+  'surnombre',
+  'double',
+  'heros',
+  'tremblement',
+  'givre',
+  'geante',
+  'minicage',
+  'endormi',
+  'blackout',
+];
 
 export interface DefPouvoir {
   nom: string;
@@ -30,10 +46,18 @@ export const DEF_POUVOIRS: Record<PouvoirId, DefPouvoir> = {
   inversion: { nom: 'INVERSION', duree: 5, dore: true, dispo: true },
   surnombre: { nom: 'SURNOMBRE', duree: 10, dore: false, dispo: true },
   double: { nom: 'BUT X2', duree: 10, dore: false, dispo: true },
+  heros: { nom: 'SUPER HEROS', duree: 8, dore: true, dispo: true },
+  tremblement: { nom: 'TREMBLEMENT', duree: 2.5, dore: false, dispo: true },
+  givre: { nom: 'GIVRE', duree: 7, dore: false, dispo: true },
+  geante: { nom: 'CAGE GEANTE', duree: 10, dore: false, dispo: true },
+  minicage: { nom: 'MINI CAGE', duree: 10, dore: false, dispo: true },
+  endormi: { nom: 'GARDIEN ENDORMI', duree: 6, dore: false, dispo: true },
+  blackout: { nom: 'BLACKOUT', duree: 8, dore: true, dispo: true },
 };
 
 /**
- * Poids de chaque bonus au tirage (tous égaux pour l'instant). C'est ici
+ * Poids de chaque bonus au tirage (le super héros, qui cumule trois bonus,
+ * sort deux fois moins souvent que les autres). C'est ici
  * qu'on pourra plus tard donner plus souvent les bonus puissants à l'équipe
  * menée au score (voir `poidsPouvoirs`).
  */
@@ -45,6 +69,13 @@ export const POIDS_POUVOIRS: Record<PouvoirId, number> = {
   inversion: 1,
   surnombre: 1,
   double: 1,
+  heros: 0.5,
+  tremblement: 1,
+  givre: 1,
+  geante: 1,
+  minicage: 1,
+  endormi: 1,
+  blackout: 1,
 };
 
 /** Passes réussies d'affilée pour obtenir un bonus (toujours le même nombre). */
@@ -62,13 +93,25 @@ export const PUISSANT_CHUTE = 2;
 export const PUISSANT_PORTEE = 4;
 /** En dessous de cette vitesse (px/s), le tir surpuissant est retombé : il ne renverse plus personne. */
 export const PUISSANT_VMIN = 160;
+/** Super héros : les adversaires restent gelés pendant ses premières secondes. */
+export const HEROS_FREEZE_S = 3;
+/** Tremblement : temps au sol (s) de tous les joueurs sauf le porteur du palet, et de la secousse de l'écran. */
+export const TREMBLEMENT_CHUTE = 1.6;
+/** Cage géante (cage adverse) et mini cage (sa propre cage) : facteur sur la largeur de l'ouverture. */
+export const CAGE_GEANTE = 2;
+export const MINI_CAGE = 0.45;
+/** Gardien endormi : il ne bouge plus, n'attrape plus rien, et son corps ne couvre plus que cette part. */
+export const ENDORMI_RAYON = 0.6;
+/** Blackout : l'équipe dans le noir intercepte moins bien (rayon) et vole moins de palets (taux). */
+export const BLACKOUT_INTERCEPTION = 0.5;
+export const BLACKOUT_VOL = 0.3;
 /** Surnombre : rang donné au renfort (hors des rangs de l'effectif, pour le reconnaître). */
 export const RANG_RENFORT = 9;
 /** Mode entraînement : délai (s) avant que le bonus choisi revienne, après usage. */
 export const ENTRAINEMENT_RETOUR_S = 0.8;
 
 export function etatPouvoirsInitial(): EtatPouvoirs {
-  return { passes: 0, seuil: SEUIL_PASSES, tirage: 0, pret: null, actif: null, reste: 0, dore: -1, attente: 0 };
+  return { passes: 0, seuil: SEUIL_PASSES, tirage: 0, pret: null, actif: null, reste: 0, dore: -1, attente: 0, tirFait: false };
 }
 
 /** Poids du tirage pour l'équipe `eq` (même table pour les deux équipes pour l'instant). */
@@ -95,10 +138,40 @@ export function tirePouvoir(state: MatchState, eq: TeamId, alea = Math.random())
  * pour guider le joueur) : 'tir' pour le tir surpuissant, sinon null.
  */
 export function boutonBonus(state: MatchState, eq: TeamId): 'tir' | null {
-  return state.pouvoirs?.[eq].actif === 'puissant' ? 'tir' : null;
+  return effetActif(state, eq, 'puissant') ? 'tir' : null;
 }
 
 export const pouvoirActif = (state: MatchState, eq: TeamId, id: PouvoirId): boolean => state.pouvoirs?.[eq].actif === id;
+
+/**
+ * Un effet joue-t-il pour l'équipe ? Le bonus du même nom, ou le super
+ * héros, qui cumule super vitesse, tir surpuissant (une fois) et freeze
+ * (pendant ses HEROS_FREEZE_S premières secondes).
+ */
+export function effetActif(state: MatchState, eq: TeamId, effet: 'vitesse' | 'puissant' | 'freeze'): boolean {
+  const p = state.pouvoirs?.[eq];
+  if (!p?.actif) return false;
+  if (p.actif === effet) return true;
+  if (p.actif !== 'heros') return false;
+  if (effet === 'puissant') return !p.tirFait;
+  if (effet === 'freeze') return DEF_POUVOIRS.heros.duree - p.reste < HEROS_FREEZE_S;
+  return true;
+}
+
+/** Demi-largeur de l'ouverture de la cage défendue par `eq` (cage géante adverse, mini cage). */
+export function demiCage(state: MatchState, eq: TeamId): number {
+  const pv = state.pouvoirs;
+  if (!pv) return BUT_DEMI;
+  if (pv[eq === 0 ? 1 : 0].actif === 'geante') return BUT_DEMI * CAGE_GEANTE;
+  if (pv[eq].actif === 'minicage') return Math.round(BUT_DEMI * MINI_CAGE);
+  return BUT_DEMI;
+}
+
+/** Le gardien de l'équipe `eq` dort-il (gardien endormi adverse) ? */
+export const gardienEndormi = (state: MatchState, eq: TeamId): boolean => pouvoirActif(state, eq === 0 ? 1 : 0, 'endormi');
+
+/** L'équipe `eq` est-elle dans le noir (blackout adverse) ? */
+export const dansLeNoir = (state: MatchState, eq: TeamId): boolean => pouvoirActif(state, eq === 0 ? 1 : 0, 'blackout');
 
 /** Le bonus de l'équipe a-t-il fini son tirage (il part dès que le jeu tourne) ? */
 export const pouvoirPret = (state: MatchState, eq: TeamId): boolean => {
@@ -155,8 +228,14 @@ export function activePouvoir(rink: Rink, state: MatchState, eq: TeamId, qui: Sk
   p.reste = DEF_POUVOIRS[id].duree;
   p.dore = qui?.rang ?? -1;
   p.passes = 0;
+  p.tirFait = false;
   state.evenements.push({ type: 'pouvoir', eq, quoi: 'active', id: POUVOIRS.indexOf(id) });
   if (id === 'surnombre') ajouteRenfort(rink, state, eq);
+  if (id === 'tremblement') tremblement(state);
+  if (id === 'geante' || id === 'minicage') {
+    const cible: TeamId = id === 'geante' ? (eq === 0 ? 1 : 0) : eq;
+    state.evenements.push({ type: 'onde', x: cible === 0 ? rink.butG : rink.butD, y: rink.cy, r: 30, c: '#ffd35c' });
+  }
   if (qui) {
     state.evenements.push({ type: 'bulle', txt: `${DEF_POUVOIRS[id].nom} !`, x: qui.x, y: qui.y - 24, c: '#ffd35c' });
     state.evenements.push({ type: 'etincelles', x: qui.x, y: qui.y - 6, n: 14, c: '#ffd35c' });
@@ -212,9 +291,11 @@ export function majPouvoirs(rink: Rink, state: MatchState, dt: number): void {
  * Renvoie le multiplicateur de vitesse et le bonus de qualité du tir.
  */
 export function tirPuissant(state: MatchState, s: Skater): { vitesse: number; bonus: number } {
-  if (!pouvoirActif(state, s.eq, 'puissant')) return { vitesse: 1, bonus: 0 };
+  if (!effetActif(state, s.eq, 'puissant')) return { vitesse: 1, bonus: 0 };
   state.palet.puissant = true;
-  finPouvoir(state, s.eq);
+  // le super héros garde sa vitesse (et son freeze) : seul son tir est consommé
+  if (pouvoirActif(state, s.eq, 'heros')) state.pouvoirs![s.eq].tirFait = true;
+  else finPouvoir(state, s.eq);
   state.evenements.push({ type: 'onde', x: s.x, y: s.y, r: 26, c: '#ff8a2a' });
   state.evenements.push({ type: 'secousse', force: 3 });
   return { vitesse: PUISSANT_VITESSE, bonus: PUISSANT_BONUS };
@@ -293,11 +374,37 @@ function retireRenfort(state: MatchState, eq: TeamId): void {
   state.evenements.push({ type: 'etincelles', x: r.x, y: r.y - 6, n: 12, c: '#ffd35c' });
 }
 
+/**
+ * Tremblement : tout le monde tombe (la chute de l'esquive), coéquipiers
+ * compris, sauf le porteur du palet ; les gardiens vacillent, l'écran tremble.
+ */
+function tremblement(state: MatchState): void {
+  const porteur = state.palet.porteur;
+  for (const s of state.patineurs) {
+    if (s === porteur) continue;
+    s.arme = false;
+    s.charge = 0;
+    s.elanT = 0;
+    s.prepaEchecT = 0;
+    s.esquiveT = 0;
+    s.sonne = TREMBLEMENT_CHUTE;
+    s.chuteT = TREMBLEMENT_CHUTE;
+    s.chuteD = TREMBLEMENT_CHUTE;
+    s.vx *= 0.3;
+    s.vy *= 0.3;
+    state.evenements.push({ type: 'neige', x: s.x, y: s.y + 3, n: 4 });
+  }
+  for (const gk of state.gardiens) gk.secoue = 1;
+  state.evenements.push({ type: 'secousse', force: 7 });
+  state.evenements.push({ type: 'flash', force: 0.2 });
+  state.evenements.push({ type: 'vibre', ms: [80, 40, 80, 40, 120] });
+}
+
 /** Freeze : le joueur est-il pris dans la glace (tout le monde sauf le joueur doré de l'équipe qui l'a déclenché) ? */
 export function estGele(state: MatchState, s: Skater): boolean {
   const pv = state.pouvoirs;
   if (!pv) return false;
-  for (const eq of [0, 1] as TeamId[]) if (pv[eq].actif === 'freeze' && joueurDore(state, eq) !== s) return true;
+  for (const eq of [0, 1] as TeamId[]) if (effetActif(state, eq, 'freeze') && joueurDore(state, eq) !== s) return true;
   return false;
 }
 

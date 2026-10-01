@@ -168,10 +168,10 @@ export function construitFoule(
   return foule;
 }
 
-export function dessineCage(g: CanvasRenderingContext2D, rink: Rink, eq: TeamId): void {
+/** Cage de l'équipe `eq` ; `m` : demi-largeur de l'ouverture (cage géante, mini cage). */
+export function dessineCage(g: CanvasRenderingContext2D, rink: Rink, eq: TeamId, m = BUT_DEMI): void {
   const gx = eq === 0 ? rink.butG : rink.butD;
   const dir = eq === 0 ? 1 : -1;
-  const m = BUT_DEMI;
   const cy = rink.cy;
   const h = 6;
   const x0 = Math.min(gx, gx - dir * BUT_PROF);

@@ -61,7 +61,7 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 | `solo` | Au clavier : menu, choix des équipes et maillots (avec retour), match, pause, fin, rejouer, bilan, écran des commandes |
 | `coupe` | Mode coupe : choix, tableau, dévoilement, élimination, titre |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
-| `bonus` | Bonus en solo : jauge, 4e passe (gros « BONUS » doré sans combo), départ automatique, but x2 limité à 10 s, freeze, inversion, full esquive, tir surpuissant (bouton TIR doré), surnombre, un but qui coupe tout, option du menu, mode entraînement |
+| `bonus` | Bonus en solo : jauge, 4e passe (gros « BONUS » doré sans combo), départ automatique, but x2 limité à 10 s, freeze, inversion, full esquive, tir surpuissant (bouton TIR doré), super héros, tremblement, givre, cage géante, mini cage, gardien endormi, blackout, surnombre, un but qui coupe tout, option du menu, mode entraînement |
 | `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), invité qui ne revient pas, coupure pendant le choix des équipes |
 
 En local, Chromium doit être installé une fois : `npx playwright install chromium`.
@@ -663,8 +663,8 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
   un peu plus d'une seconde dans la case en haut à gauche, puis s'arrêtent.
   Le tirage est le même pour les deux équipes, tout au long du match :
   personne n'est avantagé pour toute la partie par un tirage chanceux.
-- **La pondération.** Chaque bonus a un poids (`POIDS_POUVOIRS`, tous égaux
-  pour l'instant). Le tirage reçoit l'état du match (`poidsPouvoirs`) : on
+- **La pondération.** Chaque bonus a un poids (`POIDS_POUVOIRS` : 1, et 0,5
+  pour le super héros). Le tirage reçoit l'état du match (`poidsPouvoirs`) : on
   pourra plus tard donner plus souvent les bonus puissants à l'équipe menée.
 - **Le départ.** Il n'y a pas de bouton BONUS : à la 4e passe, un gros
   « BONUS » doré jaillit au-dessus du joueur (à la place de la bulle de
@@ -678,6 +678,8 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
   `render/controls-overlay.ts`). Sans le palet, un anneau doré rappelle
   que le tir attend.
 - **Toujours une fin.** Chaque bonus dure au plus 10 s (but x2 compris).
+- **Taille des cages.** Les cages géante et mini passent par `demiCage`
+  (collisions, détection du but, gardien, visée et qualité du tir).
 - **Un but met fin à tous les bonus**, des deux côtés, même à un tirage en
   cours.
 - **Le joueur doré.** Le joueur piloté devient doré (maillot, crosse et
@@ -696,6 +698,13 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 | Inversion | les déplacements des adversaires partent à l'envers (l'ordinateur aussi), spirales au-dessus de leur tête | 5 s |
 | Surnombre | un coéquipier de plus saute du banc (doré, semi-transparent, piloté par l'ordinateur ou par vous si vous changez de joueur), puis repart | 10 s |
 | But x2 | le prochain but de l'équipe compte double ; « 2X » au-dessus de la cage adverse | 10 s |
+| Super héros | super vitesse + un tir surpuissant + freeze des adversaires pendant les 3 premières secondes (`HEROS_FREEZE_S`) ; le tir ne coupe pas le reste du bonus ; deux fois plus rare au tirage | 8 s |
+| Tremblement | tout le monde tombe (la chute de l'esquive, 1,6 s), coéquipiers compris, sauf le porteur du palet ; l'écran tremble fort, grondement, poussière | 2,5 s |
+| Givre | l'écran de tout le monde gèle : patinoire floutée et bleutée, cristaux de glace sur les bords (`render/givre-ecran.ts`) ; le tableau et les commandes restent nets | 7 s |
+| Cage géante | la cage adverse s'ouvre deux fois plus large ; le gardien garde sa taille et ne couvre plus les coins ; l'ouverture brille en or | 10 s |
+| Mini cage | sa propre cage rétrécit (×0,45) ; l'ouverture brille en or | 10 s |
+| Gardien endormi | le gardien adverse ne bouge plus, n'attrape plus rien et ne couvre plus que 60 % de son corps ; des « Z » montent au-dessus de lui | 6 s |
+| Blackout | les lumières s'éteignent (après deux clignotements), un projecteur suit le joueur doré ; l'adversaire est presque dans le noir (une petite lueur autour de son joueur) et intercepte (×0,5) et vole (×0,3) moins bien ; l'équipe du bonus voit mieux | 8 s |
 
 **Mode entraînement** (Réglages avancés > ENTRAINEMENT) : on choisit un
 bonus dans la grille (le choix est gardé), puis un match sans chrono
@@ -706,7 +715,9 @@ Code : `core/pouvoirs.ts` (règles, tirage, départ automatique, effets ; testé
 `tests/pouvoirs.test.ts`), `render/hud-bonus.ts` et `render/icones-bonus.ts`
 (jauges, tirage), `render/scene.ts` (le « BONUS » doré), feuille dorée calculée à la volée
 (`BanqueSprites.spriteJoueurDore`). En Wi-Fi, les bonus voyagent dans
-l'instantané (protocole v17 : les entrées ne portent plus d'appui BONUS).
+l'instantané (protocole v18 : en plus, le tir déjà fait du super héros) ; les
+effets d'écran (tremblement, givre, blackout) se calculent sur chaque appareil
+à partir de l'état du bonus.
 
 L'aide des commandes (tactile et clavier) est dans **Réglages avancés >
 Commandes**.

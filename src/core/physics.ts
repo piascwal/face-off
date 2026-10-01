@@ -16,11 +16,18 @@ import {
   VMAX,
 } from './constants';
 import {
+  BLACKOUT_INTERCEPTION,
+  BLACKOUT_VOL,
   cassePasses,
+  dansLeNoir,
   DEF_POUVOIRS,
+  demiCage,
+  effetActif,
+  ENDORMI_RAYON,
   estDore,
   estGele,
   finPouvoir,
+  gardienEndormi,
   pouvoirActif,
   renversePuissant,
   VITESSE_FACTEUR,
@@ -58,14 +65,16 @@ export function heurteBande(rink: Rink, o: Mobile, rad: number, rest: number): n
   return 0;
 }
 
-/** Segments des cages ; les patineurs bloquent aussi sur l'ouverture. */
-export function segmentsCage(rink: Rink, avecFace: boolean): SegmentCage[] {
+/**
+ * Segments des cages ; les patineurs bloquent aussi sur l'ouverture.
+ * `demis` : demi-largeur de chaque cage (gauche, droite), qu'un bonus change.
+ */
+export function segmentsCage(rink: Rink, avecFace: boolean, demis: [number, number] = [BUT_DEMI, BUT_DEMI]): SegmentCage[] {
   const segs: SegmentCage[] = [];
-  const m = BUT_DEMI;
   const cy = rink.cy;
-  for (const [gx, dir] of [
-    [rink.butG, 1],
-    [rink.butD, -1],
+  for (const [gx, dir, m] of [
+    [rink.butG, 1, demis[0]],
+    [rink.butD, -1, demis[1]],
   ] as const) {
     const fond = gx - dir * BUT_PROF;
     segs.push([fond, cy - m, fond, cy + m, false]);
@@ -125,7 +134,7 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
   if (s.sonne > 0 || state.phase === 'engagement' || state.phase === 'fin') ix = iy = 0;
   const m = Math.min(1, Math.hypot(ix, iy));
   // bonus « super vitesse » : le joueur doré va plus vite et accélère plus fort
-  const turbo = pouvoirActif(state, s.eq, 'vitesse') && estDore(state, s) ? VITESSE_FACTEUR : 1;
+  const turbo = effetActif(state, s.eq, 'vitesse') && estDore(state, s) ? VITESSE_FACTEUR : 1;
   const vmax = VMAX * s.vit * turbo * (s.tient ? 0.93 : 1) * (s.arme ? 1 - 0.35 * s.charge : 1);
   if (m > 0.08) {
     const ux = ix / Math.hypot(ix, iy);
@@ -294,6 +303,9 @@ export function majGardien(rink: Rink, state: MatchState, gk: Goalie, dt: number
   const dir = gk.eq === 0 ? 1 : -1;
   gk.cd -= dt;
   gk.secoue = Math.max(0, gk.secoue - dt * 4);
+  const demi = demiCage(state, gk.eq);
+  // gardien endormi : il ne bouge plus du tout (il garde le palet s'il l'avait)
+  const dort = gardienEndormi(state, gk.eq);
   let tx = p.x;
   let ty = p.y;
   // anticipation : le gardien projette un peu la trajectoire vers sa ligne
@@ -304,10 +316,11 @@ export function majGardien(rink: Rink, state: MatchState, gk: Goalie, dt: number
   const cible = clamp(Math.atan2(ty - rink.cy, Math.max(-2, (tx - gx) * dir)), -1.3, 1.3);
   // une passe qui traverse devant lui le prend de court : il pivote moins vite
   const vit = gk.vit * (p.passe ? GARDIEN_PASSE_LENTEUR : 1);
-  gk.a += clamp(cible - gk.a, -vit * dt, vit * dt);
+  if (!dort) gk.a += clamp(cible - gk.a, -vit * dt, vit * dt);
   const sortie = Math.hypot(p.x - gx, p.y - rink.cy) < 90 ? 6 : 5;
   gk.x = gx + dir * (2.5 + Math.cos(gk.a) * sortie);
-  gk.y = rink.cy + Math.sin(gk.a) * (BUT_DEMI - 1);
+  // le gardien garde sa taille : dans une cage géante, il ne couvre plus les coins
+  gk.y = rink.cy + Math.sin(gk.a) * (Math.min(BUT_DEMI, demi) - 1);
 
   if (p.porteur === gk) {
     p.x = gk.x + dir * 5;
@@ -318,11 +331,11 @@ export function majGardien(rink: Rink, state: MatchState, gk: Goalie, dt: number
   }
 }
 
-/** La cage (ligne de but, sens vers le centre) où se trouve le palet, s'il est dedans. */
-function cageDuPalet(rink: Rink, p: Puck): { gx: number; dir: 1 | -1 } | null {
-  if (Math.abs(p.y - rink.cy) > BUT_DEMI) return null;
-  if (p.x < rink.butG && p.x > rink.butG - BUT_PROF - 2) return { gx: rink.butG, dir: 1 };
-  if (p.x > rink.butD && p.x < rink.butD + BUT_PROF + 2) return { gx: rink.butD, dir: -1 };
+/** La cage (ligne de but, sens vers le centre, demi-ouverture) où se trouve le palet, s'il est dedans. */
+function cageDuPalet(rink: Rink, state: MatchState, p: Puck): { gx: number; dir: 1 | -1; demi: number } | null {
+  const [mg, md] = [demiCage(state, 0), demiCage(state, 1)];
+  if (p.x < rink.butG && p.x > rink.butG - BUT_PROF - 2 && Math.abs(p.y - rink.cy) <= mg) return { gx: rink.butG, dir: 1, demi: mg };
+  if (p.x > rink.butD && p.x < rink.butD + BUT_PROF + 2 && Math.abs(p.y - rink.cy) <= md) return { gx: rink.butD, dir: -1, demi: md };
   return null;
 }
 
@@ -332,7 +345,7 @@ function cageDuPalet(rink: Rink, p: Puck): { gx: number; dir: 1 | -1 } | null {
  * les patineurs ne peuvent plus le repousser dehors. Sans ça, un tir qui
  * rentre ressortait souvent aussitôt, et on ne voyait pas qu'il y avait but.
  */
-function retiensDansFilet(rink: Rink, p: Puck, cage: { gx: number; dir: 1 | -1 }, dt: number): void {
+function retiensDansFilet(rink: Rink, p: Puck, cage: { gx: number; dir: 1 | -1; demi: number }, dt: number): void {
   p.x += p.vx * dt;
   p.y += p.vy * dt;
   const f = Math.exp(-4 * dt);
@@ -341,8 +354,8 @@ function retiensDansFilet(rink: Rink, p: Puck, cage: { gx: number; dir: 1 | -1 }
   const fond = cage.gx - cage.dir * BUT_PROF;
   const x0 = Math.min(fond, cage.gx) + p.r;
   const x1 = Math.max(fond, cage.gx) - p.r;
-  const y0 = rink.cy - BUT_DEMI + p.r;
-  const y1 = rink.cy + BUT_DEMI - p.r;
+  const y0 = rink.cy - cage.demi + p.r;
+  const y1 = rink.cy + cage.demi - p.r;
   if (p.x < x0 || p.x > x1) {
     p.x = clamp(p.x, x0, x1);
     p.vx *= -0.2;
@@ -357,7 +370,7 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
   const p: Puck = state.palet;
   const px0 = p.x;
   if (state.phase === 'but' && !p.porteur) {
-    const cage = cageDuPalet(rink, p);
+    const cage = cageDuPalet(rink, state, p);
     if (cage) {
       retiensDansFilet(rink, p, cage, dt);
       return;
@@ -445,7 +458,8 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
     // arrêts des gardiens — la qualité du tir (puissance + placement) module
     // le rayon effectif et le seuil de capture, donc la probabilité de but.
     for (const gk of state.gardiens) {
-      const radEff = rayonGardienEffectif(gk, p.qualite);
+      const dort = gardienEndormi(state, gk.eq);
+      const radEff = rayonGardienEffectif(gk, p.qualite) * (dort ? ENDORMI_RAYON : 1);
       const dx = p.x - gk.x;
       const dy = p.y - gk.y;
       const d = Math.hypot(dx, dy);
@@ -458,7 +472,7 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
         const vit = Math.hypot(p.vx, p.vy);
         const versBut = p.tireur !== null && p.tireur !== gk.eq;
         const seuilRattrape = seuilRattrapeEffectif(p.qualite);
-        if (vit < seuilRattrape && gk.cd <= 0 && state.phase === 'jeu') {
+        if (vit < seuilRattrape && gk.cd <= 0 && state.phase === 'jeu' && !dort) {
           prendPalet(state, gk);
           gk.tient = 0.75;
           if (versBut && vit > 60) {
@@ -493,9 +507,10 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
   }
 
   // but ! (on franchit la ligne par l'avant, entre les poteaux)
-  if (state.phase === 'jeu' && Math.abs(p.y - rink.cy) < BUT_DEMI - 0.6) {
-    if (px0 >= rink.butG && p.x < rink.butG) marque(rink, state, 1);
-    else if (px0 <= rink.butD && p.x > rink.butD) marque(rink, state, 0);
+  if (state.phase === 'jeu') {
+    const dy = Math.abs(p.y - rink.cy);
+    if (px0 >= rink.butG && p.x < rink.butG && dy < demiCage(state, 0) - 0.6) marque(rink, state, 1);
+    else if (px0 <= rink.butD && p.x > rink.butD && dy < demiCage(state, 1) - 0.6) marque(rink, state, 0);
   }
 }
 
@@ -568,7 +583,9 @@ export function recuperations(state: MatchState, dt: number): void {
       // pendant une passe, le receveur capte de plus loin, un adversaire doit être bien placé
       const visee = p.passe?.vers === s;
       const marge = p.passe?.facile ? PASSE_FACILE_MARGE : 0;
-      const portee = !p.passe ? 7 : visee ? RECEPTION_RAYON + marge : s.eq === p.passe.vers.eq ? 7 : INTERCEPTION_RAYON - marge;
+      // blackout adverse : dans le noir, on voit mal le palet qui passe
+      const noir = dansLeNoir(state, s.eq) ? BLACKOUT_INTERCEPTION : 1;
+      const portee = !p.passe ? 7 : visee ? RECEPTION_RAYON + marge : s.eq === p.passe.vers.eq ? 7 : (INTERCEPTION_RAYON - marge) * noir;
       if (d < portee && d < dmin && rel < (visee ? 420 : 320)) {
         dmin = d;
         meilleur = s;
@@ -588,7 +605,7 @@ export function recuperations(state: MatchState, dt: number): void {
       const sp = pointCrosse(o);
       const d = Math.hypot(p.x - sp.x, p.y - sp.y);
       const portee = o.pokeT > 0 ? 10 : 6.5;
-      const taux = o.humain ? (o.pokeT > 0 ? 7 : 0.7) : state.nivEq[o.eq].poke;
+      const taux = (o.humain ? (o.pokeT > 0 ? 7 : 0.7) : state.nivEq[o.eq].poke) * (dansLeNoir(state, o.eq) ? BLACKOUT_VOL : 1);
       if (d < portee && Math.random() < taux * dt) {
         lachePalet(state, c, 0.4);
         const a = o.face + alea(-0.8, 0.8);

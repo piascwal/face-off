@@ -16,7 +16,7 @@ import {
   UNE_TOUCHE_BONUS,
   UNE_TOUCHE_S,
 } from './constants';
-import { cassePasses, comptePasse, pouvoirActif, tirPuissant } from './pouvoirs';
+import { cassePasses, comptePasse, demiCage, effetActif, tirPuissant } from './pouvoirs';
 import { qualiteDuTir } from './shooting';
 import { equipe } from './state-helpers';
 import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types';
@@ -32,7 +32,7 @@ export const pointCrosse = (s: Skater): { x: number; y: number } => ({
 export function controle(state: MatchState, s: Skater): void {
   if (state.mode !== 'match' || !state.humains[s.eq] || state.controles[s.eq] === s) return;
   // freeze de son équipe : on garde la main sur le seul joueur qui bouge
-  if (state.controles[s.eq] && pouvoirActif(state, s.eq, 'freeze')) return;
+  if (state.controles[s.eq] && effetActif(state, s.eq, 'freeze')) return;
   const a = state.controles[s.eq];
   if (a) {
     a.humain = false;
@@ -120,7 +120,7 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   p.tireur = s.eq;
   p.dernier = s;
   p.passe = null;
-  p.qualite = qualiteDuTir(rink, s.eq, sp.x, sp.y, ang, puissance, state.gardiens[1 - s.eq] as Goalie);
+  p.qualite = qualiteDuTir(rink, s.eq, sp.x, sp.y, ang, puissance, state.gardiens[1 - s.eq] as Goalie, demiCage(state, s.eq === 0 ? 1 : 0));
   p.passes = passes;
   p.uneTouche = uneTouche;
   // le jeu de passes paie : chaque passe de la séquence rend le tir plus dangereux,

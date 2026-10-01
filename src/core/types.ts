@@ -141,7 +141,21 @@ export function statsVides(): StatsMatch {
 export type GameMode = 'demo' | 'match';
 
 /** Bonus (power-ups), voir pouvoirs.ts. */
-export type PouvoirId = 'vitesse' | 'puissant' | 'freeze' | 'savon' | 'inversion' | 'surnombre' | 'double';
+export type PouvoirId =
+  | 'vitesse'
+  | 'puissant'
+  | 'freeze'
+  | 'savon'
+  | 'inversion'
+  | 'surnombre'
+  | 'double'
+  | 'heros'
+  | 'tremblement'
+  | 'givre'
+  | 'geante'
+  | 'minicage'
+  | 'endormi'
+  | 'blackout';
 
 /** Bonus d'une équipe : jauge de passes, bonus en main, effet en cours. */
 export interface EtatPouvoirs {
@@ -160,6 +174,8 @@ export interface EtatPouvoirs {
   dore: number;
   /** Entraînement : temps écoulé depuis la fin du bonus (il revient à ENTRAINEMENT_RETOUR_S). */
   attente: number;
+  /** Super héros : son tir surpuissant est déjà parti (le reste du bonus continue). */
+  tirFait: boolean;
 }
 
 /** Un évènement de gameplay à effet de bord (son, particule, vibration, texte...). */

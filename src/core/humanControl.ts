@@ -1,5 +1,6 @@
 import { changeJoueur, coupDeCrosse, elan, esquive, menaceEchec, passeJoueur, surReception, tir } from './actions';
-import { BUT_DEMI, ECHEC_PORTEE, ESQUIVE_VERROU, UNE_TOUCHE_CHARGE } from './constants';
+import { ECHEC_PORTEE, ESQUIVE_VERROU, UNE_TOUCHE_CHARGE } from './constants';
+import { demiCage } from './pouvoirs';
 import { angleVersCoinLoin, butAttaque } from './shooting';
 import type { InputIntent, MatchState, Rink, Skater } from './types';
 import { angDiff } from './utils';
@@ -14,10 +15,10 @@ export function assistance(rink: Rink, state: MatchState, s: Skater, a: number, 
   let aCoin: number;
   if (!oriente || Math.abs(dA) < 0.06) {
     const gardien = state.gardiens[s.eq === 0 ? 1 : 0];
-    aCoin = angleVersCoinLoin(rink, s.eq, s.x, s.y, gardien, exact ? 0 : 0.04);
+    aCoin = angleVersCoinLoin(rink, s.eq, s.x, s.y, gardien, exact ? 0 : 0.04, demiCage(state, s.eq === 0 ? 1 : 0));
   } else {
     const sy = dA > 0 === Math.cos(aCentre) > 0 ? 1 : -1;
-    aCoin = Math.atan2(rink.cy + sy * (BUT_DEMI - 3.5) - s.y, gx - s.x);
+    aCoin = Math.atan2(rink.cy + sy * (demiCage(state, s.eq === 0 ? 1 : 0) - 3.5) - s.y, gx - s.x);
   }
   return a + angDiff(a, aCoin) * 0.7;
 }
@@ -39,7 +40,7 @@ export function angleTirJoueur(
     let best: number | null = null;
     let e = 0.18;
     for (const sy of [-1, 1]) {
-      const a = Math.atan2(rink.cy + sy * (BUT_DEMI - 3.5) - s.y, gx - s.x);
+      const a = Math.atan2(rink.cy + sy * (demiCage(state, s.eq === 0 ? 1 : 0) - 3.5) - s.y, gx - s.x);
       const d = Math.abs(angDiff(viseeManuelle, a));
       if (d < e) {
         e = d;

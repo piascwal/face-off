@@ -175,8 +175,8 @@ const F_PATINEUR = 19;
 const TAILLE_PATINEUR = F_PATINEUR * 4 + 1;
 const TAILLE_GARDIEN = 5 * 4;
 // … + statistiques (passes, mises en échec, meilleure combo, possession)
-// … + bonus des deux équipes (passes, seuil, en main, en cours, tirage, temps restant, joueur doré, attente)
-const TAILLE_POUVOIRS = 1 + 1 + 1 + 1 + 1 + 4 + 1 + 1;
+// … + bonus des deux équipes (passes, seuil, en main, en cours, tirage, temps restant, joueur doré, attente, tir du héros fait)
+const TAILLE_POUVOIRS = 1 + 1 + 1 + 1 + 1 + 4 + 1 + 1 + 1;
 const TAILLE_ENTETE = 1 + 1 + 4 + 4 + 16 + 1 + 4 + 4 + 1 + 8 + 12 + 2 + 2 + 1 + 4 + 4 + 2 + 8 + 2 * TAILLE_POUVOIRS;
 const TAILLE_PALET = 4 * 4 + 1 + 1;
 export const PATINEURS_MAX = 12;
@@ -318,6 +318,7 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
     f(pv && Number.isFinite(pv.reste) ? pv.reste : -1);
     i8(pv?.dore ?? -1);
     u8(Math.min(255, Math.round((pv?.attente ?? 0) * 20)));
+    u8(pv?.tirFait ? 1 : 0);
   }
   u8(n);
   for (let i = 0; i < n; i++) {
@@ -393,7 +394,8 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
     const r = f();
     const dore = i8();
     const attente = u8() / 20;
-    return { passes, seuil, tirage, pret, actif, reste: r < 0 ? Infinity : r, dore, attente };
+    const tirFait = u8() === 1;
+    return { passes, seuil, tirage, pret, actif, reste: r < 0 ? Infinity : r, dore, attente, tirFait };
   };
   const pouvoirs: [EtatPouvoirs, EtatPouvoirs] = [pouvoir(), pouvoir()];
   const n = u8();

@@ -14,6 +14,7 @@ export function angleVersCoinLoin(
   y: number,
   gardien: Goalie,
   err = 0,
+  demi = BUT_DEMI,
 ): number {
   const gx = butAttaque(rink, eq);
   const dir = sensAttaque(eq);
@@ -21,7 +22,7 @@ export function angleVersCoinLoin(
   let meilleur = 0;
   let ecart = -1;
   for (const sy of [-1, 1]) {
-    const a = Math.atan2(rink.cy + sy * (BUT_DEMI - 3.5) - y, gx - dir * 1 - x);
+    const a = Math.atan2(rink.cy + sy * (demi - 3.5) - y, gx - dir * 1 - x);
     const e = Math.abs(angDiff(a, aGk));
     if (e > ecart) {
       ecart = e;
@@ -37,7 +38,7 @@ export function angleVersCoinLoin(
  * position du gardien à l'instant du tir. Un tir dans la lucarne opposée au
  * gardien vaut 1, un tir droit sur lui vaut 0.
  */
-export function qualiteDirection(rink: Rink, eq: TeamId, x: number, y: number, ang: number, gardien: Goalie): number {
+export function qualiteDirection(rink: Rink, eq: TeamId, x: number, y: number, ang: number, gardien: Goalie, demi = BUT_DEMI): number {
   const gx = butAttaque(rink, eq);
   const dir = sensAttaque(eq);
   const vx = Math.cos(ang);
@@ -46,8 +47,8 @@ export function qualiteDirection(rink: Rink, eq: TeamId, x: number, y: number, a
   const t = (gx - x) / vx;
   if (t <= 0) return 0;
   const yAuBut = y + vy * t;
-  if (Math.abs(yAuBut - rink.cy) > BUT_DEMI + 1) return 0;
-  const yCadre = clamp(yAuBut, rink.cy - BUT_DEMI, rink.cy + BUT_DEMI);
+  if (Math.abs(yAuBut - rink.cy) > demi + 1) return 0;
+  const yCadre = clamp(yAuBut, rink.cy - demi, rink.cy + demi);
   return clamp(Math.abs(yCadre - gardien.y) / BUT_DEMI, 0, 1);
 }
 
@@ -67,8 +68,9 @@ export function qualiteDuTir(
   ang: number,
   puissance: number,
   gardien: Goalie,
+  demi = BUT_DEMI,
 ): number {
-  const dirQ = qualiteDirection(rink, eq, x, y, ang, gardien);
+  const dirQ = qualiteDirection(rink, eq, x, y, ang, gardien, demi);
   if (dirQ <= 0) return 0;
   const puissanceQ = clamp(puissance, 0, 1);
   return clamp(puissanceQ * 0.55 + dirQ * 0.55 - 0.1, 0, 0.92);

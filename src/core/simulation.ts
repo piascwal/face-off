@@ -10,7 +10,7 @@ import {
   segmentsCage,
   type SegmentCage,
 } from './physics';
-import { estGele, estInverse, majPouvoirs } from './pouvoirs';
+import { demiCage, estGele, estInverse, majPouvoirs } from './pouvoirs';
 import { engagement, finMatch, finTempsReglementaire } from './rules';
 import { INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from './types';
 import { alea } from './utils';
@@ -70,8 +70,10 @@ export function pas(
 
   majPouvoirs(rink, state, dt);
 
-  const segsAvecFace: SegmentCage[] = segmentsCage(rink, true);
-  const segsSansFace: SegmentCage[] = segmentsCage(rink, false);
+  // cages à la taille du moment (cage géante, mini cage)
+  const demis: [number, number] = [demiCage(state, 0), demiCage(state, 1)];
+  const segsAvecFace: SegmentCage[] = segmentsCage(rink, true, demis);
+  const segsSansFace: SegmentCage[] = segmentsCage(rink, false, demis);
 
   for (const s of state.patineurs) bougePatineur(rink, state, s, dt, segsAvecFace);
   collisionsPatineurs(state);

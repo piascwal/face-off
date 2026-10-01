@@ -1,5 +1,6 @@
 import { menaceEchec } from '@core/actions';
-import { boutonBonus } from '@core/pouvoirs';
+import { boutonBonus, DEF_POUVOIRS, TREMBLEMENT_CHUTE } from '@core/pouvoirs';
+import { GivreEcran } from '@render/givre-ecran';
 import { calculeRink, reprojette } from '@core/rink';
 import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
 import { pas } from '@core/simulation';
@@ -104,6 +105,7 @@ export class GameApp {
   readonly sprites = new BanqueSprites();
   readonly audio = new MoteurAudio();
   readonly effets = new SystemeEffets();
+  private readonly givre = new GivreEcran();
   readonly entrees = new GestionnaireEntreesJeu();
   readonly ralenti = new Ralenti();
   readonly imageFin = new ImageFinMatch();
@@ -454,6 +456,7 @@ export class GameApp {
     const lan = this.lan;
     g.fillStyle = C.nuit;
     g.fillRect(0, 0, this.W, this.H);
+    this.secousseTremblement(state);
     const s = this.effets.secousse;
     const sx = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
     const sy = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
@@ -471,6 +474,8 @@ export class GameApp {
       lan.spectateur ? null : lan.eqLocal,
     );
     g.setTransform(E, 0, 0, E, 0, 0);
+    // bonus « givre » : l'écran de tout le monde gèle (la patinoire seulement, pas le tableau ni les commandes)
+    if (!ralenti) this.givre.dessine(g, this.ecran, this.W, this.H, E, forceBonus(state, 'givre', 0.5, 1), temps);
     const enMatch = !ECRANS_MENU.includes(this.ecranUI);
     // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
     if (enMatch) {
@@ -497,6 +502,15 @@ export class GameApp {
       g.fillRect(0, 0, this.W, this.H);
     }
     if (this.attenteDemarrage && this.ecranUI === 'menu') this.dessineEcranDemarrage(g, temps);
+  }
+
+  /** Bonus « tremblement » : l'écran tremble fort tant que les joueurs sont au sol. */
+  private secousseTremblement(state: MatchState): void {
+    for (const pv of state.pouvoirs ?? []) {
+      if (pv.actif !== 'tremblement') continue;
+      const age = DEF_POUVOIRS.tremblement.duree - pv.reste;
+      if (age < TREMBLEMENT_CHUTE) this.effets.secousse = Math.max(this.effets.secousse, 4.5 * (1 - age / TREMBLEMENT_CHUTE) * this.effets.intensiteEcran + 1);
+    }
   }
 
   /**
@@ -540,4 +554,19 @@ export class GameApp {
     dessineCommandes(g, this.W, this.H, state.temps, pilote, ui, !!pilote && menaceEchec(state, pilote) !== null, boutonDore);
     if (pilote?.arme) dessineJaugeTir(g, this.H, pilote.charge, state.temps);
   }
+}
+
+/**
+ * Force (0..1) d'un effet d'écran lié à un bonus en cours, de l'une ou
+ * l'autre équipe : il monte en `entree` s, et retombe dans les `sortie`
+ * dernières secondes.
+ */
+function forceBonus(state: MatchState, id: 'givre', entree: number, sortie: number): number {
+  let f = 0;
+  for (const pv of state.pouvoirs ?? []) {
+    if (pv.actif !== id) continue;
+    const age = DEF_POUVOIRS[id].duree - pv.reste;
+    f = Math.max(f, Math.min(1, age / entree, pv.reste / sortie));
+  }
+  return f;
 }
