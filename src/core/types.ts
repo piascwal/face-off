@@ -94,6 +94,10 @@ export interface Puck {
   /** Tir en cours : nombre de passes réussies qui l'ont précédé, et tir sur réception ou non. */
   passes: number;
   uneTouche: boolean;
+  /** Tir guidé en vol : hauteur du coin visé dans la cage adverse. */
+  guide: { y: number } | null;
+  /** Traînée spéciale (rendu) : 0 aucune, 1 tir guidé, 2 ricochet. */
+  lueur: number;
 }
 
 export interface LevelConfig {
@@ -130,6 +134,28 @@ export function statsVides(): StatsMatch {
 }
 export type GameMode = 'demo' | 'match';
 
+/** Bonus (power-ups), voir pouvoirs.ts. */
+export type PouvoirId = 'guide' | 'vitesse' | 'puissant' | 'freeze' | 'savon' | 'inversion' | 'ricochet' | 'surnombre' | 'gamelle' | 'double';
+
+/** Bonus d'une équipe : jauge de passes, bonus en main, effet en cours. */
+export interface EtatPouvoirs {
+  /** Passes réussies d'affilée vers le prochain bonus. */
+  passes: number;
+  /** Passes nécessaires pour le prochain bonus. */
+  seuil: number;
+  /** Tirage en cours (s restantes) : le bonus est connu, mais pas encore utilisable. */
+  tirage: number;
+  /** Bonus en main, prêt à être déclenché. */
+  pret: PouvoirId | null;
+  /** Bonus en cours, et son temps restant (s ; Infinity : jusqu'au prochain but). */
+  actif: PouvoirId | null;
+  reste: number;
+  /** Rang du joueur doré quand c'est l'ordinateur qui a déclenché le bonus (-1 : aucun). */
+  dore: number;
+  /** Depuis combien de temps le bonus attend d'être déclenché (s) — pour l'ordinateur. */
+  attente: number;
+}
+
 /** Un évènement de gameplay à effet de bord (son, particule, vibration, texte...). */
 export type GameEvent =
   | { type: 'frappe'; puissance: number }
@@ -155,6 +181,8 @@ export type GameEvent =
   | { type: 'flash'; force: number }
   | { type: 'vibre'; ms: number | number[] }
   | { type: 'bulle'; txt: string; x: number; y: number; c: string }
+  // bonus : `id` = index dans POUVOIRS (voir pouvoirs.ts)
+  | { type: 'pouvoir'; eq: TeamId; quoi: 'tirage' | 'pret' | 'active' | 'fin'; id: number }
   // `c` est une couleur neutre de repli ; quand `eq` est fourni, le rendu
   // préfère la couleur de maillot de cette équipe (core ne connaît pas les
   // couleurs de maillot — voir render/team-visuals.ts).
@@ -170,6 +198,8 @@ export interface InputIntent {
   tirRelache: boolean;
   passeAppui: boolean;
   elanAppui: boolean;
+  /** Déclenche le bonus prêt de l'équipe. */
+  bonusAppui: boolean;
   /** Angle de visée manuelle (glissé), ou null si pilotage à l'analogique/clavier. */
   viseeManuelle: number | null;
 }
@@ -182,6 +212,7 @@ export const INTENT_VIDE: InputIntent = {
   tirRelache: false,
   passeAppui: false,
   elanAppui: false,
+  bonusAppui: false,
   viseeManuelle: null,
 };
 
@@ -211,8 +242,8 @@ export interface MatchState {
   buteur: Porteur | null;
   /** Passes réussies d'affilée par équipe depuis la dernière perte de palet ou le dernier tir. */
   combo: [number, number];
-  /** Le prochain tir de cette équipe est-il chargé en tir spécial (voir COMBO_SEUIL) ? */
-  tirSpecialPret: [boolean, boolean];
+  /** Bonus de chaque équipe ; null quand les bonus sont désactivés (option du menu). */
+  pouvoirs: [EtatPouvoirs, EtatPouvoirs] | null;
   /** Dernière passe reçue (pour le tir sur réception) : qui, et à quel instant (`temps`). */
   reception: { qui: Skater; t: number } | null;
   /** Arrêt sur image (s) : la simulation se fige un court instant pour souligner une esquive. */

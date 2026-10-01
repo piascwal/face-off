@@ -233,6 +233,7 @@ export class ParcoursLan {
       assistPasse: pref.assistPasse,
       changementAuto: pref.changementAuto,
       ralenti: pref.ralentiButs,
+      pouvoirs: pref.bonus,
     };
     const equipeConnue = (id: string) => EQUIPES_JOUABLES.some((e) => e.id === id);
     SessionHote.cree({ nom: pref.pseudo, appareil: pref.appareil, equipe: pref.equipeJoueur, config }, equipeConnue).then(
@@ -375,6 +376,7 @@ export class ParcoursLan {
       humains: [true, true],
       bonus: [...e.bonus],
       dureeBut: dureeBut(c.ralenti),
+      pouvoirs: c.pouvoirs,
     };
     this.phaseHote = null;
     app.demarreRalenti(options);

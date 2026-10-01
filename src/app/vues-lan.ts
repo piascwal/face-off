@@ -54,11 +54,13 @@ export class VuesLan {
     if (!j) return;
     const { W, H } = this.app;
     const ms = (j.role === 'hote' ? this.lan.hote?.latenceMs : this.lan.client?.latenceMs) ?? null;
-    if (ms !== null) texte(g, `WIFI ${Math.max(1, Math.round(ms))} MS`, 4, 4, ms < 60 ? '#6f7aa6' : '#ff9a5c', 1, 'g');
+    // sous la jauge des bonus quand il y en a une
+    const y = this.app.state?.pouvoirs ? 31 : 4;
+    if (ms !== null) texte(g, `WIFI ${Math.max(1, Math.round(ms))} MS`, 4, y, ms < 60 ? '#6f7aa6' : '#ff9a5c', 1, 'g');
     // spectateurs connectés (et, chez eux, le rappel qu'ils regardent seulement)
     const nb = this.lan.partie?.spect ?? 0;
-    if (this.lan.spectateur) texte(g, 'SPECTATEUR', 4, 13, '#8fe3ff', 1, 'g');
-    else if (nb > 0) texte(g, `${nb} SPECT.`, 4, 13, '#6f7aa6', 1, 'g');
+    if (this.lan.spectateur) texte(g, 'SPECTATEUR', 4, y + 9, '#8fe3ff', 1, 'g');
+    else if (nb > 0) texte(g, `${nb} SPECT.`, 4, y + 9, '#6f7aa6', 1, 'g');
     if (j.role === 'client' && !this.lan.pause && j.synchro.silence(performance.now() / 1000) > 1) {
       const cy = Math.round(H / 2);
       g.fillStyle = 'rgba(7,9,20,0.6)';
@@ -205,7 +207,7 @@ export class VuesLan {
 
   private configProps(): EtatConfigLan {
     const pref = this.app.pref;
-    const bascule = (cle: 'assistTir' | 'assistPasse' | 'changementAuto' | 'ralentiButs') => () => {
+    const bascule = (cle: 'assistTir' | 'assistPasse' | 'changementAuto' | 'ralentiButs' | 'bonus') => () => {
       pref[cle] = !pref[cle];
       sauvePreferences(pref);
     };
@@ -216,6 +218,7 @@ export class VuesLan {
       assistPasse: pref.assistPasse,
       changementAuto: pref.changementAuto,
       ralenti: pref.ralentiButs,
+      pouvoirs: pref.bonus,
       onEffectif: () => {
         pref.effectif = (pref.effectif + 1) % EFFECTIFS.length;
         sauvePreferences(pref);
@@ -228,6 +231,7 @@ export class VuesLan {
       onAssistPasse: bascule('assistPasse'),
       onChangementAuto: bascule('changementAuto'),
       onRalenti: bascule('ralentiButs'),
+      onPouvoirs: bascule('bonus'),
       onRetour: () => this.lan.ouvre(),
       onCreer: () => this.lan.creePartie(),
     };
@@ -241,6 +245,7 @@ export class VuesLan {
       assistPasse: c.assistPasse,
       changementAuto: c.changementAuto,
       ralenti: c.ralenti,
+      pouvoirs: c.pouvoirs,
     };
   }
 

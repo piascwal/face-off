@@ -39,6 +39,18 @@ export default async function spectateur(env) {
   await env.capture(spect.page, '2-spectateur');
   await env.capture(invite.page, '3-invite');
 
+  // bonus en Wi-Fi : l'invité déclenche le sien (touche B), l'hôte l'applique, tout le monde le voit
+  await hote.page.evaluate(() => {
+    const pv = window.faceOff.state.pouvoirs[1];
+    pv.pret = 'ricochet';
+    pv.tirage = 0;
+  });
+  env.verifie(await env.attendsQue(invite.page, () => window.faceOff.state.pouvoirs?.[1].pret === 'ricochet'), 'l\'invité voit son bonus prêt');
+  await invite.page.keyboard.press('KeyB');
+  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.state.pouvoirs[1].actif === 'ricochet'), 'touche B de l\'invité : bonus déclenché chez l\'hôte');
+  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.state.pouvoirs?.[1].actif === 'ricochet'), 'le spectateur voit le bonus en cours');
+  await env.capture(invite.page, '3b-bonus-invite');
+
   // un joueur ne réagit pas pendant le match
   await invite.page.evaluate(() => window.faceOff.lan.client.reagit('coeur'));
   await attends(300);

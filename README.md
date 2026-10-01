@@ -58,9 +58,10 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 
 | Scénario | Ce qu'il vérifie |
 |---|---|
-| `solo` | Au clavier : menu, choix des équipes et maillots (avec retour), match, pause, fin, rejouer, bilan |
+| `solo` | Au clavier : menu, choix des équipes et maillots (avec retour), match, pause, fin, rejouer, bilan, écran des commandes |
 | `coupe` | Mode coupe : choix, tableau, dévoilement, élimination, titre |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
+| `bonus` | Bonus en solo : jauge, tirage, bouton BONUS au doigt et touche B, joueur doré, « 2X », option du menu |
 | `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), invité qui ne revient pas, coupure pendant le choix des équipes |
 
 En local, Chromium doit être installé une fois : `npx playwright install chromium`.
@@ -306,17 +307,13 @@ bandeau et l'écusson à afficher — cohérent avec le reste de l'architecture
 (voir plus haut) où le cœur du jeu ne connaît jamais l'identité visuelle des
 équipes.
 
-### 6. Combo de passes → tir spécial
+### 6. Combo de passes
 
-Enchaîner des passes réussies (3 par défaut, `COMBO_SEUIL` dans
-`core/constants.ts`) sans perdre le palet charge un tir spécial pour
-l'équipe : le tir suivant part ~25 % plus vite et voit sa « qualité »
-(voir le point 3) augmentée d'un bonus, avec un effet visuel et sonore
-distinct. La combo se réinitialise dès que le palet change de camp, ou
-qu'un tir est tenté (spécial ou non) — logique dans `core/actions.ts`
-(`prendPalet`/`tir`), testée dans `tests/combo.test.ts`. Ça s'applique aussi
-bien à l'IA qu'au joueur humain, puisque les deux passent par les mêmes
-fonctions.
+La combo de passes (passes réussies d'affilée, `state.combo`) ne donne plus de
+tir spécial : elle est remplacée par les bonus (voir le point 11). Elle reste
+pour les statistiques (« MEILLEURE COMBO ») et le petit bonus de qualité de
+tir ci-dessous. Elle se réinitialise dès que le palet change de camp, ou
+qu'un tir est tenté (`core/actions.ts`, `prendPalet`/`tir`).
 
 **Jeu de passes aussi payant qu'une échappée** (réglages dans
 `core/constants.ts`, tests dans `tests/jeu-de-passes.test.ts`) :
@@ -325,7 +322,7 @@ fonctions.
   le palet est légèrement attiré vers sa crosse, un adversaire doit être
   bien sur la ligne pour l'intercepter ;
 - chaque passe de la séquence ajoute un petit bonus de qualité au tir
-  suivant, avant même le tir spécial ;
+  suivant (pour 2 passes au plus) ;
 - **tir sur réception** (« une-touche ») : dans les 0,8 s qui suivent une
   passe reçue, le tir est plus dangereux, et pour le joueur humain il se
   charge deux fois plus vite ;
@@ -651,6 +648,55 @@ demi-finales, finale).
   - `render/coupe.ts` (écrans) ;
   - le trophée `public/coupe.png` est converti depuis
     `assets/sprites-src/coupe.jpg` par `scripts/convertit-sources.py`.
+
+### 11. Bonus (power-ups)
+
+Option **BONUS** sur l'accueil (le son est passé dans les réglages
+avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
+
+- **La jauge.** Chaque équipe compte ses passes réussies d'affilée. Il en
+  faut 3 pour le premier bonus, puis une de plus à chaque bonus utilisé
+  (8 au plus). La série retombe à zéro sur une interception, un arrêt d'un
+  gardien ou un but.
+- **Le tirage.** Au seuil, un bonus est tiré au sort : les icônes défilent
+  un peu plus d'une seconde dans la case en haut à gauche, puis s'arrêtent.
+  Le tirage est le même pour les deux équipes, tout au long du match :
+  personne n'est avantagé pour toute la partie par un tirage chanceux.
+- **La pondération.** Chaque bonus a un poids (`POIDS_POUVOIRS`, tous égaux
+  pour l'instant). Le tirage reçoit l'état du match (`poidsPouvoirs`) : on
+  pourra plus tard donner plus souvent les bonus puissants à l'équipe menée.
+- **L'utilisation.** Le bonus reste en main jusqu'à ce qu'on le déclenche :
+  bouton **BONUS** (au-dessus de PASSE, il n'apparaît qu'à ce moment) ou
+  touche **B**. Pendant qu'il est en main ou en cours, les passes ne
+  remplissent pas la jauge. L'ordinateur s'en sert aussi : quand il a le
+  palet (près de la cage pour le tir guidé), au plus tard après 6 s.
+- **Le joueur doré.** Le joueur piloté devient doré (maillot, crosse et
+  visage) avec une auréole. Pendant les 2 dernières secondes, il clignote
+  entre doré et normal, de plus en plus vite.
+- **L'affichage.** En haut à gauche : votre case, les passes, le bonus prêt
+  ou le temps restant. En haut à droite, en plus petit : celle de
+  l'adversaire.
+
+| Bonus | Effet | Durée |
+|---|---|---|
+| Tir guidé | le prochain tir s'incurve vers un coin de la cage, qualité +0,3 ; traînée dorée scintillante | prochain tir, 10 s max |
+| Super vitesse | joueur doré ×1,4 (vitesse et accélération), images fantômes | 6 s |
+| Mode savon | toute mise en échec contre l'équipe se transforme en esquive, étincelles bleues | 8 s |
+| Ricochet | le palet joué par l'équipe repart des bandes plus vite (×1,12, 480 px/s max), traînée néon | 8 s |
+| But x2 | le prochain but de l'équipe compte double ; « 2X » au-dessus de la cage adverse | jusqu'au but |
+
+Prévu ensuite : tir surpuissant, freeze, inversion (lot 2) ; gamelle (−1 but
+à l'adversaire si l'on marque dans les 10 s), surnombre, mode entraînement
+(lot 3). Ils ne sortent pas encore au tirage (`dispo` dans `DEF_POUVOIRS`).
+
+Code : `core/pouvoirs.ts` (règles, tirage, effets, IA ; testé dans
+`tests/pouvoirs.test.ts`), `render/hud-bonus.ts` et `render/icones-bonus.ts`
+(jauges, tirage, bouton), feuille dorée calculée à la volée
+(`BanqueSprites.spriteJoueurDore`). En Wi-Fi, les bonus voyagent dans
+l'instantané (protocole v12) et l'appui sur BONUS comme les autres appuis.
+
+L'aide des commandes (tactile et clavier) est dans **Réglages avancés >
+Commandes**.
 
 ## Licence
 

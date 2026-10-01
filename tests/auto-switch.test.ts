@@ -31,7 +31,7 @@ function etatVide(): MatchState {
     marqueur: null,
     buteur: null,
     combo: [0, 0],
-    tirSpecialPret: [false, false],
+    pouvoirs: null,
     reception: null,
     figeT: 0,
     evenements: [],

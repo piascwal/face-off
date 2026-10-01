@@ -1,4 +1,5 @@
 import { menaceEchec } from '@core/actions';
+import { pouvoirPret } from '@core/pouvoirs';
 import { calculeRink, reprojette } from '@core/rink';
 import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
 import { pas } from '@core/simulation';
@@ -13,8 +14,10 @@ import {
   construitFoule,
   construitGlace,
   dessineBanniere,
+  dessineBoutonBonus,
   dessineCelebration,
   dessineCommandes,
+  dessineJaugesBonus,
   dessineJaugeTir,
   dessineLogoBut,
   dessinePortrait,
@@ -473,6 +476,7 @@ export class GameApp {
     // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
     if (enMatch) {
       if (!ralenti) dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, temps);
+      if (!ralenti) dessineJaugesBonus(g, this.W, state, lan.spectateur ? null : lan.eqLocal, temps, !this.entrees.tactile);
       dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
     }
     if (!ralenti && (this.ecranUI === 'menu' || enMatch)) dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
@@ -514,6 +518,7 @@ export class GameApp {
   /** Par-dessus le match : pause Wi-Fi, ralenti du but, ou commandes tactiles. */
   private dessineSurMatch(g: CanvasRenderingContext2D, temps: number, state: MatchState, ralenti: boolean): void {
     const lan = this.lan;
+    this.entrees.bonusVisible = false;
     if (lan.vues.dessinePauseMatch(g)) return;
     if (ralenti) {
       const partie = lan.partie;
@@ -531,7 +536,14 @@ export class GameApp {
     // le spectateur n'a pas de commandes : sa barre de réactions est dessinée à part
     if (lan.spectateur) return;
     const pilote = state.controles[lan.eqLocal];
-    dessineCommandes(g, this.W, this.H, state.temps, pilote, this.entrees.instantaneUI(), !!pilote && menaceEchec(state, pilote) !== null);
+    const ui = this.entrees.instantaneUI();
+    dessineCommandes(g, this.W, this.H, state.temps, pilote, ui, !!pilote && menaceEchec(state, pilote) !== null);
+    // bonus prêt : son bouton apparaît au-dessus de PASSE (et sa zone tactile s'active)
+    const pret = pouvoirPret(state, lan.eqLocal) ? state.pouvoirs![lan.eqLocal].pret : null;
+    if (pret && ui.tactile && pilote) {
+      this.entrees.bonusVisible = true;
+      dessineBoutonBonus(g, this.W, this.H, state.temps, pret, ui.bonusActif);
+    }
     if (pilote?.arme) dessineJaugeTir(g, this.H, pilote.charge, state.temps);
   }
 }

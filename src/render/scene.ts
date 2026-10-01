@@ -1,7 +1,10 @@
 import { meilleurReceveur, menaceEchec } from '@core/actions';
+import { BUT_DEMI } from '@core/constants';
+import { ALERTE_FIN_S, joueurDore } from '@core/pouvoirs';
+import { butAttaque } from '@core/shooting';
 import { equipe } from '@core/state-helpers';
-import type { MatchState, Rink, TeamId } from '@core/types';
-import { dessineGardien, dessinePalet, dessineParticules, dessinePatineur, TracesGlace } from './entities-render';
+import type { MatchState, Rink, Skater, TeamId } from '@core/types';
+import { dessineGardien, dessinePalet, dessineParticules, dessinePatineur, TracesGlace, type AspectBonus } from './entities-render';
 import type { SystemeEffets } from './effects';
 import { ellipseOmbre, px } from './primitives';
 import { dessineCage, dessineLampe } from './rink-render';
@@ -14,6 +17,32 @@ export interface DecorPatinoire {
   glace: HTMLCanvasElement;
   foule: [HTMLCanvasElement, HTMLCanvasElement];
   traces: TracesGlace;
+}
+
+/**
+ * Aspect du joueur doré d'un bonus en cours : il clignote entre doré et
+ * normal pendant les dernières secondes, de plus en plus vite.
+ */
+function aspectBonus(state: MatchState, s: Skater): AspectBonus | null {
+  const pv = state.pouvoirs?.[s.eq];
+  if (!pv?.actif || joueurDore(state, s.eq) !== s) return null;
+  let or = true;
+  if (pv.reste < ALERTE_FIN_S) {
+    // phase cumulée d'un clignotement qui accélère de 3 à 13 Hz
+    const u = ALERTE_FIN_S - pv.reste;
+    or = Math.floor((3 * u + 2.5 * u * u) * 2) % 2 === 0;
+  }
+  return { or, vitesse: pv.actif === 'vitesse' };
+}
+
+/** Bonus « but x2 » : un « 2X » clignote au-dessus de la cage que l'équipe attaque. */
+function marqueursDouble(g: CanvasRenderingContext2D, rink: Rink, state: MatchState): void {
+  for (const eq of [0, 1] as TeamId[]) {
+    if (state.pouvoirs?.[eq].actif !== 'double') continue;
+    const x = butAttaque(rink, eq);
+    const y = rink.cy - BUT_DEMI - 18 + Math.round(Math.sin(state.temps * 4) * 2);
+    texte(g, '2X', x, y, Math.floor(state.temps * 4) % 2 ? C.or : C.blanc, 2, 'c');
+  }
 }
 
 export function dessineScene(
@@ -80,15 +109,16 @@ export function dessineScene(
       y: s.y,
       f: () => {
         const pilote = eqLocal !== null && s === state.controles[eqLocal];
-        dessinePatineur(g, sprites, s, state.temps, pilote, equipes, state.tirSpecialPret[s.eq], pilote && menaceEchec(state, s) !== null);
+        dessinePatineur(g, sprites, s, state.temps, pilote, equipes, aspectBonus(state, s), pilote && menaceEchec(state, s) !== null);
       },
     })),
     ...state.gardiens.map((gk) => ({ y: gk.y, f: () => dessineGardien(g, sprites, gk, state.temps, equipes) })),
-    { y: p.y - 2, f: () => dessinePalet(g, p) },
+    { y: p.y - 2, f: () => dessinePalet(g, p, state.temps) },
   ];
   liste.sort((a, b) => a.y - b.y);
   for (const e of liste) e.f();
 
+  marqueursDouble(g, rink, state);
   dessineParticules(g, effets.particules);
   for (const b of effets.bulles) {
     g.globalAlpha = Math.min(1, b.vie * 3);

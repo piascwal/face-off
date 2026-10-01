@@ -61,6 +61,38 @@ export interface Rect {
   sh: number;
 }
 
+/** Dégradé doré (du plus sombre au plus clair) : le joueur doré d'un bonus garde son modelé. */
+const RAMPE_OR: [number, number, number][] = [
+  [70, 40, 5],
+  [150, 95, 10],
+  [225, 170, 35],
+  [255, 220, 90],
+  [255, 248, 200],
+];
+
+/** Copie d'une feuille de sprites repeinte en or : chaque pixel suit le dégradé selon sa luminosité. */
+function feuilleDoree(img: HTMLImageElement): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  if (!g) return c;
+  g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height);
+  const n = RAMPE_OR.length - 1;
+  for (let i = 0; i < d.data.length; i += 4) {
+    if (!d.data[i + 3]) continue;
+    const l = (0.3 * d.data[i]! + 0.59 * d.data[i + 1]! + 0.11 * d.data[i + 2]!) / 255;
+    const u = Math.min(0.999, l * 1.15) * n;
+    const a = RAMPE_OR[Math.floor(u)]!;
+    const b = RAMPE_OR[Math.floor(u) + 1]!;
+    const f = u - Math.floor(u);
+    for (let k = 0; k < 3; k++) d.data[i + k] = a[k]! + (b[k]! - a[k]!) * f;
+  }
+  g.putImageData(d, 0, 0);
+  return c;
+}
+
 const chargeImage = (src: string) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
@@ -78,6 +110,7 @@ export class BanqueSprites {
   private chutes = new Map<string, HTMLImageElement>();
   private celebrations = new Map<string, HTMLImageElement>();
   private visages: HTMLImageElement | null = null;
+  private dores = new Map<string, HTMLCanvasElement>();
   private enCours = new Map<string, Promise<void>>();
   pret = false;
 
@@ -121,6 +154,18 @@ export class BanqueSprites {
     const { tileW, tileH, images } = this.meta.joueur;
     const col = ((frame % images) + images) % images;
     return { img, rect: { sx: col * tileW, sy: (gauche ? 1 : 0) * tileH, sw: tileW, sh: tileH } };
+  }
+
+  /** Même image que `spriteJoueur`, en or (bonus) ; la feuille dorée est calculée une fois par équipe. */
+  spriteJoueurDore(teamId: string, frame: number, gauche: boolean): { img: HTMLCanvasElement; rect: Rect } | null {
+    const base = this.spriteJoueur(teamId, frame, gauche);
+    if (!base) return null;
+    let img = this.dores.get(teamId);
+    if (!img) {
+      img = feuilleDoree(base.img);
+      this.dores.set(teamId, img);
+    }
+    return { img, rect: base.rect };
   }
 
   /** Calque du visage `variante` (teint, barbe), à poser sur l'image `frame` du joueur. */

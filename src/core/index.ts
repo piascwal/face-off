@@ -3,6 +3,7 @@ export * from './constants';
 export * from './entities';
 export * from './humanControl';
 export { segmentsCage } from './physics';
+export * from './pouvoirs';
 export * from './rink';
 export * from './rules';
 export * from './shooting';

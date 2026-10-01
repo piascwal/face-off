@@ -126,6 +126,30 @@ export class MoteurAudio {
     this.ton(700, 0.04, 'square', 0.06);
   }
 
+  /** Tirage d'un bonus : des tics qui ralentissent, comme une roue qui s'arrête. */
+  tirageBonus(): void {
+    let t = 0;
+    for (let i = 0; i < 14; i++) {
+      this.ton(900 + (i % 2) * 120, 0.03, 'square', 0.045, undefined, t);
+      t += 0.04 + i * 0.006;
+    }
+  }
+  /** Bonus prêt : petit arpège montant, bien reconnaissable. */
+  bonusPret(): void {
+    [523, 659, 784, 1047].forEach((f, i) => this.ton(f, 0.16, 'square', 0.07, undefined, i * 0.07));
+    this.ton(1568, 0.3, 'sine', 0.06, undefined, 0.28);
+  }
+  /** Bonus déclenché : montée « power-up » et souffle. */
+  bonusActive(): void {
+    this.ton(220, 0.35, 'sawtooth', 0.09, 1320);
+    this.ton(330, 0.35, 'square', 0.05, 1760, 0.02);
+    this.souffle(0.3, 'highpass', 3000, 0.7, 0.12);
+  }
+  /** Fin d'un bonus : descente courte. */
+  bonusFin(): void {
+    this.ton(880, 0.18, 'square', 0.05, 330);
+  }
+
   sifflet(long: boolean): void {
     if (!this.actif() || !this.ac || !this.sortie) return;
     const ac = this.ac;
@@ -238,6 +262,12 @@ export function joueEvenements(son: MoteurAudio, evenements: GameEvent[]): void 
         break;
       case 'vibre':
         vibre(ev.ms);
+        break;
+      case 'pouvoir':
+        if (ev.quoi === 'tirage') son.tirageBonus();
+        else if (ev.quoi === 'pret') son.bonusPret();
+        else if (ev.quoi === 'active') son.bonusActive();
+        else son.bonusFin();
         break;
       default:
         break;

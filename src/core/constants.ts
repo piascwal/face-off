@@ -48,13 +48,11 @@ export function niveauInterpole(x: number): LevelConfig {
 export const DUREES = [120, 180, 300];
 export const EFFECTIFS = [2, 3, 5];
 
-/** Nombre de passes réussies d'affilée pour débloquer un tir spécial. */
-export const COMBO_SEUIL = 3;
-
 // Jeu de passes : de quoi rendre une action collective aussi payante qu'une
 // échappée en solo (voir actions.ts et physics.ts).
-/** Bonus de qualité de tir par passe réussie de la séquence en cours (avant le tir spécial). */
+/** Bonus de qualité de tir par passe réussie de la séquence en cours, pour au plus COMBO_PASSES_MAX passes. */
 export const COMBO_BONUS = 0.03;
+export const COMBO_PASSES_MAX = 2;
 /**
  * Tir sur réception (« une-touche ») : fenêtre après la réception, bonus de
  * qualité, et charge accélérée pour le joueur humain seulement (donnée aussi

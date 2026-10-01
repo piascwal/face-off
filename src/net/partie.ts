@@ -52,6 +52,8 @@ export interface ConfigLan {
   changementAuto: boolean;
   /** Ralenti des buts sur les deux écrans. */
   ralenti: boolean;
+  /** Bonus (power-ups) en jeu. */
+  pouvoirs: boolean;
 }
 
 export interface EtatPartieLan {
@@ -297,7 +299,7 @@ export function lisConfig(o: unknown): ConfigLan | null {
   const c = o as Record<string, unknown>;
   if (!entier(c.effectif, 9) || !entier(c.duree, 9)) return null;
   if (typeof c.assistTir !== 'boolean' || typeof c.assistPasse !== 'boolean' || typeof c.changementAuto !== 'boolean') return null;
-  if (typeof c.ralenti !== 'boolean') return null;
+  if (typeof c.ralenti !== 'boolean' || typeof c.pouvoirs !== 'boolean') return null;
   return {
     effectif: c.effectif,
     duree: c.duree,
@@ -305,6 +307,7 @@ export function lisConfig(o: unknown): ConfigLan | null {
     assistPasse: c.assistPasse,
     changementAuto: c.changementAuto,
     ralenti: c.ralenti,
+    pouvoirs: c.pouvoirs,
   };
 }
 

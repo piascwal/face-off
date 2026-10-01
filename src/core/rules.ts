@@ -1,6 +1,7 @@
 import { controle } from './actions';
 import { ANNONCE_BUT_S, DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from './constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from './entities';
+import { cassePasses, etatPouvoirsInitial } from './pouvoirs';
 import { PROFIL_NEUTRE, type TeamProfile } from './teams';
 import { statsVides, type BonusEquipe, type GameMode, type LevelConfig, type MatchState, type Rink, type TeamId } from './types';
 import { clamp, decalageRang } from './utils';
@@ -30,6 +31,8 @@ export interface OptionsPartie {
   bonus?: [BonusEquipe, BonusEquipe];
   /** Durée de la phase « but » ; allongée quand le ralenti des buts est activé. */
   dureeBut?: number;
+  /** Bonus (power-ups) en jeu ; jamais en démo. */
+  pouvoirs?: boolean;
 }
 
 /** Phase « but » sans ralenti : le bandeau, puis un court temps avant l'engagement. */
@@ -102,7 +105,7 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     marqueur: null,
     buteur: null,
     combo: [0, 0],
-    tirSpecialPret: [false, false],
+    pouvoirs: opts.mode === 'match' && opts.pouvoirs ? [etatPouvoirsInitial(), etatPouvoirsInitial()] : null,
     reception: null,
     figeT: 0,
     evenements: [],
@@ -140,7 +143,9 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
   p.qualite = 0;
   p.trace.length = 0;
   state.combo = [0, 0];
-  state.tirSpecialPret = [false, false];
+  cassePasses(state, 0);
+  cassePasses(state, 1);
+  p.guide = null;
   state.reception = null;
   p.passes = 0;
   p.uneTouche = false;

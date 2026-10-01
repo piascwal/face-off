@@ -162,6 +162,7 @@ export class ParcoursSolo {
       assistPasse: pref.assistPasse,
       changementAuto: pref.changementAuto,
       dureeBut: dureeBut(pref.ralentiButs),
+      pouvoirs: pref.bonus,
     };
     app.demarreRalenti(options);
     app.state = creePartie(app.rink!, options);

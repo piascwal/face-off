@@ -2,7 +2,7 @@ import {
   CHANGEMENT_AUTO_MARGE,
   CHANGEMENT_AUTO_SEUIL,
   COMBO_BONUS,
-  COMBO_SEUIL,
+  COMBO_PASSES_MAX,
   CHUTE_GLISSE,
   ELAN_CD_PALET,
   ESQUIVE_FIGE,
@@ -15,6 +15,7 @@ import {
   UNE_TOUCHE_BONUS,
   UNE_TOUCHE_S,
 } from './constants';
+import { cassePasses, comptePasse, tirGuide } from './pouvoirs';
 import { qualiteDuTir } from './shooting';
 import { equipe } from './state-helpers';
 import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types';
@@ -51,10 +52,16 @@ export function prendPalet(state: MatchState, qui: Porteur): void {
   p.dernier = qui;
   p.passe = null;
   p.qualite = 0;
+  p.guide = null;
   // le palet change de camp : la séquence de passes de l'équipe qui le perd s'arrête là
   if (equipePrecedente !== undefined && equipePrecedente !== qui.eq) {
     state.combo[equipePrecedente] = 0;
-    state.tirSpecialPret[equipePrecedente] = false;
+    cassePasses(state, equipePrecedente);
+  }
+  // un gardien qui prend le palet coupe les séries des deux équipes
+  if (!estPatineur(qui)) {
+    cassePasses(state, 0);
+    cassePasses(state, 1);
   }
   if (estPatineur(qui)) {
     qui.tient = true;
@@ -65,15 +72,8 @@ export function prendPalet(state: MatchState, qui: Porteur): void {
       state.reception = { qui, t: state.temps };
       const n = ++state.combo[qui.eq];
       state.stats.comboMax[qui.eq] = Math.max(state.stats.comboMax[qui.eq], n);
-      if (n >= COMBO_SEUIL) {
-        if (!state.tirSpecialPret[qui.eq]) {
-          state.evenements.push({ type: 'bulle', txt: 'TIR SPECIAL !', x: qui.x, y: qui.y - 20, c: '#ff8a3d' });
-          state.evenements.push({ type: 'clic' });
-        }
-        state.tirSpecialPret[qui.eq] = true;
-      } else if (n >= 2) {
-        state.evenements.push({ type: 'bulle', txt: `COMBO x${n}`, x: qui.x, y: qui.y - 16, c: '#ffd35c' });
-      }
+      if (n >= 2) state.evenements.push({ type: 'bulle', txt: `COMBO x${n}`, x: qui.x, y: qui.y - 16, c: '#ffd35c' });
+      comptePasse(state, qui.eq, qui);
     }
   }
 }
@@ -95,18 +95,16 @@ export function surReception(state: MatchState, s: Skater): boolean {
 
 export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puissance: number): void {
   const p = state.palet;
-  // un tir consomme la combo de passes en cours, qu'il soit spécial ou non
-  const special = state.tirSpecialPret[s.eq];
+  // un tir consomme la combo de passes en cours
   const passes = state.combo[s.eq];
   const uneTouche = surReception(state, s);
   state.combo[s.eq] = 0;
-  state.tirSpecialPret[s.eq] = false;
   state.reception = null;
   // tir sur réception : il part fort même si on n'a pas eu le temps de le charger
   if (uneTouche) puissance = Math.max(puissance, 0.55);
   // handicap « tir puissant » : palet plus rapide, un peu plus dur à arrêter
   const renfort = state.bonus[s.eq] === 'tir';
-  const v = (150 + 290 * puissance) * (special ? 1.25 : 1) * (renfort ? 1.15 : 1);
+  const v = (150 + 290 * puissance) * (renfort ? 1.15 : 1);
   lachePalet(state, s, 0.3);
   const sp = pointCrosse(s);
   p.x = sp.x;
@@ -121,14 +119,16 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   p.uneTouche = uneTouche;
   // le jeu de passes paie : chaque passe de la séquence rend le tir plus dangereux,
   // et un tir sur réception prend le gardien à contre-pied
-  let bonus = special ? 0.2 : Math.min(passes, COMBO_SEUIL - 1) * COMBO_BONUS;
+  let bonus = Math.min(passes, COMBO_PASSES_MAX) * COMBO_BONUS;
   if (uneTouche) bonus += UNE_TOUCHE_BONUS;
   if (renfort) bonus += 0.06;
+  // bonus « tir guidé » en cours : ce tir s'incurve vers la cage
+  bonus += tirGuide(rink, state, s, ang);
   if (p.qualite > 0) p.qualite = Math.min(0.97, p.qualite + bonus);
   state.evenements.push({ type: 'frappe', puissance });
-  state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 3 + Math.round(puissance * 8), c: special ? '#ff8a3d' : undefined });
-  if (puissance > 0.7 || special) state.evenements.push({ type: 'secousse', force: special ? 2.5 : 1.5 });
-  if (special) state.evenements.push({ type: 'bulle', txt: 'SUPER TIR !', x: sp.x, y: sp.y - 14, c: '#ff8a3d' });
+  state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 3 + Math.round(puissance * 8) });
+  if (puissance > 0.7) state.evenements.push({ type: 'secousse', force: 1.5 });
+  if (p.guide) state.evenements.push({ type: 'bulle', txt: 'TIR GUIDE !', x: sp.x, y: sp.y - 14, c: '#ffd35c' });
   else if (uneTouche) state.evenements.push({ type: 'bulle', txt: 'UNE-TOUCHE !', x: sp.x, y: sp.y - 14, c: '#8fe3ff' });
 }
 
@@ -215,6 +215,7 @@ export function lancePasse(state: MatchState, x: number, y: number, m: Skater, e
   p.vy = Math.sin(a) * v;
   p.passe = { vers: m, t: 1.3, facile };
   p.tireur = null;
+  p.guide = null;
   p.qualite = 0;
   state.reception = null;
   state.evenements.push({ type: 'frappe', puissance: 0.25 });

@@ -1,4 +1,4 @@
-import { lachePalet, lancePasse, meilleurReceveur, pointCrosse, prendPalet } from './actions';
+import { esquive, lachePalet, lancePasse, meilleurReceveur, pointCrosse, prendPalet } from './actions';
 import {
   ANNONCE_BUT_S,
   ACCEL,
@@ -15,6 +15,18 @@ import {
   RECEPTION_RAYON,
   VMAX,
 } from './constants';
+import {
+  cassePasses,
+  DEF_POUVOIRS,
+  estDore,
+  finPouvoir,
+  guidePalet,
+  pouvoirActif,
+  ricochet,
+  RICOCHET_GAIN,
+  RICOCHET_VMAX,
+  VITESSE_FACTEUR,
+} from './pouvoirs';
 import { rayonGardienEffectif, seuilRattrapeEffectif } from './shooting';
 import type { Goalie, MatchState, Puck, Rink, Skater } from './types';
 import { alea, angDiff, clamp } from './utils';
@@ -106,12 +118,14 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
   let iy = s.ey;
   if (s.sonne > 0 || state.phase === 'engagement' || state.phase === 'fin') ix = iy = 0;
   const m = Math.min(1, Math.hypot(ix, iy));
-  const vmax = VMAX * s.vit * (s.tient ? 0.93 : 1) * (s.arme ? 1 - 0.35 * s.charge : 1);
+  // bonus « super vitesse » : le joueur doré va plus vite et accélère plus fort
+  const turbo = pouvoirActif(state, s.eq, 'vitesse') && estDore(state, s) ? VITESSE_FACTEUR : 1;
+  const vmax = VMAX * s.vit * turbo * (s.tient ? 0.93 : 1) * (s.arme ? 1 - 0.35 * s.charge : 1);
   if (m > 0.08) {
     const ux = ix / Math.hypot(ix, iy);
     const uy = iy / Math.hypot(ix, iy);
-    s.vx += ux * ACCEL * m * dt;
-    s.vy += uy * ACCEL * m * dt;
+    s.vx += ux * ACCEL * turbo * m * dt;
+    s.vy += uy * ACCEL * turbo * m * dt;
     // prise de carre : on grignote la vitesse latérale pour garder du contrôle
     const lat = -s.vx * uy + s.vy * ux;
     const k = Math.min(1, 3.2 * dt);
@@ -203,6 +217,12 @@ export function collisionsPatineurs(state: MatchState): void {
       if (o.eq === s.eq || o.sonne > 0 || o.esquiveT > 0) continue;
       const d = Math.hypot(o.x - s.x, o.y - s.y);
       if (d > 12) continue;
+      // bonus « mode savon » : toute mise en échec contre cette équipe glisse en esquive
+      if (pouvoirActif(state, o.eq, 'savon')) {
+        esquive(state, o, s);
+        state.evenements.push({ type: 'etincelles', x: (s.x + o.x) / 2, y: (s.y + o.y) / 2 - 4, n: 12, c: '#5cc8ff' });
+        break;
+      }
       const nx = (o.x - s.x) / (d || 1);
       const ny = (o.y - s.y) / (d || 1);
       const p = state.palet;
@@ -357,6 +377,7 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
         p.vy += ((dy / d) * v - p.vy) * k;
       }
     }
+    guidePalet(rink, state, dt);
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     const f = Math.exp(-0.45 * dt);
@@ -367,7 +388,18 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
       p.vx *= 0.96;
       p.vy *= 0.96;
     }
-    const vn = heurteBande(rink, p, p.r, 0.72);
+    // bonus « ricochet » : le palet repart des bandes encore plus vite
+    const rebondit = ricochet(state);
+    const vn = heurteBande(rink, p, p.r, rebondit ? 1 : 0.72);
+    if (rebondit && vn > 25) {
+      const v2 = Math.hypot(p.vx, p.vy);
+      const k = Math.min(RICOCHET_GAIN, RICOCHET_VMAX / Math.max(1, v2));
+      if (k > 1) {
+        p.vx *= k;
+        p.vy *= k;
+      }
+      state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 10, c: '#5cf2ff' });
+    }
     if (vn > 25) {
       state.evenements.push({ type: 'bande', force: vn / 400 });
       if (vn > 200) state.evenements.push({ type: 'secousse', force: 1.2 });
@@ -462,7 +494,13 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
 }
 
 function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
-  state.score[eq]++;
+  // bonus « but x2 » : ce but compte double, et le bonus est consommé
+  const double = pouvoirActif(state, eq, 'double');
+  state.score[eq] += double ? 2 : 1;
+  if (double) finPouvoir(state, eq);
+  cassePasses(state, 0);
+  cassePasses(state, 1);
+  state.palet.guide = null;
   state.tirs[eq]++;
   state.phase = 'but';
   state.phaseT = state.dureeBut;
@@ -479,7 +517,7 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
   state.evenements.push({
     type: 'annonce',
     // un but au bout d'un vrai jeu de passes se fête plus fort
-    txt: collectif ? 'BUT COLLECTIF !' : 'BUT !',
+    txt: double ? `${DEF_POUVOIRS.double.nom} !` : collectif ? 'BUT COLLECTIF !' : 'BUT !',
     sous: collectif ? `${p.passes} PASSES  ${state.score[0]} - ${state.score[1]}` : `${state.score[0]} - ${state.score[1]}`,
     c: '#ffd35c',
     duree: ANNONCE_BUT_S,

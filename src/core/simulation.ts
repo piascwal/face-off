@@ -10,6 +10,7 @@ import {
   segmentsCage,
   type SegmentCage,
 } from './physics';
+import { iaPouvoirs, majPouvoirs } from './pouvoirs';
 import { engagement, finMatch, finTempsReglementaire } from './rules';
 import { INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from './types';
 import { alea } from './utils';
@@ -58,6 +59,9 @@ export function pas(
       }
     }
   }
+
+  iaPouvoirs(rink, state);
+  majPouvoirs(state, dt);
 
   const segsAvecFace: SegmentCage[] = segmentsCage(rink, true);
   const segsSansFace: SegmentCage[] = segmentsCage(rink, false);

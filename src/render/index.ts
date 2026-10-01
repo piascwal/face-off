@@ -5,6 +5,8 @@ export * from './effects';
 export * from './entities-render';
 export * from './fins';
 export * from './hud';
+export * from './hud-bonus';
+export * from './icones-bonus';
 export * from './hud-zones';
 export * from './pixel-font';
 export * from './primitives';

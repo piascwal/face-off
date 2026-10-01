@@ -127,12 +127,14 @@ export interface EtatConfigLan {
   assistPasse: boolean;
   changementAuto: boolean;
   ralenti: boolean;
+  pouvoirs: boolean;
   onEffectif: () => void;
   onDuree: () => void;
   onAssistTir: () => void;
   onAssistPasse: () => void;
   onChangementAuto: () => void;
   onRalenti: () => void;
+  onPouvoirs: () => void;
   onRetour: () => void;
   onCreer: () => void;
 }
@@ -149,8 +151,8 @@ export function dessineConfigLan(g: CanvasRenderingContext2D, boutons: ZoneBouto
   const cx = Math.round(W / 2);
   texte(g, 'NOUVELLE PARTIE WIFI', cx, 4, C.blanc, 2, 'c');
   const pw = 230;
-  const ph = 116;
-  const py = 26;
+  const ph = 122;
+  const py = 24;
   panneau(g, cx - pw / 2, py, pw, ph);
   const n = EFFECTIFS[etat.effectifIdx] ?? 3;
   const lignes: [string, string, () => void][] = [
@@ -160,9 +162,10 @@ export function dessineConfigLan(g: CanvasRenderingContext2D, boutons: ZoneBouto
     ['ASSISTANCE PASSE', oui(etat.assistPasse), etat.onAssistPasse],
     ['CHGT AUTO JOUEUR', oui(etat.changementAuto), etat.onChangementAuto],
     ['RALENTI DES BUTS', oui(etat.ralenti), etat.onRalenti],
+    ['BONUS', oui(etat.pouvoirs), etat.onPouvoirs],
   ];
   lignes.forEach(([k, v, act], i) => {
-    const y = py + 6 + i * 18;
+    const y = py + 6 + i * 16;
     texte(g, k, cx - pw / 2 + 10, y + 4, C.gris, 1, 'g');
     bouton(g, boutons, `< ${v} >`, cx + pw / 2 - 110, y, 100, 13, act, { couleur: '#232a58' });
   });
@@ -174,7 +177,7 @@ export function dessineConfigLan(g: CanvasRenderingContext2D, boutons: ZoneBouto
 
 function resumeConfig(g: CanvasRenderingContext2D, cx: number, y: number, c: ResumeConfig): void {
   const n = EFFECTIFS[c.effectifIdx] ?? 3;
-  texte(g, `${n} CONTRE ${n}   ${(DUREES[c.dureeIdx] ?? 180) / 60} MIN   RALENTI ${oui(c.ralenti)}`, cx, y, C.blanc, 1, 'c');
+  texte(g, `${n} CONTRE ${n}   ${(DUREES[c.dureeIdx] ?? 180) / 60} MIN   BONUS ${oui(c.pouvoirs)}   RALENTI ${oui(c.ralenti)}`, cx, y, C.blanc, 1, 'c');
   texte(g, `ASSIST. TIR ${oui(c.assistTir)}   PASSE ${oui(c.assistPasse)}   CHGT AUTO ${oui(c.changementAuto)}`, cx, y + 11, C.gris, 1, 'c');
 }
 
@@ -185,11 +188,12 @@ export interface ResumeConfig {
   assistPasse: boolean;
   changementAuto: boolean;
   ralenti: boolean;
+  pouvoirs: boolean;
 }
 
 /** Libellés des handicaps (voir core BonusEquipe). */
 export const LIBELLES_BONUS: Record<BonusEquipe, string> = {
-  aucun: 'SANS BONUS',
+  aucun: 'SANS AIDE',
   gardien: 'GARDIEN +20%',
   vitesse: 'VITESSE +10%',
   tir: 'TIR PUISSANT',

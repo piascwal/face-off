@@ -38,7 +38,7 @@ describe('handicap', () => {
 
   it('seul l’hôte règle le handicap, et chacun doit revalider', () => {
     const e = nouvellePartie(
-      { effectif: 1, duree: 1, assistTir: true, assistPasse: true, changementAuto: true, ralenti: true },
+      { effectif: 1, duree: 1, assistTir: true, assistPasse: true, changementAuto: true, ralenti: true, pouvoirs: true },
       'LYNX 12',
       'nice',
       '0123456789abcdef',

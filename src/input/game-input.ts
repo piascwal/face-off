@@ -1,6 +1,6 @@
 import { clamp } from '@core/utils';
 import type { InputIntent } from '@core/types';
-import { GLISSE_MIN, RAYON_JOY, zoneElan, zonePasse, zonePause } from '@render/hud-zones';
+import { GLISSE_MIN, RAYON_JOY, zoneBonus, zoneElan, zonePasse, zonePause } from '@render/hud-zones';
 
 export interface PointLogique {
   x: number;
@@ -25,11 +25,13 @@ export interface InstantaneUI {
   tir: EtatTir | null;
   elanActif: boolean;
   passeActif: boolean;
+  bonusActif: boolean;
 }
 
 const TIR_TOUCHES = new Set(['Space', 'KeyJ', 'KeyX']);
 const ELAN_TOUCHES = new Set(['ShiftLeft', 'ShiftRight', 'KeyK', 'KeyC']);
 const PASSE_TOUCHES = new Set(['KeyL', 'KeyV']);
+const BONUS_TOUCHES = new Set(['KeyB', 'KeyN']);
 
 /**
  * Traduit les entrées brutes (clavier, tactile) en `InputIntent` consommé une
@@ -40,12 +42,16 @@ const PASSE_TOUCHES = new Set(['KeyL', 'KeyV']);
 export class GestionnaireEntreesJeu {
   tactile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   pauseDemandee = false;
+  /** Le bouton BONUS est affiché (bonus prêt) : sa zone tactile est active. */
+  bonusVisible = false;
 
   private touches = new Set<string>();
   private joy: (EtatJoystick & { id: number }) | null = null;
   private tir: (EtatTir & { id: number }) | null = null;
   private elanId: number | null = null;
   private passeId: number | null = null;
+  private bonusId: number | null = null;
+  private bonusAppui = false;
   private tirAppui = false;
   private tirRelache = false;
   private elanAppui = false;
@@ -61,6 +67,7 @@ export class GestionnaireEntreesJeu {
     }
     if (ELAN_TOUCHES.has(e.code)) this.elanAppui = true;
     if (PASSE_TOUCHES.has(e.code)) this.passeAppui = true;
+    if (BONUS_TOUCHES.has(e.code)) this.bonusAppui = true;
     if (e.code === 'Escape' || e.code === 'KeyP') this.pauseDemandee = true;
   }
 
@@ -86,7 +93,11 @@ export class GestionnaireEntreesJeu {
     } else {
       const zpa = zonePasse(W, H);
       const ze = zoneElan(W, H);
-      if (Math.hypot(p.x - zpa.x, p.y - zpa.y) < zpa.r + 6) {
+      const zb = zoneBonus(W, H);
+      if (this.bonusVisible && Math.hypot(p.x - zb.x, p.y - zb.y) < zb.r + 4) {
+        this.bonusId = id;
+        this.bonusAppui = true;
+      } else if (Math.hypot(p.x - zpa.x, p.y - zpa.y) < zpa.r + 6) {
         this.passeId = id;
         this.passeAppui = true;
       } else if (Math.hypot(p.x - ze.x, p.y - ze.y) < ze.r + 6) {
@@ -127,6 +138,7 @@ export class GestionnaireEntreesJeu {
     }
     if (id === this.elanId) this.elanId = null;
     if (id === this.passeId) this.passeId = null;
+    if (id === this.bonusId) this.bonusId = null;
   }
 
   /** Coupe toutes les commandes en cours (pause, changement d'écran...). */
@@ -135,6 +147,7 @@ export class GestionnaireEntreesJeu {
     this.tir = null;
     this.elanId = null;
     this.passeId = null;
+    this.bonusId = null;
     this.tirTenu = false;
     this.touches.clear();
   }
@@ -178,12 +191,14 @@ export class GestionnaireEntreesJeu {
       tirRelache: this.tirRelache,
       passeAppui: this.passeAppui,
       elanAppui: this.elanAppui,
+      bonusAppui: this.bonusAppui,
       viseeManuelle: this.viseeGlisse(),
     };
     this.tirAppui = false;
     this.tirRelache = false;
     this.passeAppui = false;
     this.elanAppui = false;
+    this.bonusAppui = false;
     if (intent.tirRelache) this.tir = null;
     return intent;
   }
@@ -195,6 +210,7 @@ export class GestionnaireEntreesJeu {
       tir: this.tir,
       elanActif: this.elanId !== null,
       passeActif: this.passeId !== null,
+      bonusActif: this.bonusId !== null,
     };
   }
 }

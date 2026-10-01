@@ -123,6 +123,15 @@ function dessineAuSol(
 
 /** Pas de patinage : distance parcourue (px logiques) par image du cycle. */
 const PAS_ANIM = 8;
+
+/** Aspect d'un joueur sous l'effet d'un bonus. */
+export interface AspectBonus {
+  /** Doré en ce moment (il clignote entre doré et normal à la fin du bonus). */
+  or: boolean;
+  /** Super vitesse : images fantômes derrière lui. */
+  vitesse: boolean;
+}
+
 export function dessinePatineur(
   g: CanvasRenderingContext2D,
   sprites: BanqueSprites,
@@ -130,7 +139,7 @@ export function dessinePatineur(
   temps: number,
   estControle: boolean,
   equipes: [EquipeVisuelle, EquipeVisuelle],
-  specialPret: boolean,
+  bonus: AspectBonus | null,
   menace = false,
 ): void {
   if (s.chuteT > 0) {
@@ -144,9 +153,11 @@ export function dessinePatineur(
   const gauche = Math.cos(s.face) < 0;
   const v = Math.hypot(s.vx, s.vy);
   const frame = v < 14 ? M.arret : Math.floor(s.anim / PAS_ANIM) % M.images;
-  const sprite = sprites.spriteJoueur(equipes[s.eq].id, frame, gauche);
+  const or = !!bonus?.or;
+  // joueur doré (bonus) : feuille repeinte en or, visage compris
+  const sprite = or ? sprites.spriteJoueurDore(equipes[s.eq].id, frame, gauche) : sprites.spriteJoueur(equipes[s.eq].id, frame, gauche);
   // chaque joueur garde son visage (teint, barbe) : même tirage sur les deux écrans en Wi-Fi
-  const visage = sprites.spriteVisage(s.rang * 2 + s.eq * 3, frame, gauche);
+  const visage = or ? null : sprites.spriteVisage(s.rang * 2 + s.eq * 3, frame, gauche);
   const tw = M.tileW * e;
   const th = M.tileH * e;
   // le tronc du joueur sur sa position (4 px sous son centre : là où il touche la glace)
@@ -187,17 +198,24 @@ export function dessinePatineur(
   if (s.prepaEchecT > 0) {
     haloSol(g, s.x, s.y + 4, 10 * rs, '#ff5a4e', Math.floor(temps * 16) & 1 ? 1 : 0.45, 2);
   }
-  // tir spécial chargé (combo de passes) : petite flamme pulsante au-dessus du porteur
-  if (s.tient && specialPret) {
-    const rebond = Math.abs(Math.sin(temps * 9)) * 2;
-    const fx = Math.round(s.x);
-    const fy = teteY - (estControle ? 13 : 5) - rebond;
-    px(g, fx - 2, fy - 2, 5, 5, C.contour);
-    px(g, fx - 1, fy - 1, 3, 3, '#ff8a3d');
-    px(g, fx, fy - 2, 1, 1, '#ffd35c');
+  // joueur doré : flaque de lumière dorée au sol
+  if (or) lueurSol(g, s.x, s.y + 4, 16 * rs, '#ffb020', 0.45 + 0.15 * Math.sin(temps * 10));
+  // super vitesse : deux images fantômes derrière lui
+  if (bonus?.vitesse && Math.hypot(s.vx, s.vy) > 30) {
+    g.globalAlpha = 0.3;
+    corps(-s.vx * 0.05, -s.vy * 0.05);
+    g.globalAlpha = 0.15;
+    corps(-s.vx * 0.1, -s.vy * 0.1);
+    g.globalAlpha = 1;
   }
-
-  corps();
+  if (or) {
+    // auréole : le joueur doré brille (le flou d'ombre est en pixels d'écran)
+    g.save();
+    g.shadowColor = '#ffd35c';
+    g.shadowBlur = (5 + 2 * Math.sin(temps * 8)) * g.getTransform().a;
+    corps();
+    g.restore();
+  } else corps();
 
   if (s.sonne > 0) etoiles(g, s.x, teteY - 1, temps);
   if (s.elanT > 0) {
@@ -272,9 +290,31 @@ export function dessineGardien(
  * positions et deux lignes de vitesse. Bleu glacier pour une passe, orange
  * pour un tir appuyé.
  */
-export function dessinePalet(g: CanvasRenderingContext2D, p: Puck): void {
+export function dessinePalet(g: CanvasRenderingContext2D, p: Puck, temps = 0): void {
   const v = Math.hypot(p.vx, p.vy);
-  if (!p.porteur && v > 120) {
+  // bonus : traînée scintillante dorée (tir guidé) ou néon (ricochet), plus longue et lumineuse
+  if (!p.porteur && p.lueur && v > 40) {
+    const col = p.lueur === 1 ? '#ffd35c' : '#5cf2ff';
+    const ux = p.vx / v;
+    const uy = p.vy / v;
+    const L = Math.min(40, v * 0.1);
+    g.globalCompositeOperation = 'lighter';
+    g.fillStyle = col;
+    for (let k = 1; k <= L; k++) {
+      g.globalAlpha = 0.9 * (1 - k / L);
+      g.fillRect(Math.round(p.x - ux * k) - 1, Math.round(p.y - uy * k) - 1, 3, 3);
+    }
+    // scintillement : quelques points blancs qui s'allument le long de la traînée
+    g.fillStyle = '#ffffff';
+    for (let i = 0; i < 4; i++) {
+      const k = (((temps * 37 + i * 11) % L) + L) % L;
+      const cote = Math.sin(temps * 50 + i * 2) * 3;
+      g.globalAlpha = 0.8 * (1 - k / L);
+      g.fillRect(Math.round(p.x - ux * k - uy * cote), Math.round(p.y - uy * k + ux * cote), 1, 1);
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+  } else if (!p.porteur && v > 120) {
     const tir = v > 330 || (p.tireur !== null && v > 200);
     const col = tir ? '#ff7a1a' : '#1fa8e8';
     const n = p.trace.length;

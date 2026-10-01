@@ -1,4 +1,5 @@
-import type { GameEvent, GamePhase, InputIntent, MatchState, Rink, StatsMatch, TeamId } from '@core/types';
+import { POUVOIRS } from '@core/pouvoirs';
+import type { EtatPouvoirs, GameEvent, GamePhase, InputIntent, MatchState, Rink, StatsMatch, TeamId } from '@core/types';
 import { angDiff } from '@core/utils';
 import { APPAREIL_SUR, estReaction, lisAction, lisEtatPartie, type ActionLan, type EtatPartieLan, type Reaction } from './partie';
 import { idAleatoire, VERSION_PROTOCOLE } from './reseau-local';
@@ -121,6 +122,7 @@ const TYPES_EVENEMENTS = new Set<GameEvent['type']>([
   'vibre',
   'bulle',
   'annonce',
+  'pouvoir',
 ]);
 
 /** Prépare les évènements d'un pas pour l'envoi (les références d'objets ne voyagent pas). */
@@ -171,8 +173,10 @@ const F_PATINEUR = 17;
 const TAILLE_PATINEUR = F_PATINEUR * 4 + 1;
 const TAILLE_GARDIEN = 5 * 4;
 // … + statistiques (passes, mises en échec, meilleure combo, possession)
-const TAILLE_ENTETE = 1 + 1 + 4 + 4 + 16 + 1 + 4 + 4 + 1 + 8 + 12 + 2 + 2 + 1 + 4 + 4 + 2 + 8;
-const TAILLE_PALET = 4 * 4 + 1;
+// … + bonus des deux équipes (passes, seuil, en main, en cours, tirage, temps restant, joueur doré)
+const TAILLE_POUVOIRS = 1 + 1 + 1 + 1 + 1 + 4 + 1;
+const TAILLE_ENTETE = 1 + 1 + 4 + 4 + 16 + 1 + 4 + 4 + 1 + 8 + 12 + 2 + 2 + 1 + 4 + 4 + 2 + 8 + 2 * TAILLE_POUVOIRS;
+const TAILLE_PALET = 4 * 4 + 1 + 1;
 export const PATINEURS_MAX = 12;
 
 export interface EtatPatineur {
@@ -214,7 +218,8 @@ export interface Instantane {
   phaseT: number;
   horloge: number;
   prolong: boolean;
-  tirSpecialPret: [boolean, boolean];
+  /** Bonus des deux équipes ; null quand les bonus sont désactivés. */
+  pouvoirs: [EtatPouvoirs, EtatPouvoirs] | null;
   marqueur: TeamId | null;
   humains: [boolean, boolean];
   score: [number, number];
@@ -226,7 +231,7 @@ export interface Instantane {
   stats: StatsMatch;
   patineurs: EtatPatineur[];
   gardiens: [EtatGardien, EtatGardien];
-  palet: { x: number; y: number; vx: number; vy: number; porteur: number };
+  palet: { x: number; y: number; vx: number; vy: number; porteur: number; lueur: number };
 }
 
 /** Porteur du palet : -1 personne, 0..n-1 un patineur, 100/101 un gardien. */
@@ -270,8 +275,7 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
   f(state.horloge);
   u8(
     (state.prolong ? 1 : 0) |
-      (state.tirSpecialPret[0] ? 2 : 0) |
-      (state.tirSpecialPret[1] ? 4 : 0) |
+      (state.pouvoirs ? 2 : 0) |
       (state.marqueur !== null ? 8 : 0) |
       (state.marqueur === 1 ? 16 : 0) |
       (state.humains[0] ? 32 : 0) |
@@ -297,6 +301,16 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
   u8(Math.min(255, st.comboMax[1]));
   f(st.possession[0]);
   f(st.possession[1]);
+  for (const eq of [0, 1] as TeamId[]) {
+    const pv = state.pouvoirs?.[eq];
+    u8(Math.min(255, pv?.passes ?? 0));
+    u8(Math.min(255, pv?.seuil ?? 0));
+    u8(pv?.pret ? POUVOIRS.indexOf(pv.pret) + 1 : 0);
+    u8(pv?.actif ? POUVOIRS.indexOf(pv.actif) + 1 : 0);
+    u8(Math.min(255, Math.round((pv?.tirage ?? 0) * 100)));
+    f(pv && Number.isFinite(pv.reste) ? pv.reste : -1);
+    i8(pv?.dore ?? -1);
+  }
   u8(n);
   for (let i = 0; i < n; i++) {
     const s = state.patineurs[i]!;
@@ -311,6 +325,7 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
   f(p.vx);
   f(p.vy);
   i8(indexPorteur(state));
+  u8(p.lueur);
   return buf;
 }
 
@@ -361,6 +376,17 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
   const checks: [number, number] = [u16(), u16()];
   const comboMax: [number, number] = [u8(), u8()];
   const possession: [number, number] = [f(), f()];
+  const pouvoir = (): EtatPouvoirs => {
+    const passes = u8();
+    const seuil = u8();
+    const pret = POUVOIRS[u8() - 1] ?? null;
+    const actif = POUVOIRS[u8() - 1] ?? null;
+    const tirage = u8() / 100;
+    const r = f();
+    const dore = i8();
+    return { passes, seuil, tirage, pret, actif, reste: r < 0 ? Infinity : r, dore, attente: 0 };
+  };
+  const pouvoirs: [EtatPouvoirs, EtatPouvoirs] = [pouvoir(), pouvoir()];
   const n = u8();
   if (!phase || n > PATINEURS_MAX || rink.w < 10 || rink.h < 10) return null;
   if (buf.byteLength !== TAILLE_ENTETE + n * TAILLE_PATINEUR + 2 * TAILLE_GARDIEN + TAILLE_PALET) return null;
@@ -394,7 +420,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
   }
   const gardien = (): EtatGardien => ({ a: f(), x: f(), y: f(), tient: f(), secoue: f() });
   const gardiens: [EtatGardien, EtatGardien] = [gardien(), gardien()];
-  const palet = { x: f(), y: f(), vx: f(), vy: f(), porteur: i8() };
+  const palet = { x: f(), y: f(), vx: f(), vy: f(), porteur: i8(), lueur: Math.min(2, u8()) };
   if (!sain) return null;
   return {
     seq,
@@ -404,7 +430,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
     phaseT,
     horloge,
     prolong: (fl & 1) !== 0,
-    tirSpecialPret: [(fl & 2) !== 0, (fl & 4) !== 0],
+    pouvoirs: fl & 2 ? pouvoirs : null,
     marqueur: fl & 8 ? (fl & 16 ? 1 : 0) : null,
     humains: [(fl & 32) !== 0, (fl & 64) !== 0],
     score,
@@ -442,7 +468,7 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
   state.phaseT = b.phaseT;
   state.horloge = b.horloge;
   state.prolong = b.prolong;
-  state.tirSpecialPret = [...b.tirSpecialPret];
+  state.pouvoirs = b.pouvoirs ? [{ ...b.pouvoirs[0] }, { ...b.pouvoirs[1] }] : null;
   state.marqueur = b.marqueur;
   state.humains = [...b.humains];
   state.score = [...b.score];
@@ -500,16 +526,17 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
   p.y = Y(py);
   p.vx = pb.vx * kx;
   p.vy = pb.vy * ky;
+  p.lueur = pb.lueur;
   p.porteur = pb.porteur >= 0 && pb.porteur < n ? state.patineurs[pb.porteur]! : pb.porteur === 100 || pb.porteur === 101 ? state.gardiens[pb.porteur - 100]! : null;
 }
 
 // ---------------------------------------------------------------- entrées --
 
-const TAILLE_ENTREE = 1 + 4 + 12 + 1 + 8;
+const TAILLE_ENTREE = 1 + 4 + 12 + 1 + 10;
 
 /**
  * Côté client : encode l'intention de chaque image. Les appuis ponctuels
- * (tir, passe, élan) sont transmis comme des *compteurs* cumulés, pas comme
+ * (tir, passe, élan, bonus) sont transmis comme des *compteurs* cumulés, pas comme
  * des booléens : si un paquet se perd, le suivant porte le même compteur et
  * l'hôte voit quand même l'appui — ni perdu, ni rejoué deux fois.
  */
@@ -519,6 +546,7 @@ export class EmetteurEntrees {
   private nRelache = 0;
   private nPasse = 0;
   private nElan = 0;
+  private nBonus = 0;
   private tenu = false;
 
   encode(intent: InputIntent): ArrayBuffer {
@@ -532,6 +560,7 @@ export class EmetteurEntrees {
     }
     if (intent.passeAppui) this.nPasse = (this.nPasse + 1) & 0xffff;
     if (intent.elanAppui) this.nElan = (this.nElan + 1) & 0xffff;
+    if (intent.bonusAppui) this.nBonus = (this.nBonus + 1) & 0xffff;
     const buf = new ArrayBuffer(TAILLE_ENTREE);
     const d = new DataView(buf);
     d.setUint8(0, TYPE_ENTREE);
@@ -544,6 +573,7 @@ export class EmetteurEntrees {
     d.setUint16(20, this.nRelache);
     d.setUint16(22, this.nPasse);
     d.setUint16(24, this.nElan);
+    d.setUint16(26, this.nBonus);
     return buf;
   }
 }
@@ -555,8 +585,8 @@ export const SILENCE_ENTREE_S = 0.5;
 /** Côté hôte : reconstruit, pas après pas, l'`InputIntent` du joueur distant. */
 export class EntreeDistante {
   private seq = 0;
-  private compteurs: [number, number, number, number] | null = null;
-  private attente = { appui: 0, relache: 0, passe: 0, elan: 0 };
+  private compteurs: [number, number, number, number, number] | null = null;
+  private attente = { appui: 0, relache: 0, passe: 0, elan: 0, bonus: 0 };
   private tenuEmis = false;
   private ix = 0;
   private iy = 0;
@@ -586,13 +616,14 @@ export class EntreeDistante {
     this.iy = iy;
     this.visee = Number.isFinite(visee) && Math.abs(visee) <= Math.PI + 0.01 ? visee : null;
     this.recuA = maintenant;
-    const c: [number, number, number, number] = [d.getUint16(18), d.getUint16(20), d.getUint16(22), d.getUint16(24)];
+    const c: [number, number, number, number, number] = [d.getUint16(18), d.getUint16(20), d.getUint16(22), d.getUint16(24), d.getUint16(26)];
     if (this.compteurs) {
       const delta = (i: number) => Math.min(EN_ATTENTE_MAX, (c[i]! - this.compteurs![i]! + 0x10000) & 0xffff);
       this.attente.appui = Math.min(EN_ATTENTE_MAX, this.attente.appui + delta(0));
       this.attente.relache = Math.min(EN_ATTENTE_MAX, this.attente.relache + delta(1));
       this.attente.passe = Math.min(EN_ATTENTE_MAX, this.attente.passe + delta(2));
       this.attente.elan = Math.min(EN_ATTENTE_MAX, this.attente.elan + delta(3));
+      this.attente.bonus = Math.min(EN_ATTENTE_MAX, this.attente.bonus + delta(4));
     }
     this.compteurs = c;
     return true;
@@ -617,6 +648,8 @@ export class EntreeDistante {
     if (passeAppui) this.attente.passe--;
     const elanAppui = this.attente.elan > 0;
     if (elanAppui) this.attente.elan--;
+    const bonusAppui = this.attente.bonus > 0;
+    if (bonusAppui) this.attente.bonus--;
     return {
       ix: muet ? 0 : this.ix,
       iy: muet ? 0 : this.iy,
@@ -625,6 +658,7 @@ export class EntreeDistante {
       tirRelache,
       passeAppui,
       elanAppui,
+      bonusAppui,
       viseeManuelle: this.visee,
     };
   }
