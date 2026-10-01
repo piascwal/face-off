@@ -123,6 +123,7 @@ const TYPES_EVENEMENTS = new Set<GameEvent['type']>([
   'bulle',
   'annonce',
   'pouvoir',
+  'onde',
 ]);
 
 /** Prépare les évènements d'un pas pour l'envoi (les références d'objets ne voyagent pas). */
@@ -169,12 +170,12 @@ export function lisEvenement(o: unknown, versLocal: (x: number, y: number) => [n
 const TYPE_INSTANTANE = 1;
 const TYPE_ENTREE = 2;
 const PHASES: GamePhase[] = ['engagement', 'jeu', 'but', 'fin'];
-const F_PATINEUR = 17;
+const F_PATINEUR = 18;
 const TAILLE_PATINEUR = F_PATINEUR * 4 + 1;
 const TAILLE_GARDIEN = 5 * 4;
 // … + statistiques (passes, mises en échec, meilleure combo, possession)
-// … + bonus des deux équipes (passes, seuil, en main, en cours, tirage, temps restant, joueur doré)
-const TAILLE_POUVOIRS = 1 + 1 + 1 + 1 + 1 + 4 + 1;
+// … + bonus des deux équipes (passes, seuil, en main, en cours, tirage, temps restant, joueur doré, attente)
+const TAILLE_POUVOIRS = 1 + 1 + 1 + 1 + 1 + 4 + 1 + 1;
 const TAILLE_ENTETE = 1 + 1 + 4 + 4 + 16 + 1 + 4 + 4 + 1 + 8 + 12 + 2 + 2 + 1 + 4 + 4 + 2 + 8 + 2 * TAILLE_POUVOIRS;
 const TAILLE_PALET = 4 * 4 + 1 + 1;
 export const PATINEURS_MAX = 12;
@@ -195,6 +196,7 @@ export interface EtatPatineur {
   esquiveT: number;
   prepaEchecT: number;
   chuteT: number;
+  chuteD: number;
   flashT: number;
   vise: number | null;
   tient: boolean;
@@ -310,11 +312,12 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
     u8(Math.min(255, Math.round((pv?.tirage ?? 0) * 100)));
     f(pv && Number.isFinite(pv.reste) ? pv.reste : -1);
     i8(pv?.dore ?? -1);
+    u8(Math.min(255, Math.round((pv?.attente ?? 0) * 20)));
   }
   u8(n);
   for (let i = 0; i < n; i++) {
     const s = state.patineurs[i]!;
-    for (const v of [s.x, s.y, s.vx, s.vy, s.face, s.charge, s.elanT, s.elanCd, s.sonne, s.anim, s.ex, s.ey, s.esquiveT, s.prepaEchecT, s.chuteT, s.flashT]) f(v);
+    for (const v of [s.x, s.y, s.vx, s.vy, s.face, s.charge, s.elanT, s.elanCd, s.sonne, s.anim, s.ex, s.ey, s.esquiveT, s.prepaEchecT, s.chuteT, s.chuteD, s.flashT]) f(v);
     f(s.vise ?? NaN);
     u8((s.tient ? 1 : 0) | (s.arme ? 2 : 0) | (s.humain ? 4 : 0));
   }
@@ -384,7 +387,8 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
     const tirage = u8() / 100;
     const r = f();
     const dore = i8();
-    return { passes, seuil, tirage, pret, actif, reste: r < 0 ? Infinity : r, dore, attente: 0 };
+    const attente = u8() / 20;
+    return { passes, seuil, tirage, pret, actif, reste: r < 0 ? Infinity : r, dore, attente };
   };
   const pouvoirs: [EtatPouvoirs, EtatPouvoirs] = [pouvoir(), pouvoir()];
   const n = u8();
@@ -392,7 +396,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
   if (buf.byteLength !== TAILLE_ENTETE + n * TAILLE_PATINEUR + 2 * TAILLE_GARDIEN + TAILLE_PALET) return null;
   const patineurs: EtatPatineur[] = [];
   for (let i = 0; i < n; i++) {
-    const [x, y, vx, vy, face, charge, elanT, elanCd, sonne, anim, ex, ey, esquiveT, prepaEchecT, chuteT, flashT] = Array.from({ length: 16 }, f) as number[];
+    const [x, y, vx, vy, face, charge, elanT, elanCd, sonne, anim, ex, ey, esquiveT, prepaEchecT, chuteT, chuteD, flashT] = Array.from({ length: 17 }, f) as number[];
     const vise = fNul();
     const b = u8();
     patineurs.push({
@@ -411,6 +415,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
       esquiveT: esquiveT!,
       prepaEchecT: prepaEchecT!,
       chuteT: chuteT!,
+      chuteD: chuteD!,
       flashT: flashT!,
       vise,
       tient: (b & 1) !== 0,
@@ -420,7 +425,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
   }
   const gardien = (): EtatGardien => ({ a: f(), x: f(), y: f(), tient: f(), secoue: f() });
   const gardiens: [EtatGardien, EtatGardien] = [gardien(), gardien()];
-  const palet = { x: f(), y: f(), vx: f(), vy: f(), porteur: i8(), lueur: Math.min(2, u8()) };
+  const palet = { x: f(), y: f(), vx: f(), vy: f(), porteur: i8(), lueur: Math.min(3, u8()) };
   if (!sain) return null;
   return {
     seq,
@@ -499,6 +504,7 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
     s.esquiveT = sb.esquiveT;
     s.prepaEchecT = sb.prepaEchecT;
     s.chuteT = sb.chuteT;
+    s.chuteD = sb.chuteD;
     s.flashT = sb.flashT;
     s.vise = sb.vise;
     s.tient = sb.tient;

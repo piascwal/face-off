@@ -146,6 +146,7 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
   cassePasses(state, 0);
   cassePasses(state, 1);
   p.guide = null;
+  p.puissant = false;
   state.reception = null;
   p.passes = 0;
   p.uneTouche = false;
@@ -169,6 +170,7 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
     s.elanT = 0;
     s.prepaEchecT = 0;
     s.chuteT = 0;
+    s.chuteD = 0;
     s.flashT = 0;
     s.face = s.eq === 0 ? 0 : Math.PI;
     s.recupCd = 0;

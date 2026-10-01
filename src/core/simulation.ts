@@ -10,7 +10,7 @@ import {
   segmentsCage,
   type SegmentCage,
 } from './physics';
-import { iaPouvoirs, majPouvoirs } from './pouvoirs';
+import { estGele, estInverse, iaPouvoirs, majPouvoirs } from './pouvoirs';
 import { engagement, finMatch, finTempsReglementaire } from './rules';
 import { INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from './types';
 import { alea } from './utils';
@@ -38,11 +38,19 @@ export function pas(
 
   for (const s of state.patineurs) {
     if (s.humain) {
-      appliqueEntreeJoueur(rink, state, s, entreeJoueur(s.eq), dt);
-    } else if (state.phase === 'jeu') {
+      const intent = entreeJoueur(s.eq);
+      // bonus « freeze » : le joueur pris dans la glace ne fait rien (l'entrée est quand même lue)
+      if (estGele(state, s)) s.ex = s.ey = 0;
+      else appliqueEntreeJoueur(rink, state, s, intent, dt);
+    } else if (state.phase === 'jeu' && !estGele(state, s)) {
       pilotageIA(rink, state, s, dt);
     } else {
       s.ex = s.ey = 0;
+    }
+    // bonus « inversion » de l'adversaire : les déplacements partent à l'envers
+    if (estInverse(state, s.eq)) {
+      s.ex = -s.ex;
+      s.ey = -s.ey;
     }
   }
 

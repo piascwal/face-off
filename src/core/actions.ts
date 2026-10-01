@@ -15,7 +15,7 @@ import {
   UNE_TOUCHE_BONUS,
   UNE_TOUCHE_S,
 } from './constants';
-import { cassePasses, comptePasse, tirGuide } from './pouvoirs';
+import { cassePasses, comptePasse, pouvoirActif, tirGuide, tirPuissant } from './pouvoirs';
 import { qualiteDuTir } from './shooting';
 import { equipe } from './state-helpers';
 import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types';
@@ -30,6 +30,8 @@ export const pointCrosse = (s: Skater): { x: number; y: number } => ({
 /** Chaque humain ne pilote qu'un seul patineur de son équipe à la fois. */
 export function controle(state: MatchState, s: Skater): void {
   if (state.mode !== 'match' || !state.humains[s.eq] || state.controles[s.eq] === s) return;
+  // freeze de son équipe : on garde la main sur le seul joueur qui bouge
+  if (state.controles[s.eq] && pouvoirActif(state, s.eq, 'freeze')) return;
   const a = state.controles[s.eq];
   if (a) {
     a.humain = false;
@@ -53,6 +55,7 @@ export function prendPalet(state: MatchState, qui: Porteur): void {
   p.passe = null;
   p.qualite = 0;
   p.guide = null;
+  p.puissant = false;
   // le palet change de camp : la séquence de passes de l'équipe qui le perd s'arrête là
   if (equipePrecedente !== undefined && equipePrecedente !== qui.eq) {
     state.combo[equipePrecedente] = 0;
@@ -104,7 +107,9 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   if (uneTouche) puissance = Math.max(puissance, 0.55);
   // handicap « tir puissant » : palet plus rapide, un peu plus dur à arrêter
   const renfort = state.bonus[s.eq] === 'tir';
-  const v = (150 + 290 * puissance) * (renfort ? 1.15 : 1);
+  // bonus « tir surpuissant » en cours : ce tir part bien plus vite
+  const fort = tirPuissant(state, s);
+  const v = (150 + 290 * puissance) * (renfort ? 1.15 : 1) * fort.vitesse;
   lachePalet(state, s, 0.3);
   const sp = pointCrosse(s);
   p.x = sp.x;
@@ -123,12 +128,13 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   if (uneTouche) bonus += UNE_TOUCHE_BONUS;
   if (renfort) bonus += 0.06;
   // bonus « tir guidé » en cours : ce tir s'incurve vers la cage
-  bonus += tirGuide(rink, state, s, ang);
+  bonus += tirGuide(rink, state, s, ang) + fort.bonus;
   if (p.qualite > 0) p.qualite = Math.min(0.97, p.qualite + bonus);
   state.evenements.push({ type: 'frappe', puissance });
   state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 3 + Math.round(puissance * 8) });
   if (puissance > 0.7) state.evenements.push({ type: 'secousse', force: 1.5 });
-  if (p.guide) state.evenements.push({ type: 'bulle', txt: 'TIR GUIDE !', x: sp.x, y: sp.y - 14, c: '#ffd35c' });
+  if (p.puissant) state.evenements.push({ type: 'bulle', txt: 'SURPUISSANT !', x: sp.x, y: sp.y - 14, c: '#ff8a2a' });
+  else if (p.guide) state.evenements.push({ type: 'bulle', txt: 'TIR GUIDE !', x: sp.x, y: sp.y - 14, c: '#ffd35c' });
   else if (uneTouche) state.evenements.push({ type: 'bulle', txt: 'UNE-TOUCHE !', x: sp.x, y: sp.y - 14, c: '#8fe3ff' });
 }
 
@@ -216,6 +222,7 @@ export function lancePasse(state: MatchState, x: number, y: number, m: Skater, e
   p.passe = { vers: m, t: 1.3, facile };
   p.tireur = null;
   p.guide = null;
+  p.puissant = false;
   p.qualite = 0;
   state.reception = null;
   state.evenements.push({ type: 'frappe', puissance: 0.25 });
@@ -333,6 +340,7 @@ export function esquive(state: MatchState, s: Skater, o: Skater): void {
   o.prepaEchecT = 0;
   o.sonne = ESQUIVE_SONNE;
   o.chuteT = ESQUIVE_SONNE;
+  o.chuteD = ESQUIVE_SONNE;
   o.flashT = FLASH_T;
   o.face = Math.atan2(uy, ux);
   o.vx = ux * CHUTE_GLISSE;

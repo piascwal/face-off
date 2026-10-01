@@ -61,7 +61,7 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 | `solo` | Au clavier : menu, choix des équipes et maillots (avec retour), match, pause, fin, rejouer, bilan, écran des commandes |
 | `coupe` | Mode coupe : choix, tableau, dévoilement, élimination, titre |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
-| `bonus` | Bonus en solo : jauge, tirage, bouton BONUS au doigt et touche B, joueur doré, « 2X », option du menu |
+| `bonus` | Bonus en solo : jauge, tirage, bouton BONUS au doigt et touche B (et tir depuis BONUS), joueur doré, « 2X », freeze, inversion, tir surpuissant, option du menu |
 | `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), invité qui ne revient pas, coupure pendant le choix des équipes |
 
 En local, Chromium doit être installé une fois : `npx playwright install chromium`.
@@ -654,10 +654,9 @@ demi-finales, finale).
 Option **BONUS** sur l'accueil (le son est passé dans les réglages
 avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 
-- **La jauge.** Chaque équipe compte ses passes réussies d'affilée. Il en
-  faut 3 pour le premier bonus, puis une de plus à chaque bonus utilisé
-  (8 au plus). La série retombe à zéro sur une interception, un arrêt d'un
-  gardien ou un but.
+- **La jauge.** Chaque équipe compte ses passes réussies d'affilée : 4 passes
+  donnent un bonus, toujours (`SEUIL_PASSES`). La série retombe à zéro sur
+  une interception, un arrêt d'un gardien ou un but.
 - **Le tirage.** Au seuil, un bonus est tiré au sort : les icônes défilent
   un peu plus d'une seconde dans la case en haut à gauche, puis s'arrêtent.
   Le tirage est le même pour les deux équipes, tout au long du match :
@@ -665,11 +664,15 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 - **La pondération.** Chaque bonus a un poids (`POIDS_POUVOIRS`, tous égaux
   pour l'instant). Le tirage reçoit l'état du match (`poidsPouvoirs`) : on
   pourra plus tard donner plus souvent les bonus puissants à l'équipe menée.
-- **L'utilisation.** Le bonus reste en main jusqu'à ce qu'on le déclenche :
+- **L'utilisation.** On a 10 s de jeu pour déclencher le bonus
+  (`PRET_MAX_S`, une barre fond sous « PRET ! »), sinon il est perdu :
   bouton **BONUS** (au-dessus de PASSE, il n'apparaît qu'à ce moment) ou
-  touche **B**. Pendant qu'il est en main ou en cours, les passes ne
-  remplissent pas la jauge. L'ordinateur s'en sert aussi : quand il a le
-  palet (près de la cage pour le tir guidé), au plus tard après 6 s.
+  touche **B**. Pour un bonus de tir (guidé, surpuissant), ce bouton
+  déclenche le bonus et sert aussi de bouton de tir : on maintient pour
+  charger, on glisse pour viser, on relâche pour tirer. Pendant qu'un bonus
+  est en main ou en cours, les passes ne remplissent pas la jauge.
+  L'ordinateur s'en sert aussi : quand il a le palet (près de la cage pour
+  les bonus de tir), au plus tard après 6 s.
 - **Le joueur doré.** Le joueur piloté devient doré (maillot, crosse et
   visage) avec une auréole. Pendant les 2 dernières secondes, il clignote
   entre doré et normal, de plus en plus vite.
@@ -681,19 +684,22 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 |---|---|---|
 | Tir guidé | le prochain tir s'incurve vers un coin de la cage, qualité +0,3 ; traînée dorée scintillante | prochain tir, 10 s max |
 | Super vitesse | joueur doré ×1,4 (vitesse et accélération), images fantômes | 6 s |
+| Tir surpuissant | le prochain tir part 1,5× plus vite, qualité +0,2 ; il traverse et renverse les adversaires sur sa route (2 s au sol) ; traînée de feu, onde de choc | prochain tir, 10 s max |
+| Freeze | tout le monde est pris dans la glace, sauf le joueur doré (les gardiens jouent) ; on garde la main sur lui ; onde de givre | 3 s |
 | Mode savon | toute mise en échec contre l'équipe se transforme en esquive, étincelles bleues | 8 s |
+| Inversion | les déplacements des adversaires partent à l'envers (l'ordinateur aussi), spirales au-dessus de leur tête | 5 s |
 | Ricochet | le palet joué par l'équipe repart des bandes plus vite (×1,12, 480 px/s max), traînée néon | 8 s |
 | But x2 | le prochain but de l'équipe compte double ; « 2X » au-dessus de la cage adverse | jusqu'au but |
 
-Prévu ensuite : tir surpuissant, freeze, inversion (lot 2) ; gamelle (−1 but
-à l'adversaire si l'on marque dans les 10 s), surnombre, mode entraînement
-(lot 3). Ils ne sortent pas encore au tirage (`dispo` dans `DEF_POUVOIRS`).
+Prévu ensuite (lot 3) : gamelle (−1 but à l'adversaire si l'on marque dans
+les 10 s), surnombre, mode entraînement. Ils ne sortent pas encore au tirage
+(`dispo` dans `DEF_POUVOIRS`).
 
 Code : `core/pouvoirs.ts` (règles, tirage, effets, IA ; testé dans
 `tests/pouvoirs.test.ts`), `render/hud-bonus.ts` et `render/icones-bonus.ts`
 (jauges, tirage, bouton), feuille dorée calculée à la volée
 (`BanqueSprites.spriteJoueurDore`). En Wi-Fi, les bonus voyagent dans
-l'instantané (protocole v12) et l'appui sur BONUS comme les autres appuis.
+l'instantané (protocole v14) et l'appui sur BONUS comme les autres appuis.
 
 L'aide des commandes (tactile et clavier) est dans **Réglages avancés >
 Commandes**.

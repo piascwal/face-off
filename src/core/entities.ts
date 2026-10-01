@@ -23,6 +23,7 @@ export function nouveauPatineur(eq: TeamId, rang: number): Skater {
     esquiveVerrou: 0,
     prepaEchecT: 0,
     chuteT: 0,
+    chuteD: 0,
     flashT: 0,
     anim: 0,
     humain: false,
@@ -55,6 +56,7 @@ export function nouveauPalet(): Puck {
     passes: 0,
     uneTouche: false,
     guide: null,
+    puissant: false,
     lueur: 0,
   };
 }

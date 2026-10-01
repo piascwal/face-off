@@ -519,6 +519,7 @@ export class GameApp {
   private dessineSurMatch(g: CanvasRenderingContext2D, temps: number, state: MatchState, ralenti: boolean): void {
     const lan = this.lan;
     this.entrees.bonusVisible = false;
+    this.entrees.bonusTir = false;
     if (lan.vues.dessinePauseMatch(g)) return;
     if (ralenti) {
       const partie = lan.partie;
@@ -538,11 +539,15 @@ export class GameApp {
     const pilote = state.controles[lan.eqLocal];
     const ui = this.entrees.instantaneUI();
     dessineCommandes(g, this.W, this.H, state.temps, pilote, ui, !!pilote && menaceEchec(state, pilote) !== null);
-    // bonus prêt : son bouton apparaît au-dessus de PASSE (et sa zone tactile s'active)
-    const pret = pouvoirPret(state, lan.eqLocal) ? state.pouvoirs![lan.eqLocal].pret : null;
-    if (pret && ui.tactile && pilote) {
-      this.entrees.bonusVisible = true;
-      dessineBoutonBonus(g, this.W, this.H, state.temps, pret, ui.bonusActif);
+    // bonus prêt : son bouton apparaît au-dessus de PASSE (et sa zone tactile s'active) ;
+    // pour un bonus de tir, il sert aussi de bouton de tir (et reste affiché tant qu'on vise)
+    const pv = state.pouvoirs?.[lan.eqLocal];
+    const pret = pv && pouvoirPret(state, lan.eqLocal) ? pv.pret : null;
+    this.entrees.bonusTir = pret === 'guide' || pret === 'puissant';
+    if (pret && pilote) this.entrees.bonusVisible = true;
+    const affiche = pret ?? (ui.bonusActif && ui.tirBonus ? (pv?.actif ?? null) : null);
+    if (affiche && ui.tactile && pilote) {
+      dessineBoutonBonus(g, this.W, this.H, state.temps, affiche, ui.bonusActif, ui.tirBonus && pilote.arme ? pilote.charge : null);
     }
     if (pilote?.arme) dessineJaugeTir(g, this.H, pilote.charge, state.temps);
   }

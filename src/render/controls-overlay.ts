@@ -43,7 +43,7 @@ export function dessineCommandes(
   const zt = zoneTir(W, H);
   const zpa = zonePasse(W, H);
   const ze = zoneElan(W, H);
-  const tAppui = ui.tir !== null;
+  const tAppui = ui.tir !== null && !ui.tirBonus;
   g.globalAlpha = tAppui ? 0.9 : 0.6;
   disque(g, zt.x, zt.y, zt.r, C.contour);
   // rouge pour tirer, violet pour le coup de crosse (gris le temps qu'il se recharge)
@@ -51,7 +51,7 @@ export function dessineCommandes(
   const [fond, face] = s.tient ? ['#ff5470', '#e03a58'] : !crossePrete ? ['#6b7295', '#5a6082'] : ['#8a7cf0', '#6f62d6'];
   disque(g, zt.x, zt.y + (tAppui ? 1 : 0), zt.r - 1, fond);
   if (!tAppui) disque(g, zt.x, zt.y + 1, zt.r - 3, face);
-  if (s.arme) anneau(g, zt.x, zt.y, zt.r + 2, C.or, s.charge, 2);
+  if (s.arme && !ui.tirBonus) anneau(g, zt.x, zt.y, zt.r + 2, C.or, s.charge, 2);
   g.globalAlpha = 1;
   const libelle = s.tient ? 'TIR' : 'CROSSE';
   texte(g, libelle, zt.x, zt.y - 3 + (tAppui ? 1 : 0), C.blanc, 1, 'c');

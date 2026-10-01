@@ -1,4 +1,4 @@
-import { DEF_POUVOIRS, POUVOIRS, TIRAGE_S } from '@core/pouvoirs';
+import { DEF_POUVOIRS, POUVOIRS, PRET_MAX_S, TIRAGE_S } from '@core/pouvoirs';
 import type { EtatPouvoirs, MatchState, PouvoirId, TeamId } from '@core/types';
 import { zoneBonus } from './hud-zones';
 import { dessineIconeBonus } from './icones-bonus';
@@ -40,6 +40,9 @@ function caseBonus(g: CanvasRenderingContext2D, x: number, y: number, pv: EtatPo
   dessineIconeBonus(g, id ?? 'inconnu', x + 10, y + 10, 14);
 }
 
+/** Temps restant pour déclencher le bonus prêt (0..1). */
+const delaiRelatif = (pv: EtatPouvoirs): number => Math.max(0, Math.min(1, 1 - pv.attente / PRET_MAX_S));
+
 /** Temps restant d'un bonus en cours (0..1), ou null s'il dure jusqu'au prochain but. */
 function resteRelatif(pv: EtatPouvoirs): number | null {
   if (!pv.actif || !Number.isFinite(pv.reste)) return null;
@@ -71,10 +74,14 @@ export function dessineJaugeBonus(
     if (pv.actif) {
       px(g, x0, y + 23, 20, 2, VIDE);
       px(g, x0, y + 23, Math.round(20 * (r ?? 1)), 2, C.or);
+    } else if (pv.pret && pv.tirage <= 0) {
+      px(g, x0, y + 23, 20, 2, VIDE);
+      px(g, x0, y + 23, Math.round(20 * delaiRelatif(pv)), 2, C.blanc);
     } else if (!pv.pret) texte(g, `${pv.passes}/${pv.seuil}`, x0 + 10, y + 23, C.gris, 1, 'c');
     return;
   }
-  const larg = 26 + Math.max(id ? largeurTexte(nom) : 0, pv.seuil * 7);
+  const pret = clavier ? 'PRET ! TOUCHE B' : 'PRET !';
+  const larg = 26 + Math.max(id ? largeurTexte(nom) : 0, id && !pv.actif ? largeurTexte(pret) : 0, pv.seuil * 7);
   g.fillStyle = 'rgba(7,9,20,0.6)';
   g.fillRect(x - 3, y - 3, larg + 3, 26);
   caseBonus(g, x, y, pv, temps);
@@ -93,7 +100,13 @@ export function dessineJaugeBonus(
   if (id) {
     const cl = Math.floor(temps * 4) % 2 ? C.blanc : C.or;
     texte(g, nom, tx, y + 2, C.or, 1, 'g');
-    texte(g, clavier ? 'PRET ! TOUCHE B' : 'PRET !', tx, y + 12, cl, 1, 'g');
+    texte(g, pret, tx, y + 11, cl, 1, 'g');
+    // le temps qu'il reste pour le déclencher : la barre fond, puis clignote en rouge
+    const w = larg - 27;
+    const d = delaiRelatif(pv);
+    const urgent = d * PRET_MAX_S < 3;
+    px(g, tx, y + 19, w, 2, VIDE);
+    px(g, tx, y + 19, Math.round(w * d), 2, urgent && Math.floor(temps * 8) % 2 ? '#ff5a4e' : C.blanc);
     return;
   }
   // jauge des passes (pastilles pleines pour les passes faites), ou tirage en cours
@@ -119,7 +132,7 @@ export function dessineJaugesBonus(g: CanvasRenderingContext2D, W: number, state
 }
 
 /** Bouton BONUS (tactile), au-dessus de PASSE : pastille dorée avec l'icône, anneau qui pulse. */
-export function dessineBoutonBonus(g: CanvasRenderingContext2D, W: number, H: number, temps: number, id: PouvoirId, appui: boolean): void {
+export function dessineBoutonBonus(g: CanvasRenderingContext2D, W: number, H: number, temps: number, id: PouvoirId, appui: boolean, charge: number | null = null): void {
   const z = zoneBonus(W, H);
   const p = 0.5 + 0.5 * Math.sin(temps * 6);
   g.globalAlpha = 0.5 + 0.4 * p;
@@ -131,5 +144,7 @@ export function dessineBoutonBonus(g: CanvasRenderingContext2D, W: number, H: nu
   g.globalAlpha = 1;
   disque(g, z.x, z.y, 9, '#20243a');
   dessineIconeBonus(g, id, z.x, z.y, 14);
+  // bonus de tir : la charge du tir s'affiche autour du bouton, comme sur TIR
+  if (charge !== null) anneau(g, z.x, z.y, z.r + 2, C.blanc, charge, 2);
   texte(g, 'BONUS', z.x, z.y - z.r - 10, C.or, 1, 'c');
 }

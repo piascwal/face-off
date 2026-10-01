@@ -1,5 +1,5 @@
 import { pointCrosse } from '@core/actions';
-import { CHUTE_PLONGEON, ESQUIVE_SONNE } from '@core/constants';
+import { CHUTE_PLONGEON } from '@core/constants';
 import type { Goalie, Puck, Skater } from '@core/types';
 import { px } from './primitives';
 import type { BanqueSprites, Rect } from './sprites';
@@ -62,7 +62,7 @@ let tamponFlash: HTMLCanvasElement | null = null;
  * Silhouette blanche d'un sprite : le flash d'impact (mise en échec, esquive),
  * comme dans les jeux d'arcade — se lit d'un coup d'œil, sans texte.
  */
-function dessineBlanc(g: CanvasRenderingContext2D, img: CanvasImageSource, r: Rect, dx: number, dy: number, dw: number, dh: number): void {
+function dessineBlanc(g: CanvasRenderingContext2D, img: CanvasImageSource, r: Rect, dx: number, dy: number, dw: number, dh: number, couleur = '#ffffff'): void {
   tamponFlash ??= document.createElement('canvas');
   if (tamponFlash.width < r.sw || tamponFlash.height < r.sh) {
     tamponFlash.width = Math.max(tamponFlash.width, r.sw);
@@ -73,7 +73,7 @@ function dessineBlanc(g: CanvasRenderingContext2D, img: CanvasImageSource, r: Re
   t.clearRect(0, 0, r.sw, r.sh);
   t.drawImage(img, r.sx, r.sy, r.sw, r.sh, 0, 0, r.sw, r.sh);
   t.globalCompositeOperation = 'source-in';
-  t.fillStyle = '#ffffff';
+  t.fillStyle = couleur;
   t.fillRect(0, 0, r.sw, r.sh);
   t.globalCompositeOperation = 'source-over';
   g.drawImage(tamponFlash, 0, 0, r.sw, r.sh, dx, dy, dw, dh);
@@ -102,7 +102,7 @@ function dessineAuSol(
   const M = sprites.meta.chute;
   const e = M.echelle;
   const gauche = Math.cos(s.face) < 0;
-  const frame = ESQUIVE_SONNE - s.chuteT < CHUTE_PLONGEON ? 0 : 1;
+  const frame = s.chuteD - s.chuteT < CHUTE_PLONGEON ? 0 : 1;
   const sprite = sprites.spriteChute(equipes[s.eq].id, frame, gauche);
   const miroir = (x: number) => (gauche ? M.tileW - x : x);
   const bx = s.x - miroir(M.pied.x) * e;
@@ -130,6 +130,46 @@ export interface AspectBonus {
   or: boolean;
   /** Super vitesse : images fantômes derrière lui. */
   vitesse: boolean;
+  /** Freeze : pris dans un bloc de glace. */
+  gele: boolean;
+  /** Inversion adverse : spirales de confusion au-dessus de la tête. */
+  confus: boolean;
+}
+
+/** Bloc de glace autour d'un joueur gelé (bonus freeze), avec deux reflets. */
+function blocGlace(g: CanvasRenderingContext2D, x: number, haut: number, bas: number): void {
+  const l = 18;
+  const x0 = Math.round(x - l / 2);
+  const y0 = Math.round(haut);
+  const h = Math.round(bas - haut);
+  g.globalAlpha = 0.35;
+  px(g, x0, y0, l, h, '#bfefff');
+  g.globalAlpha = 0.85;
+  px(g, x0, y0, l, 1, '#f2fcff');
+  px(g, x0, y0, 1, h, '#f2fcff');
+  px(g, x0 + l - 1, y0, 1, h, '#8fd8f5');
+  px(g, x0, y0 + h - 1, l, 1, '#8fd8f5');
+  g.globalAlpha = 0.7;
+  for (let k = 0; k < 5; k++) px(g, x0 + 3 + k, y0 + 7 - k, 1, 1, '#ffffff');
+  for (let k = 0; k < 3; k++) px(g, x0 + 4 + k, y0 + 11 - k, 1, 1, '#ffffff');
+  g.globalAlpha = 1;
+}
+
+/** Spirales de confusion (inversion des commandes) au-dessus de la tête. */
+function spirales(g: CanvasRenderingContext2D, x: number, y: number, temps: number): void {
+  for (const [dx, sens] of [
+    [-5, 1],
+    [5, -1],
+  ] as const) {
+    for (let k = 0; k < 16; k++) {
+      const a = sens * (temps * 7 + k * 0.62);
+      const r = 0.6 + k * 0.32;
+      const qx = x + dx + Math.cos(a) * r;
+      const qy = y + Math.sin(a) * r * 0.8;
+      px(g, qx - 1, qy - 1, 3, 3, '#2a1450');
+      px(g, qx, qy, 2, 2, k < 3 ? '#ffffff' : '#c08cff');
+    }
+  }
 }
 
 export function dessinePatineur(
@@ -216,6 +256,14 @@ export function dessinePatineur(
     corps();
     g.restore();
   } else corps();
+  // freeze : silhouette bleutée dans un bloc de glace
+  if (bonus?.gele && sprite) {
+    g.globalAlpha = 0.45;
+    dessineBlanc(g, sprite.img, sprite.rect, bx, by, tw, th, '#8fe3ff');
+    g.globalAlpha = 1;
+    blocGlace(g, s.x, teteY - 3, s.y + 6);
+  }
+  if (bonus?.confus) spirales(g, Math.round(s.x), teteY - 4, temps);
 
   if (s.sonne > 0) etoiles(g, s.x, teteY - 1, temps);
   if (s.elanT > 0) {
@@ -292,20 +340,34 @@ export function dessineGardien(
  */
 export function dessinePalet(g: CanvasRenderingContext2D, p: Puck, temps = 0): void {
   const v = Math.hypot(p.vx, p.vy);
-  // bonus : traînée scintillante dorée (tir guidé) ou néon (ricochet), plus longue et lumineuse
-  if (!p.porteur && p.lueur && v > 40) {
-    const col = p.lueur === 1 ? '#ffd35c' : '#5cf2ff';
+  // tir surpuissant : longue traînée de feu, du jaune au rouge, qui crépite
+  if (!p.porteur && p.lueur === 3 && v > 40) {
+    const ux = p.vx / v;
+    const uy = p.vy / v;
+    const L = Math.min(56, v * 0.09);
+    // couleurs franches (pas de fondu additif : sur la glace claire, tout virerait au blanc)
+    for (let k = 1; k <= L; k++) {
+      const u = k / L;
+      g.globalAlpha = 0.95 * (1 - u * 0.8);
+      g.fillStyle = u < 0.15 ? '#ffd23a' : u < 0.45 ? '#ff8a1a' : '#e3321e';
+      const ep = u < 0.5 ? 4 : 3;
+      const tremble = Math.round(Math.sin(temps * 60 + k) * u * 2);
+      g.fillRect(Math.round(p.x - ux * k - uy * tremble) - ep / 2, Math.round(p.y - uy * k + ux * tremble) - ep / 2, ep, ep);
+    }
+    g.globalAlpha = 1;
+  } else if (!p.porteur && p.lueur && v > 40) {
+    // bonus : traînée scintillante dorée (tir guidé) ou néon (ricochet), plus longue et lumineuse
+    const col = p.lueur === 1 ? '#f0a810' : '#10b4f0';
     const ux = p.vx / v;
     const uy = p.vy / v;
     const L = Math.min(40, v * 0.1);
-    g.globalCompositeOperation = 'lighter';
     g.fillStyle = col;
     for (let k = 1; k <= L; k++) {
       g.globalAlpha = 0.9 * (1 - k / L);
       g.fillRect(Math.round(p.x - ux * k) - 1, Math.round(p.y - uy * k) - 1, 3, 3);
     }
-    // scintillement : quelques points blancs qui s'allument le long de la traînée
-    g.fillStyle = '#ffffff';
+    // scintillement : quelques éclats qui s'allument le long de la traînée
+    g.fillStyle = p.lueur === 1 ? '#c87800' : '#0a7cc0';
     for (let i = 0; i < 4; i++) {
       const k = (((temps * 37 + i * 11) % L) + L) % L;
       const cote = Math.sin(temps * 50 + i * 2) * 3;
@@ -313,7 +375,6 @@ export function dessinePalet(g: CanvasRenderingContext2D, p: Puck, temps = 0): v
       g.fillRect(Math.round(p.x - ux * k - uy * cote), Math.round(p.y - uy * k + ux * cote), 1, 1);
     }
     g.globalAlpha = 1;
-    g.globalCompositeOperation = 'source-over';
   } else if (!p.porteur && v > 120) {
     const tir = v > 330 || (p.tireur !== null && v > 200);
     const col = tir ? '#ff7a1a' : '#1fa8e8';

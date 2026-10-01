@@ -10,8 +10,8 @@ import {
   majPouvoirs,
   POUVOIRS,
   pouvoirPret,
-  SEUIL_PASSES_DEPART,
-  SEUIL_PASSES_MAX,
+  PRET_MAX_S,
+  SEUIL_PASSES,
   TIRAGE_S,
   tirePouvoir,
 } from '../src/core/pouvoirs';
@@ -50,10 +50,10 @@ function donne(st: MatchState, eq: TeamId, id: PouvoirId): void {
 }
 
 describe('bonus : jauge de passes et tirage', () => {
-  it('3 passes réussies débloquent un bonus tiré au sort, utilisable après le tirage', () => {
+  it('4 passes réussies débloquent un bonus tiré au sort, utilisable après le tirage', () => {
     const st = partie();
-    passes(st, 0, SEUIL_PASSES_DEPART - 1);
-    expect(st.pouvoirs![0].passes).toBe(SEUIL_PASSES_DEPART - 1);
+    passes(st, 0, SEUIL_PASSES - 1);
+    expect(st.pouvoirs![0].passes).toBe(SEUIL_PASSES - 1);
     expect(st.pouvoirs![0].pret).toBeNull();
     passes(st, 0, 1);
     const pv = st.pouvoirs![0];
@@ -69,8 +69,8 @@ describe('bonus : jauge de passes et tirage', () => {
     expect(activePouvoir(st, 0, st.controles[0])).toBe(true);
     expect(pv.actif).not.toBeNull();
     expect(pv.pret).toBeNull();
-    // le prochain bonus demande une passe de plus
-    expect(pv.seuil).toBe(SEUIL_PASSES_DEPART + 1);
+    // le prochain bonus demande toujours le même nombre de passes
+    expect(pv.seuil).toBe(SEUIL_PASSES);
   });
 
   it('les passes ne comptent pas tant qu’un bonus est en main ou en cours', () => {
@@ -101,14 +101,21 @@ describe('bonus : jauge de passes et tirage', () => {
     expect(st.pouvoirs![1].passes).toBe(0);
   });
 
-  it('le seuil monte d’une passe par bonus utilisé, jusqu’au maximum', () => {
+  it('un bonus prêt non déclenché à temps est perdu (temps de jeu seulement)', () => {
     const st = partie();
-    for (let i = 0; i < 10; i++) {
-      donne(st, 0, 'vitesse');
-      activePouvoir(st, 0, st.controles[0]);
-      st.pouvoirs![0].actif = null;
-    }
-    expect(st.pouvoirs![0].seuil).toBe(SEUIL_PASSES_MAX);
+    donne(st, 0, 'vitesse');
+    st.phase = 'but';
+    majPouvoirs(st, PRET_MAX_S + 1);
+    expect(st.pouvoirs![0].pret).toBe('vitesse');
+    st.phase = 'jeu';
+    majPouvoirs(st, PRET_MAX_S - 0.5);
+    expect(st.pouvoirs![0].pret).toBe('vitesse');
+    majPouvoirs(st, 0.6);
+    expect(st.pouvoirs![0].pret).toBeNull();
+    expect(st.evenements.some((e) => e.type === 'pouvoir' && e.quoi === 'perdu')).toBe(true);
+    // la jauge repart pour le suivant
+    passes(st, 0, SEUIL_PASSES);
+    expect(st.pouvoirs![0].pret).not.toBeNull();
   });
 
   it('tirage pondéré : seuls les bonus déjà en jeu sortent, chacun avec la même chance', () => {
@@ -255,6 +262,77 @@ describe('bonus : effets', () => {
     iaPouvoirs(rink, st);
     expect(st.pouvoirs![1].actif).toBe('vitesse');
     expect(st.pouvoirs![1].dore).toBe(porteur.rang);
+  });
+});
+
+describe('bonus : lot 2', () => {
+  it('tir surpuissant : palet plus rapide, adversaire sur la trajectoire renversé, palet qui le traverse', () => {
+    const vitesseTir = (avecBonus: boolean) => {
+      const st = partie();
+      const s = st.controles[0]!;
+      for (const o of st.patineurs) if (o !== s) o.y = rink.y + 10;
+      s.x = rink.cx - 80;
+      s.y = rink.cy;
+      s.vx = s.vy = 0;
+      s.tient = true;
+      st.palet.porteur = s;
+      if (avecBonus) {
+        donne(st, 0, 'puissant');
+        activePouvoir(st, 0, s);
+      }
+      // un adversaire planté sur la route du tir
+      const cible = st.patineurs.find((o) => o.eq === 1)!;
+      cible.x = rink.cx - 20;
+      cible.y = rink.cy + 1;
+      tir(st, rink, s, 0, 0.6);
+      const v0 = Math.hypot(st.palet.vx, st.palet.vy);
+      const segs = segmentsCage(rink, false);
+      for (let i = 0; i < 60; i++) majPalet(rink, st, 1 / 240, segs);
+      return { st, v0, cible };
+    };
+    const normal = vitesseTir(false);
+    const fort = vitesseTir(true);
+    expect(fort.v0).toBeGreaterThan(normal.v0 * 1.4);
+    expect(fort.st.pouvoirs![0].actif).toBeNull();
+    expect(fort.cible.chuteT).toBeGreaterThan(1.5);
+    expect(fort.st.palet.x).toBeGreaterThan(fort.cible.x + 10);
+    expect(normal.cible.chuteT).toBe(0);
+  });
+
+  it('freeze : tout le monde est figé sauf le joueur doré, qui garde la main', () => {
+    const st = partie();
+    st.humains = [true, false];
+    const moi = st.controles[0]!;
+    donne(st, 0, 'freeze');
+    activePouvoir(st, 0, moi);
+    for (const s of st.patineurs) {
+      s.vx = 50;
+      s.vy = 0;
+    }
+    const avant = st.patineurs.map((s) => s.x);
+    for (let i = 0; i < 60; i++) pas(rink, st, 1 / 120, () => ({ ...INTENT_VIDE, ix: 1 }));
+    st.patineurs.forEach((s, i) => {
+      if (s === moi) expect(s.x).toBeGreaterThan(avant[i]! + 5);
+      else expect(s.x).toBeCloseTo(avant[i]!, 5);
+    });
+    // pas de changement de joueur pendant le freeze de son équipe
+    const autre = st.patineurs.find((s) => s.eq === 0 && s !== moi)!;
+    passeVers(st, moi, autre);
+    expect(st.controles[0]).toBe(moi);
+  });
+
+  it('inversion : les déplacements de l’équipe adverse partent à l’envers', () => {
+    const st = partie();
+    st.humains = [true, true];
+    for (const eq of [0, 1] as TeamId[]) {
+      const s = st.patineurs.find((o) => o.eq === eq)!;
+      if (st.controles[eq] !== s) prendPalet(st, s);
+    }
+    donne(st, 0, 'inversion');
+    activePouvoir(st, 0, st.controles[0]);
+    pas(rink, st, 1 / 120, () => ({ ...INTENT_VIDE, ix: 1 }));
+    expect(st.controles[0]!.ex).toBe(1);
+    expect(st.controles[1]!.ex).toBe(-1);
   });
 });
 

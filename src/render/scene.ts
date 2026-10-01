@@ -1,12 +1,12 @@
 import { meilleurReceveur, menaceEchec } from '@core/actions';
 import { BUT_DEMI } from '@core/constants';
-import { ALERTE_FIN_S, joueurDore } from '@core/pouvoirs';
+import { ALERTE_FIN_S, DEF_POUVOIRS, estGele, estInverse, joueurDore } from '@core/pouvoirs';
 import { butAttaque } from '@core/shooting';
 import { equipe } from '@core/state-helpers';
 import type { MatchState, Rink, Skater, TeamId } from '@core/types';
 import { dessineGardien, dessinePalet, dessineParticules, dessinePatineur, TracesGlace, type AspectBonus } from './entities-render';
 import type { SystemeEffets } from './effects';
-import { ellipseOmbre, px } from './primitives';
+import { anneau, ellipseOmbre, px } from './primitives';
 import { dessineCage, dessineLampe } from './rink-render';
 import type { BanqueSprites } from './sprites';
 import { texte } from './pixel-font';
@@ -24,15 +24,59 @@ export interface DecorPatinoire {
  * normal pendant les dernières secondes, de plus en plus vite.
  */
 function aspectBonus(state: MatchState, s: Skater): AspectBonus | null {
-  const pv = state.pouvoirs?.[s.eq];
-  if (!pv?.actif || joueurDore(state, s.eq) !== s) return null;
-  let or = true;
-  if (pv.reste < ALERTE_FIN_S) {
+  if (!state.pouvoirs) return null;
+  const gele = estGele(state, s);
+  const confus = estInverse(state, s.eq);
+  const pv = state.pouvoirs[s.eq];
+  const dore = !!pv.actif && joueurDore(state, s.eq) === s;
+  if (!dore && !gele && !confus) return null;
+  let or = dore;
+  if (dore && pv.reste < ALERTE_FIN_S) {
     // phase cumulée d'un clignotement qui accélère de 3 à 13 Hz
     const u = ALERTE_FIN_S - pv.reste;
     or = Math.floor((3 * u + 2.5 * u * u) * 2) % 2 === 0;
   }
-  return { or, vitesse: pv.actif === 'vitesse' };
+  return { or, vitesse: dore && pv.actif === 'vitesse', gele, confus };
+}
+
+/**
+ * Freeze : une onde de givre part du joueur doré et recouvre la patinoire,
+ * qui reste bleutée tant que le bonus dure.
+ */
+function givre(g: CanvasRenderingContext2D, rink: Rink, state: MatchState): void {
+  for (const eq of [0, 1] as TeamId[]) {
+    const pv = state.pouvoirs?.[eq];
+    if (pv?.actif !== 'freeze') continue;
+    const age = DEF_POUVOIRS.freeze.duree - pv.reste;
+    const fin = Math.min(1, pv.reste / 0.4);
+    const centre = joueurDore(state, eq) ?? { x: rink.cx, y: rink.cy };
+    const rayon = Math.min(1, age / 0.5) * Math.hypot(rink.w, rink.h);
+    g.save();
+    g.beginPath();
+    g.rect(rink.x, rink.y, rink.w, rink.h);
+    g.clip();
+    g.globalAlpha = 0.22 * fin;
+    g.fillStyle = '#bfefff';
+    g.beginPath();
+    g.arc(centre.x, centre.y, rayon, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+    // le front de l'onde, pendant qu'elle se propage
+    if (age < 0.5) {
+      g.globalAlpha = 1 - age / 0.5;
+      anneau(g, centre.x, centre.y, rayon, '#f2fcff', 1, 2);
+      g.globalAlpha = 1;
+    }
+    // cristaux qui scintillent sur la glace
+    g.globalAlpha = 0.8 * fin;
+    for (let i = 0; i < 24; i++) {
+      const x = rink.x + ((i * 97.3) % rink.w);
+      const y = rink.y + ((i * 53.7) % rink.h);
+      if (Math.hypot(x - centre.x, y - centre.y) > rayon) continue;
+      if (Math.floor(state.temps * 6 + i) % 3 === 0) px(g, x, y, 1, 1, '#ffffff');
+    }
+    g.globalAlpha = 1;
+  }
 }
 
 /** Bonus « but x2 » : un « 2X » clignote au-dessus de la cage que l'équipe attaque. */
@@ -103,6 +147,7 @@ export function dessineScene(
   }
 
   for (const gk of state.gardiens) ellipseOmbre(g, gk.x, gk.y + 3.5, 14, 2, 0.28);
+  givre(g, rink, state);
 
   const liste: { y: number; f: () => void }[] = [
     ...state.patineurs.map((s) => ({
@@ -119,6 +164,12 @@ export function dessineScene(
   for (const e of liste) e.f();
 
   marqueursDouble(g, rink, state);
+  for (const o of effets.ondes) {
+    const u = 1 - o.vie / o.max;
+    g.globalAlpha = 1 - u;
+    anneau(g, o.x, o.y, 3 + o.r * u, o.c, 1, 2);
+    g.globalAlpha = 1;
+  }
   dessineParticules(g, effets.particules);
   for (const b of effets.bulles) {
     g.globalAlpha = Math.min(1, b.vie * 3);

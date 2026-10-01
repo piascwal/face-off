@@ -145,6 +145,11 @@ export class MoteurAudio {
     this.ton(330, 0.35, 'square', 0.05, 1760, 0.02);
     this.souffle(0.3, 'highpass', 3000, 0.7, 0.12);
   }
+  /** Bonus perdu (pas déclenché à temps) : deux notes qui tombent. */
+  bonusPerdu(): void {
+    this.ton(392, 0.16, 'square', 0.06, 330);
+    this.ton(262, 0.3, 'square', 0.06, 196, 0.16);
+  }
   /** Fin d'un bonus : descente courte. */
   bonusFin(): void {
     this.ton(880, 0.18, 'square', 0.05, 330);
@@ -267,6 +272,7 @@ export function joueEvenements(son: MoteurAudio, evenements: GameEvent[]): void 
         if (ev.quoi === 'tirage') son.tirageBonus();
         else if (ev.quoi === 'pret') son.bonusPret();
         else if (ev.quoi === 'active') son.bonusActive();
+        else if (ev.quoi === 'perdu') son.bonusPerdu();
         else son.bonusFin();
         break;
       default:

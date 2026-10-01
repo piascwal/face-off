@@ -3,10 +3,10 @@ import type { EtatPouvoirs, MatchState, PouvoirId, Rink, Skater, TeamId } from '
 
 /**
  * Bonus (power-ups) : chaque équipe remplit sa jauge en enchaînant des passes
- * réussies. Au seuil (3 passes pour le premier bonus, puis une de plus à
- * chaque bonus utilisé), un bonus est tiré au sort parmi tous les bonus,
- * pour les deux équipes de la même façon : personne n'est avantagé pour tout
- * le match par un tirage chanceux. L'équipe le garde jusqu'à l'activer.
+ * réussies. Au seuil (4 passes, toujours), un bonus est tiré au sort parmi
+ * tous les bonus, pour les deux équipes de la même façon : personne n'est
+ * avantagé pour tout le match par un tirage chanceux. L'équipe a ensuite
+ * PRET_MAX_S secondes de jeu pour le déclencher, sinon il est perdu.
  */
 /** Ordre fixe : l'index d'un bonus dans cette liste est ce qui voyage en Wi-Fi. */
 export const POUVOIRS: PouvoirId[] = ['guide', 'vitesse', 'puissant', 'freeze', 'savon', 'inversion', 'ricochet', 'surnombre', 'gamelle', 'double'];
@@ -24,10 +24,10 @@ export interface DefPouvoir {
 export const DEF_POUVOIRS: Record<PouvoirId, DefPouvoir> = {
   guide: { nom: 'TIR GUIDE', duree: 10, dore: true, dispo: true },
   vitesse: { nom: 'SUPER VITESSE', duree: 6, dore: true, dispo: true },
-  puissant: { nom: 'TIR SURPUISSANT', duree: 10, dore: true, dispo: false },
-  freeze: { nom: 'FREEZE', duree: 3, dore: true, dispo: false },
+  puissant: { nom: 'TIR SURPUISSANT', duree: 10, dore: true, dispo: true },
+  freeze: { nom: 'FREEZE', duree: 3, dore: true, dispo: true },
   savon: { nom: 'MODE SAVON', duree: 8, dore: true, dispo: true },
-  inversion: { nom: 'INVERSION', duree: 5, dore: true, dispo: false },
+  inversion: { nom: 'INVERSION', duree: 5, dore: true, dispo: true },
   ricochet: { nom: 'RICOCHET', duree: 8, dore: true, dispo: true },
   surnombre: { nom: 'SURNOMBRE', duree: 10, dore: false, dispo: false },
   gamelle: { nom: 'GAMELLE', duree: 10, dore: true, dispo: false },
@@ -52,9 +52,10 @@ export const POIDS_POUVOIRS: Record<PouvoirId, number> = {
   double: 1,
 };
 
-/** Passes d'affilée pour le premier bonus, puis +1 par bonus utilisé, sans dépasser le maximum. */
-export const SEUIL_PASSES_DEPART = 3;
-export const SEUIL_PASSES_MAX = 8;
+/** Passes réussies d'affilée pour obtenir un bonus (toujours le même nombre). */
+export const SEUIL_PASSES = 4;
+/** Temps de jeu (s) pour déclencher un bonus prêt ; au-delà, il est perdu. */
+export const PRET_MAX_S = 10;
 /** Durée du tirage (icônes qui défilent dans la case du bonus), en s. */
 export const TIRAGE_S = 1.2;
 /** Fin d'un bonus : le joueur doré clignote pendant ces dernières secondes. */
@@ -67,11 +68,18 @@ export const GUIDE_BONUS = 0.3;
 /** Ricochet : le palet repart des bandes plus vite qu'il n'y est arrivé (dans la limite de RICOCHET_VMAX px/s). */
 export const RICOCHET_GAIN = 1.12;
 export const RICOCHET_VMAX = 480;
+/** Tir surpuissant : vitesse du palet, bonus de qualité, et adversaires renversés (s au sol, portée en px autour du corps). */
+export const PUISSANT_VITESSE = 1.5;
+export const PUISSANT_BONUS = 0.2;
+export const PUISSANT_CHUTE = 2;
+export const PUISSANT_PORTEE = 4;
+/** En dessous de cette vitesse (px/s), le tir surpuissant est retombé : il ne renverse plus personne. */
+export const PUISSANT_VMIN = 160;
 /** L'ordinateur utilise de toute façon son bonus au bout de ce temps (s). */
 export const IA_ATTENTE_MAX = 6;
 
 export function etatPouvoirsInitial(): EtatPouvoirs {
-  return { passes: 0, seuil: SEUIL_PASSES_DEPART, tirage: 0, pret: null, actif: null, reste: 0, dore: -1, attente: 0 };
+  return { passes: 0, seuil: SEUIL_PASSES, tirage: 0, pret: null, actif: null, reste: 0, dore: -1, attente: 0 };
 }
 
 /** Poids du tirage pour l'équipe `eq` (même table pour les deux équipes pour l'instant). */
@@ -140,7 +148,6 @@ export function activePouvoir(state: MatchState, eq: TeamId, qui: Skater | null)
   p.actif = id;
   p.pret = null;
   p.reste = DEF_POUVOIRS[id].duree;
-  p.seuil = Math.min(SEUIL_PASSES_MAX, p.seuil + 1);
   p.dore = qui?.rang ?? -1;
   p.passes = 0;
   state.evenements.push({ type: 'pouvoir', eq, quoi: 'active', id: POUVOIRS.indexOf(id) });
@@ -176,17 +183,27 @@ export function majPouvoirs(state: MatchState, dt: number): void {
       p.tirage = Math.max(0, p.tirage - dt);
       if (p.tirage === 0 && p.pret) state.evenements.push({ type: 'pouvoir', eq, quoi: 'pret', id: POUVOIRS.indexOf(p.pret) });
     }
-    if (p.pret && p.tirage <= 0 && state.phase === 'jeu') p.attente += dt;
+    if (p.pret && p.tirage <= 0 && state.phase === 'jeu') {
+      p.attente += dt;
+      // pas déclenché à temps : le bonus est perdu
+      if (p.attente >= PRET_MAX_S) {
+        state.evenements.push({ type: 'pouvoir', eq, quoi: 'perdu', id: POUVOIRS.indexOf(p.pret) });
+        const qui = state.controles[eq] ?? pal;
+        state.evenements.push({ type: 'bulle', txt: 'BONUS PERDU', x: qui.x, y: qui.y - 22, c: '#ff6b6b' });
+        p.pret = null;
+        p.attente = 0;
+      }
+    }
     if (p.actif && state.phase === 'jeu' && Number.isFinite(p.reste)) {
       p.reste -= dt;
       if (p.reste <= 0) {
-        if (p.actif === 'guide') pal.guide = null;
         finPouvoir(state, eq);
       }
     }
   }
+  if (pal.puissant && (pal.porteur || pal.tireur === null || Math.hypot(pal.vx, pal.vy) < PUISSANT_VMIN)) pal.puissant = false;
   const eqPalet = pal.dernier?.eq;
-  pal.lueur = pal.guide ? 1 : eqPalet !== undefined && !pal.porteur && pv[eqPalet].actif === 'ricochet' ? 2 : 0;
+  pal.lueur = pal.puissant ? 3 : pal.guide ? 1 : eqPalet !== undefined && !pal.porteur && pv[eqPalet].actif === 'ricochet' ? 2 : 0;
 }
 
 /** Tir guidé : l'équipe tire avec le bonus en cours, qui est consommé. Renvoie le bonus de qualité. */
@@ -227,6 +244,58 @@ export function guidePalet(rink: Rink, state: MatchState, dt: number): void {
   p.vy = Math.sin(na) * v;
 }
 
+/**
+ * Tir surpuissant : l'équipe tire avec le bonus en cours, qui est consommé.
+ * Renvoie le multiplicateur de vitesse et le bonus de qualité du tir.
+ */
+export function tirPuissant(state: MatchState, s: Skater): { vitesse: number; bonus: number } {
+  if (!pouvoirActif(state, s.eq, 'puissant')) return { vitesse: 1, bonus: 0 };
+  state.palet.puissant = true;
+  finPouvoir(state, s.eq);
+  state.evenements.push({ type: 'onde', x: s.x, y: s.y, r: 26, c: '#ff8a2a' });
+  state.evenements.push({ type: 'secousse', force: 3 });
+  return { vitesse: PUISSANT_VITESSE, bonus: PUISSANT_BONUS };
+}
+
+/** Tir surpuissant en vol : les adversaires sur sa trajectoire sont renversés (le palet les traverse). */
+export function renversePuissant(state: MatchState): void {
+  const p = state.palet;
+  if (!p.puissant || p.tireur === null) return;
+  const v = Math.hypot(p.vx, p.vy) || 1;
+  for (const s of state.patineurs) {
+    if (s.eq === p.tireur || s.chuteT > 0) continue;
+    if (Math.hypot(p.x - s.x, p.y - s.y) > s.r + PUISSANT_PORTEE) continue;
+    s.tient = false;
+    s.arme = false;
+    s.charge = 0;
+    s.elanT = 0;
+    s.prepaEchecT = 0;
+    s.sonne = PUISSANT_CHUTE;
+    s.chuteT = PUISSANT_CHUTE;
+    s.chuteD = PUISSANT_CHUTE;
+    s.flashT = 0.12;
+    s.face = Math.atan2(p.vy, p.vx);
+    s.vx = (p.vx / v) * 150;
+    s.vy = (p.vy / v) * 150;
+    state.evenements.push({ type: 'onde', x: s.x, y: s.y - 4, r: 22, c: '#ffb020' });
+    state.evenements.push({ type: 'etincelles', x: s.x, y: s.y - 6, n: 12, c: '#ff8a2a' });
+    state.evenements.push({ type: 'charge' });
+    state.evenements.push({ type: 'secousse', force: 2.5 });
+    if (s.humain) state.evenements.push({ type: 'vibre', ms: 40 });
+  }
+}
+
+/** Freeze : le joueur est-il pris dans la glace (tout le monde sauf le joueur doré de l'équipe qui l'a déclenché) ? */
+export function estGele(state: MatchState, s: Skater): boolean {
+  const pv = state.pouvoirs;
+  if (!pv) return false;
+  for (const eq of [0, 1] as TeamId[]) if (pv[eq].actif === 'freeze' && joueurDore(state, eq) !== s) return true;
+  return false;
+}
+
+/** Inversion : les déplacements des joueurs de l'équipe `eq` sont-ils inversés (bonus adverse en cours) ? */
+export const estInverse = (state: MatchState, eq: TeamId): boolean => pouvoirActif(state, eq === 0 ? 1 : 0, 'inversion');
+
 /** Ricochet : le palet a-t-il été joué par une équipe dont le bonus Ricochet est en cours ? */
 export function ricochet(state: MatchState): boolean {
   const eq = state.palet.dernier?.eq;
@@ -250,6 +319,7 @@ export function iaPouvoirs(rink: Rink, state: MatchState): void {
         go ||= p.attente > 1;
         break;
       case 'guide':
+      case 'puissant':
         go ||= !!nous && Math.abs(nous.x - butAttaque(rink, eq)) < rink.w * 0.4;
         break;
       default:

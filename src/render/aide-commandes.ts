@@ -87,7 +87,7 @@ function dessineTactile(g: CanvasRenderingContext2D, W: number, H: number, temps
   const yP = yT + 18;
   etiquette(pause.x + 4, pause.y, pause.y - 3, C.blanc, 'PAUSE', '');
   etiquette(pe.x, pe.y, yE, '#3fb4e8', 'SPRINT', 'ESQUIVE / ECHEC');
-  etiquette(pb.x, pb.y, yB, C.or, 'BONUS', 'QUAND IL EST PRET');
+  etiquette(pb.x, pb.y, yB, C.or, 'BONUS', 'BONUS TIR : VISER');
   etiquette(pt.x, pt.y, yT, '#ff5470', 'TIR', 'CROSSE SANS PALET');
   etiquette(pp.x, pp.y, yP, '#35c47a', 'PASSE', 'CHANGE SANS PALET');
   px(g, pause.x - 3, pause.y - 3, 2, 6, C.blanc);
@@ -107,7 +107,7 @@ const TOUCHES: [string[], string, string?][] = [
   [['ESPACE', 'J', 'X'], 'TIR - MAINTENIR POUR CHARGER', 'CROSSE SANS LE PALET'],
   [['L', 'V'], 'PASSE', 'CHANGER DE JOUEUR SANS LE PALET'],
   [['MAJ', 'K', 'C'], 'SPRINT - ESQUIVE', 'MISE EN ECHEC SANS LE PALET'],
-  [['B', 'N'], 'BONUS', 'QUAND IL EST PRET'],
+  [['B', 'N'], 'BONUS QUAND IL EST PRET', 'BONUS DE TIR : COMME LE TIR'],
   [['ECHAP', 'P'], 'PAUSE'],
   [['ENTREE'], 'VALIDER / REPRENDRE'],
 ];

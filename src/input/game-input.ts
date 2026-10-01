@@ -26,6 +26,8 @@ export interface InstantaneUI {
   elanActif: boolean;
   passeActif: boolean;
   bonusActif: boolean;
+  /** Le tir en cours est parti du bouton BONUS (bonus de tir) : le bouton TIR, lui, n'est pas enfoncé. */
+  tirBonus: boolean;
 }
 
 const TIR_TOUCHES = new Set(['Space', 'KeyJ', 'KeyX']);
@@ -44,6 +46,12 @@ export class GestionnaireEntreesJeu {
   pauseDemandee = false;
   /** Le bouton BONUS est affiché (bonus prêt) : sa zone tactile est active. */
   bonusVisible = false;
+  /**
+   * Le bonus prêt est un bonus de tir (guidé, surpuissant) : le bouton BONUS
+   * (ou la touche B) le déclenche ET sert de bouton de tir — on maintient pour
+   * charger, on glisse pour viser, on relâche pour tirer.
+   */
+  bonusTir = false;
 
   private touches = new Set<string>();
   private joy: (EtatJoystick & { id: number }) | null = null;
@@ -52,6 +60,9 @@ export class GestionnaireEntreesJeu {
   private passeId: number | null = null;
   private bonusId: number | null = null;
   private bonusAppui = false;
+  /** Le tir en cours vient du bouton BONUS (doigt) ou de cette touche (clavier). */
+  private tirDuBonus = false;
+  private toucheTirBonus: string | null = null;
   private tirAppui = false;
   private tirRelache = false;
   private elanAppui = false;
@@ -67,13 +78,22 @@ export class GestionnaireEntreesJeu {
     }
     if (ELAN_TOUCHES.has(e.code)) this.elanAppui = true;
     if (PASSE_TOUCHES.has(e.code)) this.passeAppui = true;
-    if (BONUS_TOUCHES.has(e.code)) this.bonusAppui = true;
+    if (BONUS_TOUCHES.has(e.code)) {
+      this.bonusAppui = true;
+      if (this.bonusTir) {
+        this.tirAppui = true;
+        this.tirTenu = true;
+        this.toucheTirBonus = e.code;
+      }
+    }
     if (e.code === 'Escape' || e.code === 'KeyP') this.pauseDemandee = true;
   }
 
   onKeyUp(e: KeyboardEvent): void {
     this.touches.delete(e.code);
-    if (TIR_TOUCHES.has(e.code) && ![...TIR_TOUCHES].some((k) => this.touches.has(k))) {
+    const finTirBonus = e.code === this.toucheTirBonus;
+    if (finTirBonus) this.toucheTirBonus = null;
+    if ((TIR_TOUCHES.has(e.code) || finTirBonus) && !this.toucheTirBonus && ![...TIR_TOUCHES].some((k) => this.touches.has(k))) {
       this.tirRelache = true;
       this.tirTenu = false;
     }
@@ -97,6 +117,13 @@ export class GestionnaireEntreesJeu {
       if (this.bonusVisible && Math.hypot(p.x - zb.x, p.y - zb.y) < zb.r + 4) {
         this.bonusId = id;
         this.bonusAppui = true;
+        // bonus de tir : le même doigt charge, vise et tire
+        if (this.bonusTir) {
+          this.tir = { id, x0: p.x, y0: p.y, x: p.x, y: p.y };
+          this.tirAppui = true;
+          this.tirTenu = true;
+          this.tirDuBonus = true;
+        }
       } else if (Math.hypot(p.x - zpa.x, p.y - zpa.y) < zpa.r + 6) {
         this.passeId = id;
         this.passeAppui = true;
@@ -107,6 +134,7 @@ export class GestionnaireEntreesJeu {
         this.tir = { id, x0: p.x, y0: p.y, x: p.x, y: p.y };
         this.tirAppui = true;
         this.tirTenu = true;
+        this.tirDuBonus = false;
       }
     }
   }
@@ -148,6 +176,8 @@ export class GestionnaireEntreesJeu {
     this.elanId = null;
     this.passeId = null;
     this.bonusId = null;
+    this.tirDuBonus = false;
+    this.toucheTirBonus = null;
     this.tirTenu = false;
     this.touches.clear();
   }
@@ -199,7 +229,10 @@ export class GestionnaireEntreesJeu {
     this.passeAppui = false;
     this.elanAppui = false;
     this.bonusAppui = false;
-    if (intent.tirRelache) this.tir = null;
+    if (intent.tirRelache) {
+      this.tir = null;
+      this.tirDuBonus = false;
+    }
     return intent;
   }
 
@@ -211,6 +244,7 @@ export class GestionnaireEntreesJeu {
       elanActif: this.elanId !== null,
       passeActif: this.passeId !== null,
       bonusActif: this.bonusId !== null,
+      tirBonus: this.tir !== null && this.tirDuBonus,
     };
   }
 }

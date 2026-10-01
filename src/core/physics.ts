@@ -19,9 +19,11 @@ import {
   cassePasses,
   DEF_POUVOIRS,
   estDore,
+  estGele,
   finPouvoir,
   guidePalet,
   pouvoirActif,
+  renversePuissant,
   ricochet,
   RICOCHET_GAIN,
   RICOCHET_VMAX,
@@ -114,6 +116,13 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
   if (s.sonne > 0) s.sonne -= dt;
   s.chuteT = Math.max(0, s.chuteT - dt);
   s.flashT = Math.max(0, s.flashT - dt);
+  // bonus « freeze » : pris dans la glace, il ne bouge plus du tout
+  if (estGele(state, s)) {
+    s.vx = s.vy = 0;
+    s.elanT = 0;
+    s.prepaEchecT = 0;
+    return;
+  }
   let ix = s.ex;
   let iy = s.ey;
   if (s.sonne > 0 || state.phase === 'engagement' || state.phase === 'fin') ix = iy = 0;
@@ -193,13 +202,18 @@ export function collisionsPatineurs(state: MatchState): void {
       if (d < min && d > 0) {
         const nx = dx / d;
         const ny = dy / d;
-        const rec = (min - d) / 2;
-        a.x -= nx * rec;
-        a.y -= ny * rec;
-        b.x += nx * rec;
-        b.y += ny * rec;
+        // un joueur gelé (bonus freeze) ne se laisse pas pousser : l'autre prend tout le recul
+        const ga = estGele(state, a);
+        const gb = estGele(state, b);
+        if (ga && gb) continue;
+        const ka = ga ? 0 : gb ? 1 : 0.5;
+        const kb = 1 - ka;
+        a.x -= nx * (min - d) * ka;
+        a.y -= ny * (min - d) * ka;
+        b.x += nx * (min - d) * kb;
+        b.y += ny * (min - d) * kb;
         const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-        if (rv < 0) {
+        if (rv < 0 && !ga && !gb) {
           const k = (-rv * 0.8) / 2;
           a.vx -= nx * k;
           a.vy -= ny * k;
@@ -418,8 +432,11 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
         }
       }
     }
+    // tir surpuissant : il renverse les adversaires sur sa route et les traverse
+    renversePuissant(state);
     // contact avec les corps des patineurs (sauf s'ils le récupèrent)
     for (const s of state.patineurs) {
+      if (p.puissant && s.eq !== p.tireur) continue;
       const dx = p.x - s.x;
       const dy = p.y - s.y;
       const d = Math.hypot(dx, dy);
@@ -501,6 +518,7 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
   cassePasses(state, 0);
   cassePasses(state, 1);
   state.palet.guide = null;
+  state.palet.puissant = false;
   state.tirs[eq]++;
   state.phase = 'but';
   state.phaseT = state.dureeBut;
@@ -546,7 +564,7 @@ export function recuperations(state: MatchState, dt: number): void {
     let meilleur: Skater | null = null;
     let dmin = Infinity;
     for (const s of state.patineurs) {
-      if (s.recupCd > 0 || s.sonne > 0) continue;
+      if (s.recupCd > 0 || s.sonne > 0 || estGele(state, s)) continue;
       const sp = pointCrosse(s);
       // à la crosse, ou dans les patins : on contrôle aussi un palet qui arrive dans les pieds
       const d = Math.min(Math.hypot(p.x - sp.x, p.y - sp.y), Math.hypot(p.x - s.x, p.y - s.y) - s.r + 1);
@@ -570,7 +588,7 @@ export function recuperations(state: MatchState, dt: number): void {
   if (p.porteur && 'face' in p.porteur && state.phase === 'jeu') {
     const c = p.porteur;
     for (const o of state.patineurs) {
-      if (o.eq === c.eq || o.sonne > 0 || o.recupCd > 0) continue;
+      if (o.eq === c.eq || o.sonne > 0 || o.recupCd > 0 || estGele(state, o)) continue;
       const sp = pointCrosse(o);
       const d = Math.hypot(p.x - sp.x, p.y - sp.y);
       const portee = o.pokeT > 0 ? 10 : 6.5;

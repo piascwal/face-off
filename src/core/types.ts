@@ -43,8 +43,10 @@ export interface Skater {
   esquiveVerrou: number;
   /** IA : mise en échec en préparation (s restantes avant de charger le porteur). */
   prepaEchecT: number;
-  /** Au sol après une esquive (s restantes) : plongeon puis allongé, en glissant. */
+  /** Au sol après une esquive ou un tir surpuissant (s restantes) : plongeon puis allongé, en glissant. */
   chuteT: number;
+  /** Durée totale de la chute en cours (s), pour savoir quand passer du plongeon à allongé. */
+  chuteD: number;
   /** Flash blanc d'impact (s restantes). */
   flashT: number;
   anim: number;
@@ -96,7 +98,9 @@ export interface Puck {
   uneTouche: boolean;
   /** Tir guidé en vol : hauteur du coin visé dans la cage adverse. */
   guide: { y: number } | null;
-  /** Traînée spéciale (rendu) : 0 aucune, 1 tir guidé, 2 ricochet. */
+  /** Tir surpuissant en vol : il renverse les adversaires sur sa trajectoire. */
+  puissant: boolean;
+  /** Traînée spéciale (rendu) : 0 aucune, 1 tir guidé, 2 ricochet, 3 tir surpuissant. */
   lueur: number;
 }
 
@@ -141,7 +145,7 @@ export type PouvoirId = 'guide' | 'vitesse' | 'puissant' | 'freeze' | 'savon' | 
 export interface EtatPouvoirs {
   /** Passes réussies d'affilée vers le prochain bonus. */
   passes: number;
-  /** Passes nécessaires pour le prochain bonus. */
+  /** Passes nécessaires pour un bonus. */
   seuil: number;
   /** Tirage en cours (s restantes) : le bonus est connu, mais pas encore utilisable. */
   tirage: number;
@@ -152,7 +156,7 @@ export interface EtatPouvoirs {
   reste: number;
   /** Rang du joueur doré quand c'est l'ordinateur qui a déclenché le bonus (-1 : aucun). */
   dore: number;
-  /** Depuis combien de temps le bonus attend d'être déclenché (s) — pour l'ordinateur. */
+  /** Depuis combien de temps le bonus prêt attend d'être déclenché (s) : perdu à PRET_MAX_S. */
   attente: number;
 }
 
@@ -182,7 +186,9 @@ export type GameEvent =
   | { type: 'vibre'; ms: number | number[] }
   | { type: 'bulle'; txt: string; x: number; y: number; c: string }
   // bonus : `id` = index dans POUVOIRS (voir pouvoirs.ts)
-  | { type: 'pouvoir'; eq: TeamId; quoi: 'tirage' | 'pret' | 'active' | 'fin'; id: number }
+  | { type: 'pouvoir'; eq: TeamId; quoi: 'tirage' | 'pret' | 'active' | 'fin' | 'perdu'; id: number }
+  // onde de choc circulaire (rendu) : rayon final `r` (px)
+  | { type: 'onde'; x: number; y: number; r: number; c: string }
   // `c` est une couleur neutre de repli ; quand `eq` est fourni, le rendu
   // préfère la couleur de maillot de cette équipe (core ne connaît pas les
   // couleurs de maillot — voir render/team-visuals.ts).

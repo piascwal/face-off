@@ -24,6 +24,16 @@ export interface Bulle {
   vie: number;
 }
 
+/** Onde de choc : un anneau qui s'élargit et s'efface. */
+export interface Onde {
+  x: number;
+  y: number;
+  r: number;
+  c: string;
+  vie: number;
+  max: number;
+}
+
 export interface Banniere {
   txt: string;
   sous: string;
@@ -56,6 +66,7 @@ function couleurVive(eq: EquipeVisuelle): string {
 export class SystemeEffets {
   particules: Particule[] = [];
   bulles: Bulle[] = [];
+  ondes: Onde[] = [];
   secousse = 0;
   flash = 0;
   /** Multiplicateur des secousses d'écran et flashs (réglage avancé, accessibilité). */
@@ -138,6 +149,9 @@ export class SystemeEffets {
         case 'bulle':
           this.bulle(ev.txt, ev.x, ev.y, ev.c);
           break;
+        case 'onde':
+          this.ondes.push({ x: ev.x, y: ev.y, r: ev.r, c: ev.c, vie: 0.35, max: 0.35 });
+          break;
         case 'annonce':
           this.annonce(
             ev.txt,
@@ -176,6 +190,8 @@ export class SystemeEffets {
       b.y -= 14 * dt;
     }
     this.bulles = this.bulles.filter((b) => b.vie > 0);
+    for (const o of this.ondes) o.vie -= dt;
+    this.ondes = this.ondes.filter((o) => o.vie > 0);
     this.secousse = Math.max(0, this.secousse - dt * 14);
     this.flash = Math.max(0, this.flash - dt * 2.5);
     if (this.banniere) {
@@ -187,6 +203,7 @@ export class SystemeEffets {
   reinitialise(): void {
     this.particules = [];
     this.bulles = [];
+    this.ondes = [];
     this.banniere = null;
   }
 }
