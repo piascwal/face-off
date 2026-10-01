@@ -119,6 +119,13 @@ export const CHUTE_FROTTEMENT = 4.5;
 export const FLASH_T = 0.1;
 /** …et une mise en échec réussie fige l'action un court instant (s). */
 export const ECHEC_FIGE = 0.07;
+/**
+ * Geste de tir (rendu) : après le tir, les images de descente, d'impact et
+ * d'accompagnement durent ces temps (s) ; l'image « armé » est tenue tant que
+ * le tir se charge.
+ */
+export const TIR_ANIM = [0.055, 0.065, 0.2];
+export const TIR_ANIM_S = TIR_ANIM.reduce((a, b) => a + b, 0);
 /** Coup de crosse : durée (s), puis recharge (s) avant le suivant. */
 export const POKE_T = 0.3;
 export const POKE_RECHARGE = 0.35;

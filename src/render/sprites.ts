@@ -26,6 +26,12 @@ export interface MetaSprites {
    */
   joueur: { tileW: number; tileH: number; images: number; arret: number; pied: Point; tete: number; echelle: number; decalage: number };
   gardien: { tileW: number; tileH: number; pied: Point; echelle: number; decalage: number };
+  /**
+   * Geste de tir : armé, descente, impact, accompagnement (rangée 0 vers la
+   * droite, 1 vers la gauche). Même échelle que le patinage ; `tete` : haut du
+   * casque dans la case, par image.
+   */
+  tir: { tileW: number; tileH: number; images: number; pied: Point; tete: number[]; echelle: number; decalage: number };
   /** Joueur de face de l'écran des maillots (crosse à droite, puis en miroir). */
   portrait: { tileW: number; tileH: number };
   /**
@@ -47,6 +53,7 @@ export interface MetaSprites {
 const META_DEFAUT: MetaSprites = {
   joueur: { tileW: 133, tileH: 105, images: 4, arret: 0, pied: { x: 52, y: 101 }, tete: 0, echelle: 0.28, decalage: 10 },
   gardien: { tileW: 132, tileH: 115, pied: { x: 71, y: 113 }, echelle: 0.2, decalage: -41 },
+  tir: { tileW: 153, tileH: 120, images: 4, pied: { x: 72.9, y: 119 }, tete: [18, 18, 19, 19], echelle: 0.28, decalage: 10 },
   portrait: { tileW: 92, tileH: 116 },
   chute: { tileW: 176, tileH: 102, images: 2, pied: { x: 88, y: 43 }, tete: [{ x: 114, y: 31 }, { x: 125, y: 39 }], echelle: 0.22 },
   celebration: { tileW: 134, tileH: 148, images: 4, reference: 122 },
@@ -108,6 +115,8 @@ export class BanqueSprites {
   private goalies = new Map<string, HTMLImageElement>();
   private portraits = new Map<string, HTMLImageElement>();
   private chutes = new Map<string, HTMLImageElement>();
+  private tirs = new Map<string, HTMLImageElement>();
+  private visagesTir: HTMLImageElement | null = null;
   private celebrations = new Map<string, HTMLImageElement>();
   private visages: HTMLImageElement | null = null;
   private dores = new Map<string, HTMLCanvasElement>();
@@ -122,6 +131,10 @@ export class BanqueSprites {
       (img) => (this.visages = img),
       () => undefined, // sans le calque, les joueurs gardent le visage du dessin d'origine
     );
+    chargeImage(`${base}/visages-tir.png`).then(
+      (img) => (this.visagesTir = img),
+      () => undefined,
+    );
   }
 
   /** Précharge les feuilles d'une équipe (idempotent) — à appeler avant un match. */
@@ -130,6 +143,11 @@ export class BanqueSprites {
     const enCours = this.enCours.get(teamId);
     if (enCours) return enCours;
     const p = (async () => {
+      // le geste de tir arrive à part : sans lui, le joueur garde sa pose de patinage
+      chargeImage(`${this.base}/tir-${teamId}.png`).then(
+        (img) => this.tirs.set(teamId, img),
+        () => undefined,
+      );
       const [s, g, p, c, ce] = await Promise.all([
         chargeImage(`${this.base}/skater-${teamId}.png`),
         chargeImage(`${this.base}/goalie-${teamId}.png`),
@@ -158,12 +176,40 @@ export class BanqueSprites {
 
   /** Même image que `spriteJoueur`, en or (bonus) ; la feuille dorée est calculée une fois par équipe. */
   spriteJoueurDore(teamId: string, frame: number, gauche: boolean): { img: HTMLCanvasElement; rect: Rect } | null {
-    const base = this.spriteJoueur(teamId, frame, gauche);
+    return this.dore(`joueur:${teamId}`, this.spriteJoueur(teamId, frame, gauche));
+  }
+
+  /** Image `frame` du geste de tir (0 armé, 1 descente, 2 impact, 3 accompagnement). */
+  spriteTir(teamId: string, frame: number, gauche: boolean): { img: HTMLImageElement; rect: Rect } | null {
+    const img = this.tirs.get(teamId);
+    if (!img) return null;
+    const { tileW, tileH, images } = this.meta.tir;
+    const col = Math.min(images - 1, Math.max(0, frame));
+    return { img, rect: { sx: col * tileW, sy: (gauche ? 1 : 0) * tileH, sw: tileW, sh: tileH } };
+  }
+
+  spriteTirDore(teamId: string, frame: number, gauche: boolean): { img: HTMLCanvasElement; rect: Rect } | null {
+    return this.dore(`tir:${teamId}`, this.spriteTir(teamId, frame, gauche));
+  }
+
+  /** Calque du visage `variante` sur l'image `frame` du geste de tir. */
+  spriteVisageTir(variante: number, frame: number, gauche: boolean): { img: HTMLImageElement; rect: Rect } | null {
+    const img = this.visagesTir;
+    const n = this.meta.visages;
+    if (!img || n < 2) return null;
+    const { tileW, tileH, images } = this.meta.tir;
+    const col = Math.min(images - 1, Math.max(0, frame));
+    const rang = (((variante % n) + n) % n) + (gauche ? n : 0);
+    return { img, rect: { sx: col * tileW, sy: rang * tileH, sw: tileW, sh: tileH } };
+  }
+
+  /** La version dorée d'une case : la feuille entière est repeinte une fois, puis gardée. */
+  private dore(cle: string, base: { img: HTMLImageElement; rect: Rect } | null): { img: HTMLCanvasElement; rect: Rect } | null {
     if (!base) return null;
-    let img = this.dores.get(teamId);
+    let img = this.dores.get(cle);
     if (!img) {
       img = feuilleDoree(base.img);
-      this.dores.set(teamId, img);
+      this.dores.set(cle, img);
     }
     return { img, rect: base.rect };
   }

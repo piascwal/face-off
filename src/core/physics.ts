@@ -117,6 +117,7 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
   if (s.sonne > 0) s.sonne -= dt;
   s.chuteT = Math.max(0, s.chuteT - dt);
   s.flashT = Math.max(0, s.flashT - dt);
+  s.tirT = Math.max(0, s.tirT - dt);
   // bonus « freeze » : pris dans la glace, il ne bouge plus du tout
   if (estGele(state, s)) {
     s.vx = s.vy = 0;

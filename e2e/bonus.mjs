@@ -19,6 +19,12 @@ export default async function bonus(env) {
   env.verifie((await p.evaluate(() => window.faceOff.ecranUI)) === 'jeu', 'match lancé');
   env.verifie(await env.attendsQue(p, () => window.faceOff.state.phase === 'jeu'), 'engagement joué');
   const pv = (eq) => p.evaluate((e) => window.faceOff.state.pouvoirs?.[e] ?? null, eq);
+  // un but (de l'ordinateur ou d'un tir de bonus) suspend le jeu : on attend la remise en jeu avant chaque étape
+  const enJeu = async () => {
+    if (await env.attendsQue(p, () => window.faceOff.state.phase === 'jeu' && !window.faceOff.ralenti.actif, undefined, 12000)) return;
+    const etat = await p.evaluate(() => ({ ecran: window.faceOff.ecranUI, phase: window.faceOff.state.phase, ralenti: window.faceOff.ralenti.actif }));
+    env.verifie(false, `remise en jeu attendue (${JSON.stringify(etat)})`);
+  };
   const j0 = await pv(0);
   env.verifie(j0 && j0.seuil === 4 && j0.passes === 0, 'jauge des bonus : 0 / 4 passes');
   await p.evaluate(() => (window.faceOff.state.pouvoirs[0].passes = 2));
@@ -40,6 +46,7 @@ export default async function bonus(env) {
   await env.capture(p, '3-pret');
 
   // touche B : le bonus part, le joueur piloté devient doré
+  await enJeu();
   await touche('KeyB');
   const j1 = await pv(0);
   env.verifie(j1.actif === 'vitesse' && j1.pret === null, 'touche B : SUPER VITESSE en cours');
@@ -48,6 +55,7 @@ export default async function bonus(env) {
   await env.capture(p, '4-dore');
 
   // bouton BONUS au doigt : but x2
+  await enJeu();
   await p.evaluate(() => {
     const pv = window.faceOff.state.pouvoirs[0];
     pv.actif = null;
@@ -62,12 +70,15 @@ export default async function bonus(env) {
   });
   await p.touchscreen.tap(x, y);
   await attends(200);
-  env.verifie((await pv(0)).actif === 'double', 'bouton BONUS : but x2 en cours');
+  const diag = await p.evaluate(() => {
+    const app = window.faceOff;
+    const st = app.state;
+    return { ecran: app.ecranUI, phase: st.phase, pv: st.pouvoirs[0], pilote: !!st.controles[0], visible: app.entrees.bonusVisible, pause: app.enPause, chute: st.controles[0]?.chuteT, gele: st.controles[0]?.sonne };
+  });
+  env.verifie((await pv(0)).actif === 'double', `bouton BONUS : but x2 en cours ${(await pv(0)).actif === 'double' ? '' : JSON.stringify(diag)}`);
   await env.capture(p, '5-double');
 
   // freeze : tout le monde est pris dans la glace, sauf le joueur doré
-  // un tir de bonus peut marquer : on attend alors la remise en jeu avant l'étape suivante
-  const enJeu = () => env.attendsQue(p, () => window.faceOff.state.phase === 'jeu' && !window.faceOff.ralenti.actif, undefined, 12000);
   const donne = async (id) => {
     await enJeu();
     await p.evaluate((i) => {
@@ -124,8 +135,12 @@ export default async function bonus(env) {
   await p.keyboard.up('KeyB');
   await attends(40);
   // le bonus n'est consommé que par un tir (sa fenêtre dure 10 s) : actif à null = le tir est parti avec
-  const parti = await p.evaluate(() => ({ actif: window.faceOff.state.pouvoirs[0].actif, tient: window.faceOff.state.controles[0].tient }));
+  const parti = await p.evaluate(() => {
+    const st = window.faceOff.state;
+    return { actif: st.pouvoirs[0].actif, tient: st.controles[0].tient, geste: st.patineurs.some((s) => s.tirT > 0) };
+  });
   env.verifie(parti.actif === null && !parti.tient, 'B relâchée : tir surpuissant parti');
+  env.verifie(parti.geste, 'le geste de tir (descente, impact, accompagnement) se joue');
   await env.capture(p, '8-surpuissant');
 
   // tir guidé au doigt : appui sur BONUS, glissé pour viser, relâché pour tirer

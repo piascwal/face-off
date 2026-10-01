@@ -67,3 +67,25 @@ describe('qualité de tir → probabilité de but', () => {
     expect(seuilRattrapeEffectif(0)).toBeGreaterThan(seuilRattrapeEffectif(1));
   });
 });
+
+describe('geste de tir', () => {
+  it('un tir lance le geste (descente, impact, accompagnement), qui s’écoule puis s’arrête', async () => {
+    const { creePartie } = await import('../src/core/rules');
+    const { tir } = await import('../src/core/actions');
+    const { pas } = await import('../src/core/simulation');
+    const { TIR_ANIM_S } = await import('../src/core/constants');
+    const rink = calculeRink(400, 200);
+    const st = creePartie(rink, { mode: 'match', niveauIdx: 1, dureeIdx: 1, effectifIdx: 1 });
+    st.phase = 'jeu';
+    const s = st.controles[0]!;
+    s.tient = true;
+    st.palet.porteur = s;
+    tir(st, rink, s, 0, 0.5);
+    expect(s.tirT).toBeCloseTo(TIR_ANIM_S, 5);
+    for (let i = 0; i < 24; i++) pas(rink, st, 1 / 120);
+    expect(s.tirT).toBeGreaterThan(0);
+    expect(s.tirT).toBeLessThan(TIR_ANIM_S);
+    for (let i = 0; i < 60; i++) pas(rink, st, 1 / 120);
+    expect(s.tirT).toBe(0);
+  });
+});

@@ -25,6 +25,7 @@ export function nouveauPatineur(eq: TeamId, rang: number): Skater {
     chuteT: 0,
     chuteD: 0,
     renfort: false,
+    tirT: 0,
     flashT: 0,
     anim: 0,
     humain: false,

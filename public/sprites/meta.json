@@ -46,6 +46,23 @@
     ],
     "echelle": 0.22
   },
+  "tir": {
+    "tileW": 153,
+    "tileH": 120,
+    "images": 4,
+    "pied": {
+      "x": 71.6,
+      "y": 119
+    },
+    "tete": [
+      18,
+      18,
+      19,
+      19
+    ],
+    "echelle": 0.28,
+    "decalage": 10
+  },
   "celebration": {
     "tileW": 134,
     "tileH": 148,

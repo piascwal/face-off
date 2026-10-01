@@ -67,6 +67,8 @@ export async function chargeSources(dossier) {
     gardienRoles: await lis('gardien-roles.png'),
     portrait: await lis('portrait.png'),
     portraitRoles: await lis('portrait-roles.png'),
+    tir: await lis('tir.png'),
+    tirRoles: await lis('tir-roles.png'),
     chute: await lis('chute.png'),
     chuteRoles: await lis('chute-roles.png'),
     celebration: await lis('celebration.png'),
@@ -256,6 +258,12 @@ export function feuillePortrait(S, eq, logo) {
   return feuilleDeuxSens(repeint(S.portrait, S.portraitRoles, S.meta.roles, eq, logo, tileW, 1), tileW, tileH, 1);
 }
 
+/** Geste de tir : armé, descente, impact, accompagnement (vers la droite), puis les mêmes en miroir. */
+export function feuilleTir(S, eq, logo) {
+  const { tileW, tileH, images } = S.meta.tir;
+  return feuilleDeuxSens(repeint(S.tir, S.tirRoles, S.meta.roles, eq, logo, tileW, images), tileW, tileH, images);
+}
+
 /** Défenseur esquivé : plongeon puis allongé (tête vers la droite), puis les mêmes en miroir. */
 export function feuilleChute(S, eq) {
   const { tileW, tileH, images } = S.meta.chute;
@@ -281,11 +289,11 @@ export function feuilleGardien(S, eq, logo) {
  * mêmes en miroir. Seuls les pixels de peau et de barbe y sont dessinés, à
  * poser par-dessus le joueur.
  */
-export function feuilleVisages(S) {
-  const { tileW, tileH, images } = S.meta.joueur;
+export function feuilleVisages(S, cle = 'joueur') {
+  const { tileW, tileH, images } = S.meta[cle];
   const R = Object.fromEntries(S.meta.roles.map((r, i) => [r, i]));
-  const src = S.joueur;
-  const roles = S.joueurRoles;
+  const src = S[cle];
+  const roles = S[`${cle}Roles`];
   const basePeau = couleurDominante(src, roles, R.peau);
   const baseBarbe = couleurDominante(src, roles, R.barbe);
   const c = createCanvas(tileW * images, tileH * VISAGES.length * 2);

@@ -704,7 +704,7 @@ Code : `core/pouvoirs.ts` (règles, tirage, effets, IA ; testé dans
 `tests/pouvoirs.test.ts`), `render/hud-bonus.ts` et `render/icones-bonus.ts`
 (jauges, tirage, bouton), feuille dorée calculée à la volée
 (`BanqueSprites.spriteJoueurDore`). En Wi-Fi, les bonus voyagent dans
-l'instantané (protocole v15) et l'appui sur BONUS comme les autres appuis.
+l'instantané (protocole v16) et l'appui sur BONUS comme les autres appuis.
 
 L'aide des commandes (tactile et clavier) est dans **Réglages avancés >
 Commandes**.
@@ -750,6 +750,17 @@ le premier dessin) : un joueur à genou reste plus petit qu'un joueur debout.
 couleurs de chaque équipe comme les autres ; le dessin est deux fois moins fin
 que la planche de patinage, d'où son échelle de 0,22 (casque de la même
 taille qu'en patinant).
+
+**Geste de tir.** Quatre dessins (`tir-<id>.png`, convertis depuis
+`assets/sprites-src/tir/tir-1.jpg` à `tir-4.jpg`) : armé, descente, impact et
+accompagnement. Ils sont pixelisés sur une grille commune (ils sont déjà calés
+entre eux), puis élargis de 18 % (`ELARGISSEMENT_TIR`, colonnes répétées) pour
+retrouver la carrure du joueur qui patine ; leurs visages ont leurs propres
+variantes (`visages-tir.png`). En jeu, l'image « armé » reste affichée tant
+que le tir se charge (bouton TIR, ou BONUS pour un bonus de tir) ; au tir, les
+trois autres s'enchaînent en 0,32 s (`TIR_ANIM`, `core/constants.ts`), puis le
+patinage reprend. L'ordinateur joue le même geste. Le joueur doré d'un bonus
+garde son or pendant le geste.
 
 **Écran des maillots.** Le joueur y est vu de face (`portrait-<id>.png`,
 converti depuis `assets/sprites-src/portrait.jpg` comme les autres dessins),

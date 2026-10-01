@@ -12,6 +12,7 @@ import {
   FLASH_T,
   POKE_RECHARGE,
   POKE_T,
+  TIR_ANIM_S,
   UNE_TOUCHE_BONUS,
   UNE_TOUCHE_S,
 } from './constants';
@@ -111,6 +112,7 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   const fort = tirPuissant(state, s);
   const v = (150 + 290 * puissance) * (renfort ? 1.15 : 1) * fort.vitesse;
   lachePalet(state, s, 0.3);
+  s.tirT = TIR_ANIM_S;
   const sp = pointCrosse(s);
   p.x = sp.x;
   p.y = sp.y;

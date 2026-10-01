@@ -1,5 +1,5 @@
 import { pointCrosse } from '@core/actions';
-import { CHUTE_PLONGEON } from '@core/constants';
+import { CHUTE_PLONGEON, TIR_ANIM, TIR_ANIM_S } from '@core/constants';
 import type { Goalie, Puck, Skater } from '@core/types';
 import { px } from './primitives';
 import type { BanqueSprites, Rect } from './sprites';
@@ -121,6 +121,21 @@ function dessineAuSol(
   else if (s.humain) flecheControle(g, Math.round(hx), Math.round(hy) - 8, equipes[s.eq].clair, true);
 }
 
+/**
+ * Image du geste de tir à montrer : 0 (armé) tant que le tir se charge, puis
+ * 1, 2, 3 (descente, impact, accompagnement) juste après le tir ; null sinon.
+ */
+function imageTir(s: Skater): number | null {
+  if (s.arme && s.tient) return 0;
+  if (s.tirT <= 0) return null;
+  let t = TIR_ANIM_S - s.tirT;
+  for (let i = 0; i < TIR_ANIM.length; i++) {
+    if (t < TIR_ANIM[i]!) return i + 1;
+    t -= TIR_ANIM[i]!;
+  }
+  return TIR_ANIM.length;
+}
+
 /** Pas de patinage : distance parcourue (px logiques) par image du cycle. */
 const PAS_ANIM = 8;
 
@@ -188,18 +203,30 @@ export function dessinePatineur(
     dessineAuSol(g, sprites, s, temps, estControle, equipes);
     return;
   }
-  const M = sprites.meta.joueur;
+  const gauche = Math.cos(s.face) < 0;
+  const or = !!bonus?.or;
+  const id = equipes[s.eq].id;
+  const varianteVisage = s.rang * 2 + s.eq * 3;
+  // geste de tir (armé, puis descente, impact, accompagnement), si sa feuille est chargée
+  let poseTir = imageTir(s);
+  if (poseTir !== null && !sprites.spriteTir(id, poseTir, gauche)) poseTir = null;
+  const M = poseTir !== null ? sprites.meta.tir : sprites.meta.joueur;
   const e = M.echelle;
   // taille des repères au sol, proportionnelle au joueur
   const rs = e / 0.28;
-  const gauche = Math.cos(s.face) < 0;
   const v = Math.hypot(s.vx, s.vy);
-  const frame = v < 14 ? M.arret : Math.floor(s.anim / PAS_ANIM) % M.images;
-  const or = !!bonus?.or;
-  // joueur doré (bonus) : feuille repeinte en or, visage compris
-  const sprite = or ? sprites.spriteJoueurDore(equipes[s.eq].id, frame, gauche) : sprites.spriteJoueur(equipes[s.eq].id, frame, gauche);
-  // chaque joueur garde son visage (teint, barbe) : même tirage sur les deux écrans en Wi-Fi
-  const visage = or ? null : sprites.spriteVisage(s.rang * 2 + s.eq * 3, frame, gauche);
+  const frame = poseTir ?? (v < 14 ? sprites.meta.joueur.arret : Math.floor(s.anim / PAS_ANIM) % sprites.meta.joueur.images);
+  // joueur doré (bonus) : feuille repeinte en or, visage compris ; chaque joueur
+  // garde son visage (teint, barbe) : même tirage sur les deux écrans en Wi-Fi
+  let sprite;
+  let visage;
+  if (poseTir !== null) {
+    sprite = or ? sprites.spriteTirDore(id, frame, gauche) : sprites.spriteTir(id, frame, gauche);
+    visage = or ? null : sprites.spriteVisageTir(varianteVisage, frame, gauche);
+  } else {
+    sprite = or ? sprites.spriteJoueurDore(id, frame, gauche) : sprites.spriteJoueur(id, frame, gauche);
+    visage = or ? null : sprites.spriteVisage(varianteVisage, frame, gauche);
+  }
   const tw = M.tileW * e;
   const th = M.tileH * e;
   // le tronc du joueur sur sa position (4 px sous son centre : là où il touche la glace)
@@ -210,7 +237,7 @@ export function dessinePatineur(
   if (s.sonne > 0) bx += Math.sin(temps * 40);
   // mise en échec en préparation : le défenseur tremble, prêt à charger
   if (s.prepaEchecT > 0) bx += Math.floor(temps * 30) & 1 ? 1 : -1;
-  const teteY = by + M.tete * e + 2;
+  const teteY = by + (poseTir !== null ? sprites.meta.tir.tete[poseTir]! : sprites.meta.joueur.tete) * e + 2;
   const sp = pointCrosse(s);
   const corps = (dx = 0, dy = 0) => {
     // impact : silhouette blanche (le visage est dans la silhouette)

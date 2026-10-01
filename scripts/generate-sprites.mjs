@@ -11,7 +11,17 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detoure } from './logo-cutout.mjs';
-import { chargeSources, feuilleCelebrations, feuilleChute, feuilleGardien, feuilleJoueur, feuillePortrait, feuilleVisages, VISAGES } from './sprites-illustres.mjs';
+import {
+  chargeSources,
+  feuilleCelebrations,
+  feuilleChute,
+  feuilleGardien,
+  feuilleJoueur,
+  feuillePortrait,
+  feuilleTir,
+  feuilleVisages,
+  VISAGES,
+} from './sprites-illustres.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_SPRITES = path.join(__dirname, '..', 'public', 'sprites');
@@ -136,11 +146,13 @@ for (const eq of EQUIPES) {
   writeFileSync(path.join(OUT_SPRITES, `goalie-${eq.id}.png`), feuilleGardien(sources, eq, logo).toBuffer('image/png'));
   writeFileSync(path.join(OUT_SPRITES, `portrait-${eq.id}.png`), feuillePortrait(sources, eq, logo).toBuffer('image/png'));
   writeFileSync(path.join(OUT_SPRITES, `chute-${eq.id}.png`), feuilleChute(sources, eq).toBuffer('image/png'));
+  writeFileSync(path.join(OUT_SPRITES, `tir-${eq.id}.png`), feuilleTir(sources, eq, logo).toBuffer('image/png'));
   writeFileSync(path.join(OUT_SPRITES, `celebration-${eq.id}.png`), feuilleCelebrations(sources, eq).toBuffer('image/png'));
 }
 writeFileSync(path.join(OUT_SPRITES, 'visages.png'), feuilleVisages(sources).toBuffer('image/png'));
+writeFileSync(path.join(OUT_SPRITES, 'visages-tir.png'), feuilleVisages(sources, 'tir').toBuffer('image/png'));
 
-const { joueur, gardien, portrait, chute, celebration } = sources.meta;
+const { joueur, gardien, portrait, chute, celebration, tir } = sources.meta;
 writeFileSync(
   path.join(OUT_SPRITES, 'meta.json'),
   JSON.stringify(
@@ -149,6 +161,8 @@ writeFileSync(
       gardien: { ...gardien, echelle: ECHELLE_GARDIEN, decalage: DECALAGE_GARDIEN },
       portrait,
       chute: { ...chute, echelle: ECHELLE_CHUTE },
+      // même échelle que le patinage (même hauteur de joueur), même recul de dessin
+      tir: { ...tir, echelle: ECHELLE_JOUEUR, decalage: DECALAGE_JOUEUR },
       celebration,
       visages: VISAGES.length,
       teamIds: EQUIPES_LOGO.map((e) => e.id),

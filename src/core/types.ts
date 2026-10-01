@@ -47,6 +47,8 @@ export interface Skater {
   chuteT: number;
   /** Durée totale de la chute en cours (s), pour savoir quand passer du plongeon à allongé. */
   chuteD: number;
+  /** Geste de tir en cours (s restantes, voir TIR_ANIM_S) : descente, impact, accompagnement. */
+  tirT: number;
   /** Joueur en renfort (bonus surnombre) : il repart à la fin du bonus. */
   renfort: boolean;
   /** Flash blanc d'impact (s restantes). */
