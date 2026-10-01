@@ -173,44 +173,59 @@ writeFileSync(
   ),
 );
 
-// --- Icônes PWA : un petit palet pixel art sur fond nuit ------------------
+// --- Icônes PWA : l'illustration du jeu (assets/icone-app.jpg, carrée) -------
 
+const illustrationIcone = await loadImage(path.join(__dirname, '..', 'assets', 'icone-app.jpg'));
+
+/**
+ * Icône carrée à partir de l'illustration. Version « maskable » (Android la
+ * découpe en cercle ou en carré arrondi) : le joueur doit tenir dans les 80 %
+ * centraux, donc l'illustration est réduite, ses bords estompés, et posée sur
+ * un dégradé de la même ambiance (salle sombre, glace).
+ */
 function dessineIcone(taille, maskable) {
-  // Le rond de mise au jeu (face-off circle) autour d'un palet : lisible à
-  // toutes les tailles, et thématiquement le nom du jeu.
   const canvas = createCanvas(taille, taille);
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#070914';
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  const W = illustrationIcone.width;
+  const H = illustrationIcone.height;
+  if (!maskable) {
+    ctx.drawImage(illustrationIcone, 0, 0, taille, taille);
+    return canvas;
+  }
+  const k = 0.72;
+  const d = taille * k;
+  const x0 = (taille - d) / 2;
+  // fond : la salle sombre en haut, la glace en bas (couleurs des bords de l'illustration)
+  const fond = ctx.createLinearGradient(0, 0, 0, taille);
+  fond.addColorStop(0, '#10213a');
+  fond.addColorStop(0.45, '#16294a');
+  fond.addColorStop(0.62, '#3472a8');
+  fond.addColorStop(1, '#4aa3d8');
+  ctx.fillStyle = fond;
   ctx.fillRect(0, 0, taille, taille);
-  const marge = maskable ? taille * 0.24 : taille * 0.12;
-  const r = (taille - marge * 2) / 2;
-  const cx = taille / 2;
-  const cy = taille / 2;
-  const epais = Math.max(2, r * 0.09);
-
-  ctx.strokeStyle = '#d8344d';
-  ctx.lineWidth = epais;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.strokeStyle = '#2ec8f5';
-  ctx.lineWidth = epais * 0.6;
-  ctx.beginPath();
-  ctx.moveTo(cx - r, cy);
-  ctx.lineTo(cx - r * 0.45, cy);
-  ctx.moveTo(cx + r * 0.45, cy);
-  ctx.lineTo(cx + r, cy);
-  ctx.stroke();
-
-  ctx.fillStyle = '#0b0e1d';
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, r * 0.42, r * 0.3, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#3a4560';
-  ctx.lineWidth = Math.max(1, epais * 0.4);
-  ctx.stroke();
-
+  // l'illustration réduite, ses bords estompés (masque de transparence en deux passes)
+  const t = createCanvas(Math.round(d), Math.round(d));
+  const g = t.getContext('2d');
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(illustrationIcone, 0, 0, t.width, t.height);
+  const f = 0.09;
+  g.globalCompositeOperation = 'destination-in';
+  for (const [x1, y1] of [
+    [t.width, 0],
+    [0, t.height],
+  ]) {
+    const m = g.createLinearGradient(0, 0, x1, y1);
+    m.addColorStop(0, 'rgba(0,0,0,0)');
+    m.addColorStop(f, 'rgba(0,0,0,1)');
+    m.addColorStop(1 - f, 'rgba(0,0,0,1)');
+    m.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = m;
+    g.fillRect(0, 0, t.width, t.height);
+  }
+  ctx.drawImage(t, x0, x0);
   return canvas;
 }
 

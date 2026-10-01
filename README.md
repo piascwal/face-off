@@ -87,6 +87,8 @@ src/
   app/      — assemble le tout (voir « L'application » ci-dessous)
 scripts/
   generate-sprites.mjs — génère les PNG des joueurs/gardiens et les icônes PWA
+                         (icônes tirées de assets/icone-app.jpg, carrée : à
+                         remplacer pour changer l'icône, puis npm run sprites)
 tests/      — tests Vitest (simulation, IA, coupe, réseau)
 e2e/        — tests de bout en bout dans Chromium (voir « Démarrer »)
 ```
