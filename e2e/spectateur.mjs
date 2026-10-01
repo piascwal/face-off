@@ -39,16 +39,16 @@ export default async function spectateur(env) {
   await env.capture(spect.page, '2-spectateur');
   await env.capture(invite.page, '3-invite');
 
-  // bonus en Wi-Fi : l'invité déclenche le sien (touche B), l'hôte l'applique, tout le monde le voit
+  // bonus en Wi-Fi : le tirage de l'invité tourne chez tout le monde, puis le bonus part tout seul chez l'hôte
   await hote.page.evaluate(() => {
     const pv = window.faceOff.state.pouvoirs[1];
-    pv.pret = 'ricochet';
-    pv.tirage = 0;
+    pv.pret = 'inversion';
+    pv.tirage = 1.2;
   });
-  env.verifie(await env.attendsQue(invite.page, () => window.faceOff.state.pouvoirs?.[1].pret === 'ricochet'), 'l\'invité voit son bonus prêt');
-  await invite.page.keyboard.press('KeyB');
-  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.state.pouvoirs[1].actif === 'ricochet'), 'touche B de l\'invité : bonus déclenché chez l\'hôte');
-  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.state.pouvoirs?.[1].actif === 'ricochet'), 'le spectateur voit le bonus en cours');
+  env.verifie(await env.attendsQue(invite.page, () => (window.faceOff.state.pouvoirs?.[1].tirage ?? 0) > 0), 'l\'invité voit le tirage de son bonus');
+  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.state.pouvoirs[1].actif === 'inversion'), 'fin du tirage : le bonus de l\'invité part tout seul chez l\'hôte');
+  env.verifie(await env.attendsQue(invite.page, () => window.faceOff.state.pouvoirs?.[1].actif === 'inversion'), 'l\'invité voit son bonus en cours');
+  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.state.pouvoirs?.[1].actif === 'inversion'), 'le spectateur voit le bonus en cours');
   await env.capture(invite.page, '3b-bonus-invite');
 
   // un joueur ne réagit pas pendant le match

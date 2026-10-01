@@ -61,7 +61,7 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 | `solo` | Au clavier : menu, choix des équipes et maillots (avec retour), match, pause, fin, rejouer, bilan, écran des commandes |
 | `coupe` | Mode coupe : choix, tableau, dévoilement, élimination, titre |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
-| `bonus` | Bonus en solo : jauge, tirage, bouton BONUS au doigt et touche B (et tir depuis BONUS), joueur doré, « 2X », freeze, inversion, tir surpuissant, surnombre, gamelle, option du menu, mode entraînement |
+| `bonus` | Bonus en solo : jauge, 4e passe (gros « BONUS » doré sans combo), départ automatique, but x2 limité à 10 s, freeze, inversion, full esquive, tir surpuissant (bouton TIR doré), surnombre, un but qui coupe tout, option du menu, mode entraînement |
 | `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), invité qui ne revient pas, coupure pendant le choix des équipes |
 
 En local, Chromium doit être installé une fois : `npx playwright install chromium`.
@@ -666,47 +666,47 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 - **La pondération.** Chaque bonus a un poids (`POIDS_POUVOIRS`, tous égaux
   pour l'instant). Le tirage reçoit l'état du match (`poidsPouvoirs`) : on
   pourra plus tard donner plus souvent les bonus puissants à l'équipe menée.
-- **L'utilisation.** On a 10 s de jeu pour déclencher le bonus
-  (`PRET_MAX_S`, une barre fond sous « PRET ! »), sinon il est perdu :
-  bouton **BONUS** (au-dessus de PASSE, avec l'icône du bonus ; il
-  n'apparaît qu'à ce moment) ou touche **B**. Pour un bonus de tir (guidé, surpuissant), ce bouton
-  déclenche le bonus et sert aussi de bouton de tir : on maintient pour
-  charger, on glisse pour viser, on relâche pour tirer. Pendant qu'un bonus
-  est en main ou en cours, les passes ne remplissent pas la jauge.
-  L'ordinateur s'en sert aussi : quand il a le palet (près de la cage pour
-  les bonus de tir et la gamelle), au plus tard après 6 s.
-- **Un but met fin aux bonus en cours**, des deux côtés. Un bonus prêt mais
-  pas encore déclenché reste en main.
+- **Le départ.** Il n'y a pas de bouton BONUS : à la 4e passe, un gros
+  « BONUS » doré jaillit au-dessus du joueur (à la place de la bulle de
+  combo), le tirage tourne, et le bonus part tout seul à sa fin, pour tout
+  le monde (ordinateur et Wi-Fi compris). Tiré pendant un arrêt de jeu, il
+  part à la reprise. Pendant qu'un bonus tourne ou est en cours, les passes
+  ne remplissent pas la jauge.
+- **Le bouton doré.** Quand un bonus se joue avec un bouton (le tir
+  surpuissant, avec TIR), ce bouton passe en or : relief, respiration d'un
+  pixel, éclat qui fait le tour et halo qui pulse (`boutonBonus`,
+  `render/controls-overlay.ts`). Sans le palet, un anneau doré rappelle
+  que le tir attend.
+- **Toujours une fin.** Chaque bonus dure au plus 10 s (but x2 compris).
+- **Un but met fin à tous les bonus**, des deux côtés, même à un tirage en
+  cours.
 - **Le joueur doré.** Le joueur piloté devient doré (maillot, crosse et
   visage) avec une auréole. Pendant les 2 dernières secondes, il clignote
   entre doré et normal, de plus en plus vite.
-- **L'affichage.** En haut à gauche : votre case, les passes, le bonus prêt
-  ou le temps restant. En haut à droite, en plus petit : celle de
-  l'adversaire.
+- **L'affichage.** En haut à gauche : votre case, les passes, le tirage, puis
+  le nom du bonus en cours et sa barre de temps. En haut à droite, en plus
+  petit : celle de l'adversaire.
 
 | Bonus | Effet | Durée |
 |---|---|---|
-| Tir guidé | le prochain tir s'incurve vers un coin de la cage, qualité +0,3 ; traînée dorée scintillante | prochain tir, 10 s max |
 | Super vitesse | joueur doré ×1,4 (vitesse et accélération), images fantômes | 6 s |
-| Tir surpuissant | le prochain tir part 1,5× plus vite, qualité +0,2 ; il traverse et renverse les adversaires sur sa route (2 s au sol) ; traînée de feu, onde de choc | prochain tir, 10 s max |
+| Tir surpuissant | le prochain tir part 1,5× plus vite, qualité +0,2 ; il traverse et renverse les adversaires sur sa route (2 s au sol) ; traînée de feu, onde de choc ; bouton TIR doré | prochain tir, 10 s max |
 | Freeze | tout le monde est pris dans la glace, sauf le joueur doré (les gardiens jouent) ; on garde la main sur lui ; onde de givre | 3 s |
-| Mode savon | toute mise en échec contre l'équipe se transforme en esquive, étincelles bleues | 8 s |
+| Full esquive | toute mise en échec contre l'équipe se transforme en esquive, étincelles bleues ; le coup de crosse, lui, prend toujours le palet | 8 s |
 | Inversion | les déplacements des adversaires partent à l'envers (l'ordinateur aussi), spirales au-dessus de leur tête | 5 s |
-| Ricochet | le palet joué par l'équipe repart des bandes plus vite (×1,12, 480 px/s max), traînée néon | 8 s |
 | Surnombre | un coéquipier de plus saute du banc (doré, semi-transparent, piloté par l'ordinateur ou par vous si vous changez de joueur), puis repart | 10 s |
-| Gamelle | si l'équipe marque pendant le bonus, l'adversaire perd un but (jamais sous zéro) ; « -1 ? » clignote sous son score, brouillage de l'écran au moment du but | 10 s |
-| But x2 | le prochain but de l'équipe compte double ; « 2X » au-dessus de la cage adverse | jusqu'au but |
+| But x2 | le prochain but de l'équipe compte double ; « 2X » au-dessus de la cage adverse | 10 s |
 
 **Mode entraînement** (Réglages avancés > ENTRAINEMENT) : on choisit un
-bonus dans la grille des 10 (le choix est gardé), puis un match sans chrono
-contre l'ordinateur. Le bonus choisi revient peu après chaque usage et ne se
-perd pas ; l'adversaire n'a pas de bonus. PAUSE > ABANDONNER pour sortir.
+bonus dans la grille (le choix est gardé), puis un match sans chrono
+contre l'ordinateur. Le bonus choisi part tout seul et revient peu après
+chaque fin ; l'adversaire n'a pas de bonus. PAUSE > ABANDONNER pour sortir.
 
-Code : `core/pouvoirs.ts` (règles, tirage, effets, IA ; testé dans
+Code : `core/pouvoirs.ts` (règles, tirage, départ automatique, effets ; testé dans
 `tests/pouvoirs.test.ts`), `render/hud-bonus.ts` et `render/icones-bonus.ts`
-(jauges, tirage, bouton), feuille dorée calculée à la volée
+(jauges, tirage), `render/scene.ts` (le « BONUS » doré), feuille dorée calculée à la volée
 (`BanqueSprites.spriteJoueurDore`). En Wi-Fi, les bonus voyagent dans
-l'instantané (protocole v16) et l'appui sur BONUS comme les autres appuis.
+l'instantané (protocole v17 : les entrées ne portent plus d'appui BONUS).
 
 L'aide des commandes (tactile et clavier) est dans **Réglages avancés >
 Commandes**.
@@ -759,7 +759,7 @@ accompagnement. Ils sont pixelisés sur une grille commune (ils sont déjà cal�
 entre eux), puis élargis de 18 % (`ELARGISSEMENT_TIR`, colonnes répétées) pour
 retrouver la carrure du joueur qui patine ; leurs visages ont leurs propres
 variantes (`visages-tir.png`). En jeu, l'image « armé » reste affichée tant
-que le tir se charge (bouton TIR, ou BONUS pour un bonus de tir) ; au tir, les
+que le tir se charge (bouton TIR) ; au tir, les
 trois autres s'enchaînent en 0,32 s (`TIR_ANIM`, `core/constants.ts`), puis le
 patinage reprend. L'ordinateur joue le même geste. Le joueur doré d'un bonus
 garde son or pendant le geste.

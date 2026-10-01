@@ -22,7 +22,13 @@ export interface Bulle {
   y: number;
   c: string;
   vie: number;
+  /** En grand (le « BONUS » doré de la 4e passe) : il jaillit, scintille et monte moins vite. */
+  gros?: boolean;
 }
+
+/** Durée de vie d'une bulle de texte, et de la grande bulle « BONUS ». */
+export const BULLE_VIE = 1.1;
+export const BULLE_GROSSE_VIE = 1.5;
 
 /** Onde de choc : un anneau qui s'élargit et s'efface. */
 export interface Onde {
@@ -67,9 +73,6 @@ export class SystemeEffets {
   particules: Particule[] = [];
   bulles: Bulle[] = [];
   ondes: Onde[] = [];
-  /** Gamelle : brouillage de l'écran (s restantes), et « -1 » affiché sur le score de chaque équipe (s restantes). */
-  glitch = 0;
-  malus: [number, number] = [0, 0];
   secousse = 0;
   flash = 0;
   /** Multiplicateur des secousses d'écran et flashs (réglage avancé, accessibilité). */
@@ -128,8 +131,10 @@ export class SystemeEffets {
     }
   }
 
-  bulle(txt: string, x: number, y: number, c: string): void {
-    this.bulles.push({ txt, x, y, c, vie: 1.1 });
+  bulle(txt: string, x: number, y: number, c: string, gros = false): void {
+    this.bulles.push({ txt, x, y, c, vie: gros ? BULLE_GROSSE_VIE : BULLE_VIE, gros });
+    // le « BONUS » doré jaillit dans une gerbe d'étincelles
+    if (gros) this.etincelles(x, y + 4, 16, '#ffd35c');
   }
 
   annonce(txt: string, sous: string, c: string, duree = 1.6, logoId?: string, celebration?: Banniere['celebration']): void {
@@ -150,11 +155,7 @@ export class SystemeEffets {
           this.confettis(ev.x, ev.y, ev.eq);
           break;
         case 'bulle':
-          this.bulle(ev.txt, ev.x, ev.y, ev.c);
-          break;
-        case 'glitch':
-          this.glitch = 0.9;
-          this.malus[ev.eq] = 2.5;
+          this.bulle(ev.txt, ev.x, ev.y, ev.c, ev.gros);
           break;
         case 'onde':
           this.ondes.push({ x: ev.x, y: ev.y, r: ev.r, c: ev.c, vie: 0.35, max: 0.35 });
@@ -194,11 +195,9 @@ export class SystemeEffets {
     if (this.particules.length > 600) this.particules.splice(0, this.particules.length - 600);
     for (const b of this.bulles) {
       b.vie -= dt;
-      b.y -= 14 * dt;
+      b.y -= (b.gros ? 8 : 14) * dt;
     }
     this.bulles = this.bulles.filter((b) => b.vie > 0);
-    this.glitch = Math.max(0, this.glitch - dt);
-    this.malus = [Math.max(0, this.malus[0] - dt), Math.max(0, this.malus[1] - dt)];
     for (const o of this.ondes) o.vie -= dt;
     this.ondes = this.ondes.filter((o) => o.vie > 0);
     this.secousse = Math.max(0, this.secousse - dt * 14);
@@ -213,8 +212,6 @@ export class SystemeEffets {
     this.particules = [];
     this.bulles = [];
     this.ondes = [];
-    this.glitch = 0;
-    this.malus = [0, 0];
     this.banniere = null;
   }
 }

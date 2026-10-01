@@ -1,5 +1,5 @@
 import { menaceEchec } from '@core/actions';
-import { pouvoirPret } from '@core/pouvoirs';
+import { boutonBonus } from '@core/pouvoirs';
 import { calculeRink, reprojette } from '@core/rink';
 import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
 import { pas } from '@core/simulation';
@@ -14,7 +14,6 @@ import {
   construitFoule,
   construitGlace,
   dessineBanniere,
-  dessineBoutonBonus,
   dessineCelebration,
   dessineCommandes,
   dessineJaugesBonus,
@@ -471,14 +470,13 @@ export class GameApp {
       this.equipesActuelles,
       lan.spectateur ? null : lan.eqLocal,
     );
-    if (this.effets.glitch > 0) this.brouille(this.effets.glitch);
     g.setTransform(E, 0, 0, E, 0, 0);
     const enMatch = !ECRANS_MENU.includes(this.ecranUI);
     // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
     if (enMatch) {
       if (!ralenti) dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, temps);
-      if (!ralenti) dessineJaugesBonus(g, this.W, state, lan.spectateur ? null : lan.eqLocal, temps, !this.entrees.tactile);
-      dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles, this.effets.malus);
+      if (!ralenti) dessineJaugesBonus(g, this.W, state, lan.spectateur ? null : lan.eqLocal, temps);
+      dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
     }
     if (!ralenti && (this.ecranUI === 'menu' || enMatch)) dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
     // le buteur qui fête son but passe au premier plan, devant l'écusson et le bandeau
@@ -502,37 +500,6 @@ export class GameApp {
   }
 
   /**
-   * Gamelle : brouillage de l'image façon signal vidéo perdu. Des bandes de
-   * l'image glissent de côté, d'autres se teintent de rouge ou de cyan ;
-   * l'effet s'atténue en `force` secondes.
-   */
-  private brouille(force: number): void {
-    const g = this.g;
-    const c = this.ecran;
-    const k = Math.min(1, force / 0.5);
-    g.save();
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    const graine = Math.floor(performance.now() / 50);
-    const hasard = (i: number) => {
-      const x = Math.sin(graine * 12.9898 + i * 78.233) * 43758.5453;
-      return x - Math.floor(x);
-    };
-    for (let i = 0; i < 7; i++) {
-      const h = Math.round((4 + hasard(i) * 22) * this.ECHELLE);
-      const y = Math.round(hasard(i + 10) * (c.height - h));
-      const dx = Math.round((hasard(i + 20) - 0.5) * 30 * this.ECHELLE * k);
-      g.drawImage(c, 0, y, c.width, h, dx, y, c.width, h);
-      if (i % 2 === 0) {
-        g.globalAlpha = 0.22 * k;
-        g.fillStyle = i % 4 === 0 ? '#ff2a4a' : '#2ae8ff';
-        g.fillRect(0, y, c.width, h);
-        g.globalAlpha = 1;
-      }
-    }
-    g.restore();
-  }
-
-  /**
    * Premier écran, par-dessus le menu : un seul geste (clic, appui, touche)
    * suffit à passer en plein écran, avant que le joueur touche un vrai
    * bouton. Voir `attenteDemarrage`.
@@ -550,8 +517,6 @@ export class GameApp {
   /** Par-dessus le match : pause Wi-Fi, ralenti du but, ou commandes tactiles. */
   private dessineSurMatch(g: CanvasRenderingContext2D, temps: number, state: MatchState, ralenti: boolean): void {
     const lan = this.lan;
-    this.entrees.bonusVisible = false;
-    this.entrees.bonusTir = false;
     if (lan.vues.dessinePauseMatch(g)) return;
     if (ralenti) {
       const partie = lan.partie;
@@ -570,17 +535,9 @@ export class GameApp {
     if (lan.spectateur) return;
     const pilote = state.controles[lan.eqLocal];
     const ui = this.entrees.instantaneUI();
-    dessineCommandes(g, this.W, this.H, state.temps, pilote, ui, !!pilote && menaceEchec(state, pilote) !== null);
-    // bonus prêt : son bouton apparaît au-dessus de PASSE (et sa zone tactile s'active) ;
-    // pour un bonus de tir, il sert aussi de bouton de tir (et reste affiché tant qu'on vise)
-    const pv = state.pouvoirs?.[lan.eqLocal];
-    const pret = pv && pouvoirPret(state, lan.eqLocal) ? pv.pret : null;
-    this.entrees.bonusTir = pret === 'guide' || pret === 'puissant';
-    if (pret && pilote) this.entrees.bonusVisible = true;
-    const affiche = pret ?? (ui.bonusActif && ui.tirBonus ? (pv?.actif ?? null) : null);
-    if (affiche && ui.tactile && pilote) {
-      dessineBoutonBonus(g, this.W, this.H, state.temps, affiche, ui.bonusActif, ui.tirBonus && pilote.arme ? pilote.charge : null);
-    }
+    // bonus qui se joue avec un bouton (tir surpuissant) : ce bouton passe en or
+    const boutonDore = boutonBonus(state, lan.eqLocal);
+    dessineCommandes(g, this.W, this.H, state.temps, pilote, ui, !!pilote && menaceEchec(state, pilote) !== null, boutonDore);
     if (pilote?.arme) dessineJaugeTir(g, this.H, pilote.charge, state.temps);
   }
 }

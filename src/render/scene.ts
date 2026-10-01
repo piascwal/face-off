@@ -5,11 +5,11 @@ import { butAttaque } from '@core/shooting';
 import { equipe } from '@core/state-helpers';
 import type { MatchState, Rink, Skater, TeamId } from '@core/types';
 import { dessineGardien, dessinePalet, dessineParticules, dessinePatineur, TracesGlace, type AspectBonus } from './entities-render';
-import type { SystemeEffets } from './effects';
+import { BULLE_GROSSE_VIE, type Bulle, type SystemeEffets } from './effects';
 import { anneau, ellipseOmbre, px } from './primitives';
 import { dessineCage, dessineLampe } from './rink-render';
 import type { BanqueSprites } from './sprites';
-import { texte } from './pixel-font';
+import { largeurTexte, texte } from './pixel-font';
 import { C } from './theme';
 import type { EquipeVisuelle } from './team-visuals';
 
@@ -174,7 +174,34 @@ export function dessineScene(
   dessineParticules(g, effets.particules);
   for (const b of effets.bulles) {
     g.globalAlpha = Math.min(1, b.vie * 3);
-    texte(g, b.txt, b.x, b.y, b.c);
+    if (b.gros) bulleBonus(g, b);
+    else texte(g, b.txt, b.x, b.y, b.c);
     g.globalAlpha = 1;
+  }
+}
+
+/**
+ * Le « BONUS » doré de la 4e passe : il jaillit en très grand puis se pose
+ * (taille 3, puis 2), sur fond d'or qui scintille, avec un reflet blanc qui
+ * le traverse.
+ */
+function bulleBonus(g: CanvasRenderingContext2D, b: Bulle): void {
+  const age = BULLE_GROSSE_VIE - b.vie;
+  const e = age < 0.12 ? 3 : 2;
+  const y = Math.round(b.y - (e === 3 ? 6 : 4));
+  // scintillement : deux ors alternent au début, puis l'or clair reste
+  const c = age < 0.5 && Math.floor(age * 14) % 2 ? '#ffb020' : '#ffd35c';
+  texte(g, b.txt, b.x + 1, y + 1, '#a86a00', e, 'c', C.contour);
+  texte(g, b.txt, b.x, y, c, e, 'c', C.contour);
+  // reflet : une bande blanche qui balaie le mot une fois
+  const u = (age - 0.15) / 0.35;
+  if (u > 0 && u < 1) {
+    const w = largeurTexte(b.txt, e);
+    const rx = Math.round(b.x - w / 2 + u * w);
+    g.save();
+    g.globalAlpha *= 0.75;
+    g.fillStyle = '#ffffff';
+    g.fillRect(rx, y, 2, 7 * e);
+    g.restore();
   }
 }

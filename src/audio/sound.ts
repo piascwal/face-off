@@ -134,28 +134,11 @@ export class MoteurAudio {
       t += 0.04 + i * 0.006;
     }
   }
-  /** Bonus prêt : petit arpège montant, bien reconnaissable. */
-  bonusPret(): void {
-    [523, 659, 784, 1047].forEach((f, i) => this.ton(f, 0.16, 'square', 0.07, undefined, i * 0.07));
-    this.ton(1568, 0.3, 'sine', 0.06, undefined, 0.28);
-  }
   /** Bonus déclenché : montée « power-up » et souffle. */
   bonusActive(): void {
     this.ton(220, 0.35, 'sawtooth', 0.09, 1320);
     this.ton(330, 0.35, 'square', 0.05, 1760, 0.02);
     this.souffle(0.3, 'highpass', 3000, 0.7, 0.12);
-  }
-  /** Bonus perdu (pas déclenché à temps) : deux notes qui tombent. */
-  bonusPerdu(): void {
-    this.ton(392, 0.16, 'square', 0.06, 330);
-    this.ton(262, 0.3, 'square', 0.06, 196, 0.16);
-  }
-  /** Gamelle : grésillement de signal brouillé. */
-  glitch(): void {
-    for (let i = 0; i < 5; i++) {
-      this.ton(80 + Math.random() * 900, 0.05, 'square', 0.06, undefined, i * 0.07);
-      this.souffle(0.05, 'bandpass', 1500 + Math.random() * 3000, 2, 0.15, i * 0.07 + 0.02);
-    }
   }
   /** Fin d'un bonus : descente courte. */
   bonusFin(): void {
@@ -275,14 +258,9 @@ export function joueEvenements(son: MoteurAudio, evenements: GameEvent[]): void 
       case 'vibre':
         vibre(ev.ms);
         break;
-      case 'glitch':
-        son.glitch();
-        break;
       case 'pouvoir':
         if (ev.quoi === 'tirage') son.tirageBonus();
-        else if (ev.quoi === 'pret') son.bonusPret();
         else if (ev.quoi === 'active') son.bonusActive();
-        else if (ev.quoi === 'perdu') son.bonusPerdu();
         else son.bonusFin();
         break;
       default:

@@ -18,24 +18,18 @@ const COUL: Record<string, string> = {
 
 /** Icônes des bonus, en grilles de 12×12 (une lettre = une couleur de COUL, « . » = transparent). */
 const ICONES: Record<PouvoirId | 'inconnu', string[]> = {
-  // palet qui file vers une cible
-  guide: ['.......rrrr.', '......rwwwwr', '......rwrrwr', '......rwrrwr', '......rwwwwr', '....y..rrrr.', '...y........', '..y.........', '..y.........', '.kkk........', 'kkkkk.......', '.kkk........'],
   // éclair
   vitesse: ['......yyyy..', '.....yyyy...', '....yyyy....', '...yyyy.....', '..yyyyyyy...', '.....yyyy...', '....yyyy....', '...yyy......', '..yyy.......', '.yy.........', 'y...........', '............'],
   // palet en feu
   puissant: ['............', '.o..o.......', 'oyo.oo......', 'oyyooyo.....', '.oyyyyyo....', '..oyywyyo...', '...oyyykkkk.', '....oykkkkkk', '.....kkkkkkk', '.....kgkkkgk', '......kkkkk.', '............'],
   // flocon
   freeze: ['.....c......', '..c..c..c...', '...c.c.c....', '....ccc.....', '.c..cwc..c..', 'ccccwwwcccc.', '.c..cwc..c..', '....ccc.....', '...c.c.c....', '..c..c..c...', '.....c......', '............'],
-  // savon et bulles
-  savon: ['........ww..', '..ww...w..w.', '.w..w..w..w.', '.w..w...ww..', '..ww........', '.pppppppppp.', 'pwwppppppppp', 'pwppppppppnp', 'ppppppppppnp', '.pppppppppn.', '..nnnnnnnn..', '............'],
+  // full esquive : une flèche qui contourne le défenseur
+  savon: ['............', '............', '...cccccc...', '..c......c..', '.c........c.', '.c........c.', '.c...rr..ccc', '.c..rrrr..c.', '.c..rrrr....', 'ww...rr.....', '............', '............'],
   // flèches opposées
   inversion: ['............', '..m.........', '.mm.........', 'mmmmmmmmmm..', '.mm.........', '..m.........', '.........m..', '.........mm.', '..mmmmmmmmmm', '.........mm.', '.........m..', '............'],
-  // zigzag entre deux bandes
-  ricochet: ['g..........g', 'gc.........g', 'g.c.......cg', 'g..c.....c.g', 'g...c...c..g', 'g....c.c...g', 'g.....c....g', 'g....c.c...g', 'g...c...c..g', 'g..c.....kkg', 'g.c......kkg', 'gc.........g'],
   // +1
   surnombre: ['............', '.........ee.', '...e....eee.', '...e.....ee.', '.eeeee...ee.', '...e.....ee.', '...e.....ee.', '.........ee.', '........eeee', '............', '............', '............'],
-  // -1
-  gamelle: ['............', '.........rr.', '........rrr.', '.........rr.', '.rrrrr...rr.', '.........rr.', '.........rr.', '.........rr.', '........rrrr', '............', '............', '............'],
   // 2X
   double: ['............', '.yyy..y...y.', 'y...y.y...y.', '....y..y.y..', '...y....y...', '..y....y.y..', '.y....y...y.', 'yyyyy.y...y.', '............', '............', '............', '............'],
   // bonus pas encore tiré

@@ -1,4 +1,4 @@
-import { zoneBonus, zoneElan, zonePasse, zonePause, zoneTir } from './hud-zones';
+import { zoneElan, zonePasse, zonePause, zoneTir } from './hud-zones';
 import { largeurTexte, texte } from './pixel-font';
 import { anneau, disque, ligne, px } from './primitives';
 import { C } from './theme';
@@ -68,7 +68,6 @@ function dessineTactile(g: CanvasRenderingContext2D, W: number, H: number, temps
   const zp = zonePasse(W, H);
   const ze = zoneElan(W, H);
   const zpa = zonePause(W);
-  const zb = zoneBonus(W, H);
   const lx = ox + mw + 12;
   const etiquette = (bx: number, by: number, ly: number, col: string, titre: string, sous: string) => {
     ligne(g, bx, by, lx - 3, ly + 3, '#4a5380');
@@ -79,27 +78,24 @@ function dessineTactile(g: CanvasRenderingContext2D, W: number, H: number, temps
   const pe = m(ze);
   const pt = m(zt);
   const pp = m(zp);
-  const pb = m(zb);
   // étiquettes à hauteur de leur bouton (sans se chevaucher), traits dessinés sous les boutons
   const yE = pe.y - 7;
-  const yB = Math.max(pb.y - 7, yE + 18);
-  const yT = Math.max(pt.y - 7, yB + 18);
+  const yT = Math.max(pt.y - 7, yE + 18);
   const yP = yT + 18;
   etiquette(pause.x + 4, pause.y, pause.y - 3, C.blanc, 'PAUSE', '');
   etiquette(pe.x, pe.y, yE, '#3fb4e8', 'SPRINT', 'ESQUIVE / ECHEC');
-  etiquette(pb.x, pb.y, yB, C.or, 'BONUS', 'BONUS TIR : VISER');
   etiquette(pt.x, pt.y, yT, '#ff5470', 'TIR', 'CROSSE SANS PALET');
   etiquette(pp.x, pp.y, yP, '#35c47a', 'PASSE', 'CHANGE SANS PALET');
   px(g, pause.x - 3, pause.y - 3, 2, 6, C.blanc);
   px(g, pause.x + 1, pause.y - 3, 2, 6, C.blanc);
   disque(g, pe.x, pe.y, Math.round(ze.r * k), '#3fb4e8');
-  disque(g, pb.x, pb.y, Math.round(zb.r * k), '#e8a820');
   disque(g, pt.x, pt.y, Math.round(zt.r * k), '#e03a58');
   disque(g, pp.x, pp.y, Math.round(zp.r * k), '#35c47a');
 
   const ty = Math.max(oy + mh + 9, yP + 20);
   texte(g, 'TIR : MAINTENIR POUR CHARGER - GLISSER LE DOIGT POUR VISER', W / 2, ty, C.gris, 1, 'c');
   texte(g, 'SPRINT DEVIENT ESQUIVE QUAND UN DEFENSEUR ARRIVE', W / 2, ty + 10, C.gris, 1, 'c');
+  texte(g, 'BONUS : 4 PASSES DE SUITE, IL PART TOUT SEUL - UN BOUTON DORE EST A UTILISER', W / 2, ty + 20, C.or, 1, 'c');
 }
 
 const TOUCHES: [string[], string, string?][] = [
@@ -107,7 +103,6 @@ const TOUCHES: [string[], string, string?][] = [
   [['ESPACE', 'J', 'X'], 'TIR - MAINTENIR POUR CHARGER', 'CROSSE SANS LE PALET'],
   [['L', 'V'], 'PASSE', 'CHANGER DE JOUEUR SANS LE PALET'],
   [['MAJ', 'K', 'C'], 'SPRINT - ESQUIVE', 'MISE EN ECHEC SANS LE PALET'],
-  [['B', 'N'], 'BONUS QUAND IL EST PRET', 'BONUS DE TIR : COMME LE TIR'],
   [['ECHAP', 'P'], 'PAUSE'],
   [['ENTREE'], 'VALIDER / REPRENDRE'],
 ];

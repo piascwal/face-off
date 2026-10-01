@@ -100,11 +100,9 @@ export interface Puck {
   /** Tir en cours : nombre de passes réussies qui l'ont précédé, et tir sur réception ou non. */
   passes: number;
   uneTouche: boolean;
-  /** Tir guidé en vol : hauteur du coin visé dans la cage adverse. */
-  guide: { y: number } | null;
   /** Tir surpuissant en vol : il renverse les adversaires sur sa trajectoire. */
   puissant: boolean;
-  /** Traînée spéciale (rendu) : 0 aucune, 1 tir guidé, 2 ricochet, 3 tir surpuissant. */
+  /** Traînée spéciale (rendu) : 0 aucune, 3 tir surpuissant. */
   lueur: number;
 }
 
@@ -143,7 +141,7 @@ export function statsVides(): StatsMatch {
 export type GameMode = 'demo' | 'match';
 
 /** Bonus (power-ups), voir pouvoirs.ts. */
-export type PouvoirId = 'guide' | 'vitesse' | 'puissant' | 'freeze' | 'savon' | 'inversion' | 'ricochet' | 'surnombre' | 'gamelle' | 'double';
+export type PouvoirId = 'vitesse' | 'puissant' | 'freeze' | 'savon' | 'inversion' | 'surnombre' | 'double';
 
 /** Bonus d'une équipe : jauge de passes, bonus en main, effet en cours. */
 export interface EtatPouvoirs {
@@ -153,14 +151,14 @@ export interface EtatPouvoirs {
   seuil: number;
   /** Tirage en cours (s restantes) : le bonus est connu, mais pas encore utilisable. */
   tirage: number;
-  /** Bonus en main, prêt à être déclenché. */
+  /** Bonus tiré (pendant le tirage, puis jusqu'à ce qu'il parte, dès que le jeu tourne). */
   pret: PouvoirId | null;
-  /** Bonus en cours, et son temps restant (s ; Infinity : jusqu'au prochain but). */
+  /** Bonus en cours, et son temps restant (s ; un but y met fin plus tôt). */
   actif: PouvoirId | null;
   reste: number;
   /** Rang du joueur doré quand c'est l'ordinateur qui a déclenché le bonus (-1 : aucun). */
   dore: number;
-  /** Depuis combien de temps le bonus prêt attend d'être déclenché (s) : perdu à PRET_MAX_S. */
+  /** Entraînement : temps écoulé depuis la fin du bonus (il revient à ENTRAINEMENT_RETOUR_S). */
   attente: number;
 }
 
@@ -188,13 +186,12 @@ export type GameEvent =
   | { type: 'secousse'; force: number }
   | { type: 'flash'; force: number }
   | { type: 'vibre'; ms: number | number[] }
-  | { type: 'bulle'; txt: string; x: number; y: number; c: string }
+  // `gros` : en grand, avec un contour (le « BONUS » doré de la 4e passe)
+  | { type: 'bulle'; txt: string; x: number; y: number; c: string; gros?: boolean }
   // bonus : `id` = index dans POUVOIRS (voir pouvoirs.ts)
-  | { type: 'pouvoir'; eq: TeamId; quoi: 'tirage' | 'pret' | 'active' | 'fin' | 'perdu'; id: number }
+  | { type: 'pouvoir'; eq: TeamId; quoi: 'tirage' | 'active' | 'fin'; id: number }
   // onde de choc circulaire (rendu) : rayon final `r` (px)
   | { type: 'onde'; x: number; y: number; r: number; c: string }
-  // gamelle : brouillage de l'écran, et « -1 » sur le score de l'équipe `eq`
-  | { type: 'glitch'; eq: TeamId }
   // `c` est une couleur neutre de repli ; quand `eq` est fourni, le rendu
   // préfère la couleur de maillot de cette équipe (core ne connaît pas les
   // couleurs de maillot — voir render/team-visuals.ts).
@@ -210,8 +207,6 @@ export interface InputIntent {
   tirRelache: boolean;
   passeAppui: boolean;
   elanAppui: boolean;
-  /** Déclenche le bonus prêt de l'équipe. */
-  bonusAppui: boolean;
   /** Angle de visée manuelle (glissé), ou null si pilotage à l'analogique/clavier. */
   viseeManuelle: number | null;
 }
@@ -224,7 +219,6 @@ export const INTENT_VIDE: InputIntent = {
   tirRelache: false,
   passeAppui: false,
   elanAppui: false,
-  bonusAppui: false,
   viseeManuelle: null,
 };
 

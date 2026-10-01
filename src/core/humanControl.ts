@@ -1,6 +1,5 @@
 import { changeJoueur, coupDeCrosse, elan, esquive, menaceEchec, passeJoueur, surReception, tir } from './actions';
 import { BUT_DEMI, ECHEC_PORTEE, ESQUIVE_VERROU, UNE_TOUCHE_CHARGE } from './constants';
-import { activePouvoir } from './pouvoirs';
 import { angleVersCoinLoin, butAttaque } from './shooting';
 import type { InputIntent, MatchState, Rink, Skater } from './types';
 import { angDiff } from './utils';
@@ -86,7 +85,6 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
   // un joueur repris en main abandonne la mise en échec que l'IA préparait
   s.prepaEchecT = 0;
   const actif = state.phase === 'jeu';
-  if (intent.bonusAppui && actif) activePouvoir(rink, state, s.eq, s);
   // sans le palet, le gros bouton donne un coup de CROSSE
   if (intent.tirAppui && actif && !s.tient) coupDeCrosse(state, s);
   if (intent.tirTenu && s.tient && !s.arme && actif) {

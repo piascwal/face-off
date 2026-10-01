@@ -1,20 +1,20 @@
 import { nouveauPatineur } from './entities';
-import { butAttaque } from './shooting';
 import type { EtatPouvoirs, MatchState, PouvoirId, Rink, Skater, TeamId } from './types';
 
 /**
  * Bonus (power-ups) : chaque équipe remplit sa jauge en enchaînant des passes
  * réussies. Au seuil (4 passes, toujours), un bonus est tiré au sort parmi
  * tous les bonus, pour les deux équipes de la même façon : personne n'est
- * avantagé pour tout le match par un tirage chanceux. L'équipe a ensuite
- * PRET_MAX_S secondes de jeu pour le déclencher, sinon il est perdu.
+ * avantagé pour tout le match par un tirage chanceux. Le bonus se déclenche
+ * tout seul à la fin du tirage, pour un temps limité ; un but met fin à tous
+ * les bonus.
  */
 /** Ordre fixe : l'index d'un bonus dans cette liste est ce qui voyage en Wi-Fi. */
-export const POUVOIRS: PouvoirId[] = ['guide', 'vitesse', 'puissant', 'freeze', 'savon', 'inversion', 'ricochet', 'surnombre', 'gamelle', 'double'];
+export const POUVOIRS: PouvoirId[] = ['vitesse', 'puissant', 'freeze', 'savon', 'inversion', 'surnombre', 'double'];
 
 export interface DefPouvoir {
   nom: string;
-  /** Durée (s, en temps de jeu) ; Infinity : jusqu'à ce que l'effet serve (prochain but). */
+  /** Durée maximale (s, en temps de jeu) ; un but y met fin plus tôt. */
   duree: number;
   /** Un joueur devient doré (celui qu'on pilote, ou celui qui l'a déclenché pour l'ordinateur). */
   dore: boolean;
@@ -23,16 +23,13 @@ export interface DefPouvoir {
 }
 
 export const DEF_POUVOIRS: Record<PouvoirId, DefPouvoir> = {
-  guide: { nom: 'TIR GUIDE', duree: 10, dore: true, dispo: true },
   vitesse: { nom: 'SUPER VITESSE', duree: 6, dore: true, dispo: true },
   puissant: { nom: 'TIR SURPUISSANT', duree: 10, dore: true, dispo: true },
   freeze: { nom: 'FREEZE', duree: 3, dore: true, dispo: true },
-  savon: { nom: 'MODE SAVON', duree: 8, dore: true, dispo: true },
+  savon: { nom: 'FULL ESQUIVE', duree: 8, dore: true, dispo: true },
   inversion: { nom: 'INVERSION', duree: 5, dore: true, dispo: true },
-  ricochet: { nom: 'RICOCHET', duree: 8, dore: true, dispo: true },
   surnombre: { nom: 'SURNOMBRE', duree: 10, dore: false, dispo: true },
-  gamelle: { nom: 'GAMELLE', duree: 10, dore: true, dispo: true },
-  double: { nom: 'BUT X2', duree: Infinity, dore: false, dispo: true },
+  double: { nom: 'BUT X2', duree: 10, dore: false, dispo: true },
 };
 
 /**
@@ -41,34 +38,23 @@ export const DEF_POUVOIRS: Record<PouvoirId, DefPouvoir> = {
  * menée au score (voir `poidsPouvoirs`).
  */
 export const POIDS_POUVOIRS: Record<PouvoirId, number> = {
-  guide: 1,
   vitesse: 1,
   puissant: 1,
   freeze: 1,
   savon: 1,
   inversion: 1,
-  ricochet: 1,
   surnombre: 1,
-  gamelle: 1,
   double: 1,
 };
 
 /** Passes réussies d'affilée pour obtenir un bonus (toujours le même nombre). */
 export const SEUIL_PASSES = 4;
-/** Temps de jeu (s) pour déclencher un bonus prêt ; au-delà, il est perdu. */
-export const PRET_MAX_S = 10;
 /** Durée du tirage (icônes qui défilent dans la case du bonus), en s. */
 export const TIRAGE_S = 1.2;
 /** Fin d'un bonus : le joueur doré clignote pendant ces dernières secondes. */
 export const ALERTE_FIN_S = 2;
 /** Super vitesse : vitesse et accélération du joueur doré. */
 export const VITESSE_FACTEUR = 1.4;
-/** Tir guidé : virage maximal du palet vers le coin visé (rad/s) et bonus de qualité du tir. */
-export const GUIDE_VIRAGE = 5;
-export const GUIDE_BONUS = 0.3;
-/** Ricochet : le palet repart des bandes plus vite qu'il n'y est arrivé (dans la limite de RICOCHET_VMAX px/s). */
-export const RICOCHET_GAIN = 1.12;
-export const RICOCHET_VMAX = 480;
 /** Tir surpuissant : vitesse du palet, bonus de qualité, et adversaires renversés (s au sol, portée en px autour du corps). */
 export const PUISSANT_VITESSE = 1.5;
 export const PUISSANT_BONUS = 0.2;
@@ -80,8 +66,6 @@ export const PUISSANT_VMIN = 160;
 export const RANG_RENFORT = 9;
 /** Mode entraînement : délai (s) avant que le bonus choisi revienne, après usage. */
 export const ENTRAINEMENT_RETOUR_S = 0.8;
-/** L'ordinateur utilise de toute façon son bonus au bout de ce temps (s). */
-export const IA_ATTENTE_MAX = 6;
 
 export function etatPouvoirsInitial(): EtatPouvoirs {
   return { passes: 0, seuil: SEUIL_PASSES, tirage: 0, pret: null, actif: null, reste: 0, dore: -1, attente: 0 };
@@ -106,9 +90,17 @@ export function tirePouvoir(state: MatchState, eq: TeamId, alea = Math.random())
   return POUVOIRS.find((id) => poids[id] > 0) ?? 'vitesse';
 }
 
+/**
+ * Le bouton qu'un bonus en cours de l'équipe fait utiliser (il passe en or
+ * pour guider le joueur) : 'tir' pour le tir surpuissant, sinon null.
+ */
+export function boutonBonus(state: MatchState, eq: TeamId): 'tir' | null {
+  return state.pouvoirs?.[eq].actif === 'puissant' ? 'tir' : null;
+}
+
 export const pouvoirActif = (state: MatchState, eq: TeamId, id: PouvoirId): boolean => state.pouvoirs?.[eq].actif === id;
 
-/** Le bonus de l'équipe est-il prêt à être déclenché (tirage terminé) ? */
+/** Le bonus de l'équipe a-t-il fini son tirage (il part dès que le jeu tourne) ? */
 export const pouvoirPret = (state: MatchState, eq: TeamId): boolean => {
   const p = state.pouvoirs?.[eq];
   return !!p && p.pret !== null && p.tirage <= 0 && p.actif === null;
@@ -124,20 +116,24 @@ export function joueurDore(state: MatchState, eq: TeamId): Skater | null {
 
 export const estDore = (state: MatchState, s: Skater): boolean => state.pouvoirs !== null && joueurDore(state, s.eq) === s;
 
-/** Une passe réussie de plus pour l'équipe : au seuil, un bonus est tiré. */
-export function comptePasse(state: MatchState, eq: TeamId, qui: Skater): void {
+/**
+ * Une passe réussie de plus pour l'équipe : au seuil, un bonus est tiré
+ * (renvoie true : le « BONUS » doré remplace alors la bulle de combo).
+ */
+export function comptePasse(state: MatchState, eq: TeamId, qui: Skater): boolean {
   const p = state.pouvoirs?.[eq];
   // bonus déjà en main ou en cours : les passes ne remplissent plus la jauge ;
   // en entraînement, pas de jauge (le bonus choisi revient tout seul)
-  if (!p || p.pret !== null || p.actif !== null || state.entrainement) return;
+  if (!p || p.pret !== null || p.actif !== null || state.entrainement) return false;
   p.passes++;
-  if (p.passes < p.seuil) return;
+  if (p.passes < p.seuil) return false;
   p.passes = 0;
   p.pret = tirePouvoir(state, eq);
   p.tirage = TIRAGE_S;
   p.attente = 0;
   state.evenements.push({ type: 'pouvoir', eq, quoi: 'tirage', id: POUVOIRS.indexOf(p.pret) });
-  state.evenements.push({ type: 'bulle', txt: 'BONUS !', x: qui.x, y: qui.y - 20, c: '#ffd35c' });
+  state.evenements.push({ type: 'bulle', txt: 'BONUS', x: qui.x, y: qui.y - 30, c: '#ffd35c', gros: true });
+  return true;
 }
 
 /** La série de passes de l'équipe s'arrête (interception, arrêt du gardien, but). */
@@ -146,7 +142,10 @@ export function cassePasses(state: MatchState, eq: TeamId): void {
   if (p) p.passes = 0;
 }
 
-/** Déclenche le bonus prêt de l'équipe ; `qui` : le joueur qui le déclenche (doré pour l'ordinateur). */
+/**
+ * Déclenche le bonus prêt de l'équipe (fin du tirage) ; `qui` : le joueur
+ * qui devient doré (celui qu'on pilote, ou le plus proche du palet pour l'ordinateur).
+ */
 export function activePouvoir(rink: Rink, state: MatchState, eq: TeamId, qui: Skater | null): boolean {
   const p = state.pouvoirs?.[eq];
   if (!p || !pouvoirPret(state, eq) || state.phase !== 'jeu') return false;
@@ -177,8 +176,8 @@ export function finPouvoir(state: MatchState, eq: TeamId): void {
   p.dore = -1;
 }
 
-/** Chaque pas : tirage en cours, durée des effets (seulement pendant le jeu), et lueur du palet. */
-export function majPouvoirs(state: MatchState, dt: number): void {
+/** Chaque pas : tirage en cours, déclenchement à sa fin, durée des effets (seulement pendant le jeu), et lueur du palet. */
+export function majPouvoirs(rink: Rink, state: MatchState, dt: number): void {
   const pv = state.pouvoirs;
   const pal = state.palet;
   if (!pv) {
@@ -187,80 +186,25 @@ export function majPouvoirs(state: MatchState, dt: number): void {
   }
   for (const eq of [0, 1] as TeamId[]) {
     const p = pv[eq];
-    if (p.tirage > 0) {
-      p.tirage = Math.max(0, p.tirage - dt);
-      if (p.tirage === 0 && p.pret) state.evenements.push({ type: 'pouvoir', eq, quoi: 'pret', id: POUVOIRS.indexOf(p.pret) });
+    if (p.tirage > 0) p.tirage = Math.max(0, p.tirage - dt);
+    if (p.actif && state.phase === 'jeu') {
+      p.reste -= dt;
+      if (p.reste <= 0) finPouvoir(state, eq);
     }
-    // entraînement : le bonus choisi revient peu après chaque usage, et ne se perd pas
-    if (state.entrainement && state.humains[eq]) {
-      if (!p.pret && !p.actif) {
-        p.attente += dt;
-        if (p.attente >= ENTRAINEMENT_RETOUR_S) {
-          p.pret = state.entrainement;
-          p.tirage = 0;
-          p.attente = 0;
-          state.evenements.push({ type: 'pouvoir', eq, quoi: 'pret', id: POUVOIRS.indexOf(p.pret) });
-        }
-      }
-    } else if (p.pret && p.tirage <= 0 && state.phase === 'jeu') {
+    // entraînement : le bonus choisi revient peu après chaque usage
+    if (state.entrainement && state.humains[eq] && !p.pret && !p.actif) {
       p.attente += dt;
-      // pas déclenché à temps : le bonus est perdu
-      if (p.attente >= PRET_MAX_S) {
-        state.evenements.push({ type: 'pouvoir', eq, quoi: 'perdu', id: POUVOIRS.indexOf(p.pret) });
-        const qui = state.controles[eq] ?? pal;
-        state.evenements.push({ type: 'bulle', txt: 'BONUS PERDU', x: qui.x, y: qui.y - 22, c: '#ff6b6b' });
-        p.pret = null;
+      if (p.attente >= ENTRAINEMENT_RETOUR_S) {
+        p.pret = state.entrainement;
+        p.tirage = 0;
         p.attente = 0;
       }
     }
-    if (p.actif && state.phase === 'jeu' && Number.isFinite(p.reste)) {
-      p.reste -= dt;
-      if (p.reste <= 0) {
-        finPouvoir(state, eq);
-      }
-    }
+    // tirage terminé : le bonus part tout seul, dès que le jeu tourne (avec toute sa durée)
+    if (pouvoirPret(state, eq) && state.phase === 'jeu') activePouvoir(rink, state, eq, quiDore(state, eq));
   }
   if (pal.puissant && (pal.porteur || pal.tireur === null || Math.hypot(pal.vx, pal.vy) < PUISSANT_VMIN)) pal.puissant = false;
-  const eqPalet = pal.dernier?.eq;
-  pal.lueur = pal.puissant ? 3 : pal.guide ? 1 : eqPalet !== undefined && !pal.porteur && pv[eqPalet].actif === 'ricochet' ? 2 : 0;
-}
-
-/** Tir guidé : l'équipe tire avec le bonus en cours, qui est consommé. Renvoie le bonus de qualité. */
-export function tirGuide(rink: Rink, state: MatchState, s: Skater, ang: number): number {
-  if (!pouvoirActif(state, s.eq, 'guide')) return 0;
-  const p = state.palet;
-  // le coin visé : celui vers lequel le tir part, ou le plus loin du gardien
-  const gx = butAttaque(rink, s.eq);
-  const yVise = s.y + Math.tan(ang) * (gx - s.x);
-  const cote = Number.isFinite(yVise) ? Math.sign(yVise - rink.cy) || 1 : 1;
-  p.guide = { y: rink.cy + cote * 11 };
-  finPouvoir(state, s.eq);
-  state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 10, c: '#fff3b0' });
-  return GUIDE_BONUS;
-}
-
-/** Tir guidé en vol : le palet s'incurve vers le coin visé (sans changer de vitesse). */
-export function guidePalet(rink: Rink, state: MatchState, dt: number): void {
-  const p = state.palet;
-  if (!p.guide) return;
-  if (p.porteur || p.tireur === null) {
-    p.guide = null;
-    return;
-  }
-  const gx = butAttaque(rink, p.tireur);
-  const v = Math.hypot(p.vx, p.vy);
-  if (v < 40) return;
-  const dx = gx - p.x;
-  const dy = p.guide.y - p.y;
-  // on ne ramène pas un palet qui file déjà dans l'autre sens
-  if (dx * p.vx < 0) return;
-  const a = Math.atan2(p.vy, p.vx);
-  let d = Math.atan2(dy, dx) - a;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  const na = a + Math.max(-GUIDE_VIRAGE * dt, Math.min(GUIDE_VIRAGE * dt, d));
-  p.vx = Math.cos(na) * v;
-  p.vy = Math.sin(na) * v;
+  pal.lueur = pal.puissant ? 3 : 0;
 }
 
 /**
@@ -349,19 +293,6 @@ function retireRenfort(state: MatchState, eq: TeamId): void {
   state.evenements.push({ type: 'etincelles', x: r.x, y: r.y - 6, n: 12, c: '#ffd35c' });
 }
 
-/**
- * Gamelle : l'équipe vient de marquer avec le bonus en cours. L'adversaire
- * perd un but (sans descendre sous zéro), et le bonus est consommé.
- */
-export function gamelle(state: MatchState, eq: TeamId): boolean {
-  if (!pouvoirActif(state, eq, 'gamelle')) return false;
-  const adv: TeamId = eq === 0 ? 1 : 0;
-  state.score[adv] = Math.max(0, state.score[adv] - 1);
-  finPouvoir(state, eq);
-  state.evenements.push({ type: 'glitch', eq: adv });
-  return true;
-}
-
 /** Freeze : le joueur est-il pris dans la glace (tout le monde sauf le joueur doré de l'équipe qui l'a déclenché) ? */
 export function estGele(state: MatchState, s: Skater): boolean {
   const pv = state.pouvoirs;
@@ -373,40 +304,12 @@ export function estGele(state: MatchState, s: Skater): boolean {
 /** Inversion : les déplacements des joueurs de l'équipe `eq` sont-ils inversés (bonus adverse en cours) ? */
 export const estInverse = (state: MatchState, eq: TeamId): boolean => pouvoirActif(state, eq === 0 ? 1 : 0, 'inversion');
 
-/** Ricochet : le palet a-t-il été joué par une équipe dont le bonus Ricochet est en cours ? */
-export function ricochet(state: MatchState): boolean {
-  const eq = state.palet.dernier?.eq;
-  return eq !== undefined && pouvoirActif(state, eq, 'ricochet');
-}
-
-/**
- * L'ordinateur déclenche son bonus au bon moment : quand il a le palet (près
- * du but adverse pour le tir guidé), ou au plus tard après IA_ATTENTE_MAX.
- */
-export function iaPouvoirs(rink: Rink, state: MatchState): void {
-  if (!state.pouvoirs || state.phase !== 'jeu') return;
-  for (const eq of [0, 1] as TeamId[]) {
-    if (state.humains[eq] || !pouvoirPret(state, eq)) continue;
-    const p = state.pouvoirs[eq];
-    const porteur = state.palet.porteur;
-    const nous = porteur && 'face' in porteur && porteur.eq === eq ? porteur : null;
-    let go = p.attente > IA_ATTENTE_MAX;
-    switch (p.pret) {
-      case 'double':
-        go ||= p.attente > 1;
-        break;
-      case 'guide':
-      case 'puissant':
-      case 'gamelle':
-        go ||= !!nous && Math.abs(nous.x - butAttaque(rink, eq)) < rink.w * 0.4;
-        break;
-      default:
-        go ||= !!nous && p.attente > 0.5;
-    }
-    if (!go) continue;
-    const qui = nous ?? plusProcheDuPalet(state, eq);
-    activePouvoir(rink, state, eq, qui);
-  }
+/** Le joueur qui devient doré : celui qu'on pilote, sinon le porteur du palet, sinon le plus proche du palet. */
+function quiDore(state: MatchState, eq: TeamId): Skater | null {
+  if (state.humains[eq] && state.controles[eq]) return state.controles[eq];
+  const porteur = state.palet.porteur;
+  if (porteur && 'face' in porteur && porteur.eq === eq) return porteur;
+  return plusProcheDuPalet(state, eq);
 }
 
 function plusProcheDuPalet(state: MatchState, eq: TeamId): Skater | null {

@@ -148,7 +148,6 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
   state.combo = [0, 0];
   cassePasses(state, 0);
   cassePasses(state, 1);
-  p.guide = null;
   p.puissant = false;
   state.reception = null;
   p.passes = 0;

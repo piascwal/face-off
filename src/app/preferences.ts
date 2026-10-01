@@ -64,7 +64,7 @@ const DEFAUT: Preferences = {
   mode: 'classique',
   coupe: null,
   bonus: true,
-  bonusEntrainement: 'guide',
+  bonusEntrainement: 'puissant',
 };
 
 const SURNOMS = ['LYNX', 'ORQUE', 'AIGLE', 'LOUP', 'OURS', 'PUMA', 'FAUCON', 'BISON', 'RENARD', 'TIGRE', 'COBRA', 'HIBOU', 'REQUIN', 'ZEBRE'];
@@ -93,7 +93,7 @@ export function chargePreferences(): Preferences {
   if (!pref.duels || typeof pref.duels !== 'object') pref.duels = {};
   if (pref.mode !== 'coupe') pref.mode = 'classique';
   pref.coupe = lisCoupe(pref.coupe);
-  if (!POUVOIRS.includes(pref.bonusEntrainement)) pref.bonusEntrainement = 'guide';
+  if (!POUVOIRS.includes(pref.bonusEntrainement)) pref.bonusEntrainement = 'puissant';
   if (modifie) sauvePreferences(pref);
   return pref;
 }

@@ -432,26 +432,6 @@ export function dessinePalet(g: CanvasRenderingContext2D, p: Puck, temps = 0): v
       g.fillRect(Math.round(p.x - ux * k - uy * tremble) - ep / 2, Math.round(p.y - uy * k + ux * tremble) - ep / 2, ep, ep);
     }
     g.globalAlpha = 1;
-  } else if (!p.porteur && p.lueur && v > 40) {
-    // bonus : traînée scintillante dorée (tir guidé) ou néon (ricochet), plus longue et lumineuse
-    const col = p.lueur === 1 ? '#f0a810' : '#10b4f0';
-    const ux = p.vx / v;
-    const uy = p.vy / v;
-    const L = Math.min(40, v * 0.1);
-    g.fillStyle = col;
-    for (let k = 1; k <= L; k++) {
-      g.globalAlpha = 0.9 * (1 - k / L);
-      g.fillRect(Math.round(p.x - ux * k) - 1, Math.round(p.y - uy * k) - 1, 3, 3);
-    }
-    // scintillement : quelques éclats qui s'allument le long de la traînée
-    g.fillStyle = p.lueur === 1 ? '#c87800' : '#0a7cc0';
-    for (let i = 0; i < 4; i++) {
-      const k = (((temps * 37 + i * 11) % L) + L) % L;
-      const cote = Math.sin(temps * 50 + i * 2) * 3;
-      g.globalAlpha = 0.8 * (1 - k / L);
-      g.fillRect(Math.round(p.x - ux * k - uy * cote), Math.round(p.y - uy * k + ux * cote), 1, 1);
-    }
-    g.globalAlpha = 1;
   } else if (!p.porteur && v > 120) {
     const tir = v > 330 || (p.tireur !== null && v > 200);
     const col = tir ? '#ff7a1a' : '#1fa8e8';

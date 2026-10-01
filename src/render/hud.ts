@@ -24,8 +24,6 @@ export function dessineTableau(
   state: MatchState,
   ecranUI: string,
   equipes: [EquipeVisuelle, EquipeVisuelle],
-  /** Gamelle : temps restant du « -1 » sur le score de chaque équipe. */
-  malus: [number, number] = [0, 0],
 ): void {
   const cx = Math.round(W / 2);
   // assez large pour les noms longs (TOULOUSE, GRENOBLE) sans toucher le score
@@ -47,20 +45,6 @@ export function dessineTableau(
   if (state.bonus[1] !== 'aucun') etoile(g, x + lw - 9 - largeurTexte(equipes[1].code) - 9, y + 7);
   texte(g, state.score[0], cx - 22, y + 3, C.blanc, 2, 'c');
   texte(g, state.score[1], cx + 22, y + 3, C.blanc, 2, 'c');
-  for (const eq of [0, 1] as const) {
-    const sx = eq === 0 ? cx - 22 : cx + 22;
-    if (malus[eq] > 0) {
-      // gamelle tombée : « -1 » rouge qui saute sous le score puis s'efface
-      const age = 2.5 - malus[eq];
-      g.globalAlpha = Math.min(1, malus[eq] / 0.5);
-      texte(g, '-1', sx, y + 22 + Math.round(Math.max(0, 0.3 - age) * 20), '#ff4a4a', 2, 'c');
-      g.globalAlpha = 1;
-    } else if (state.pouvoirs?.[eq === 0 ? 1 : 0].actif === 'gamelle' && Math.floor(state.temps * 3) % 2) {
-      // gamelle adverse en cours : la menace clignote sous ce score
-      texte(g, '-1 ?', sx, y + 22, '#ff6b6b', 1, 'c');
-    }
-  }
-
   let h: string;
   if (state.mode !== 'match') h = 'DEMO';
   else if (state.prolong) h = 'PROL';

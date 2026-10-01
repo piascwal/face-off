@@ -1,16 +1,14 @@
-import { describe, expect, it } from 'vitest';
-import { passeVers, prendPalet, tir } from '../src/core/actions';
-import { bougePatineur, collisionsPatineurs, majPalet, segmentsCage } from '../src/core/physics';
+import { describe, expect, it, vi } from 'vitest';
+import { coupDeCrosse, passeVers, pointCrosse, prendPalet, tir } from '../src/core/actions';
+import { bougePatineur, collisionsPatineurs, majPalet, recuperations, segmentsCage } from '../src/core/physics';
 import {
   activePouvoir,
+  boutonBonus,
   comptePasse,
   DEF_POUVOIRS,
-  GUIDE_BONUS,
-  iaPouvoirs,
   majPouvoirs,
   POUVOIRS,
   pouvoirPret,
-  PRET_MAX_S,
   SEUIL_PASSES,
   TIRAGE_S,
   tirePouvoir,
@@ -50,7 +48,7 @@ function donne(st: MatchState, eq: TeamId, id: PouvoirId): void {
 }
 
 describe('bonus : jauge de passes et tirage', () => {
-  it('4 passes réussies débloquent un bonus tiré au sort, utilisable après le tirage', () => {
+  it('4 passes réussies débloquent un bonus tiré au sort, qui part tout seul à la fin du tirage', () => {
     const st = partie();
     passes(st, 0, SEUIL_PASSES - 1);
     expect(st.pouvoirs![0].passes).toBe(SEUIL_PASSES - 1);
@@ -61,13 +59,20 @@ describe('bonus : jauge de passes et tirage', () => {
     expect(DEF_POUVOIRS[pv.pret!].dispo).toBe(true);
     expect(pv.passes).toBe(0);
     expect(st.evenements.some((e) => e.type === 'pouvoir' && e.quoi === 'tirage')).toBe(true);
-    // pendant le tirage, on ne peut pas encore le déclencher
-    expect(activePouvoir(rink, st, 0, st.controles[0])).toBe(false);
-    majPouvoirs(st, TIRAGE_S + 0.01);
-    expect(st.evenements.some((e) => e.type === 'pouvoir' && e.quoi === 'pret')).toBe(true);
-    expect(pouvoirPret(st, 0)).toBe(true);
-    expect(activePouvoir(rink, st, 0, st.controles[0])).toBe(true);
+    // à la 4e passe : le gros « BONUS » doré, sans la bulle de combo
+    const bulles = st.evenements.filter((e) => e.type === 'bulle');
+    expect(bulles.at(-1)).toMatchObject({ txt: 'BONUS', gros: true });
+    expect(bulles.some((e) => e.type === 'bulle' && e.txt === `COMBO x${SEUIL_PASSES}`)).toBe(false);
+    // pendant le tirage, il ne part pas encore
+    majPouvoirs(rink, st, TIRAGE_S - 0.1);
+    expect(pv.actif).toBeNull();
+    expect(pouvoirPret(st, 0)).toBe(false);
+    majPouvoirs(rink, st, 0.11);
+    expect(st.evenements.some((e) => e.type === 'pouvoir' && e.quoi === 'active')).toBe(true);
     expect(pv.actif).not.toBeNull();
+    expect(pv.reste).toBe(DEF_POUVOIRS[pv.actif!].duree);
+    // le joueur piloté devient doré
+    if (DEF_POUVOIRS[pv.actif!].dore) expect(pv.dore).toBe(st.controles[0]!.rang);
     expect(pv.pret).toBeNull();
     // le prochain bonus demande toujours le même nombre de passes
     expect(pv.seuil).toBe(SEUIL_PASSES);
@@ -101,21 +106,31 @@ describe('bonus : jauge de passes et tirage', () => {
     expect(st.pouvoirs![1].passes).toBe(0);
   });
 
-  it('un bonus prêt non déclenché à temps est perdu (temps de jeu seulement)', () => {
+  it('un bonus tiré hors du jeu (engagement, ralenti) attend la reprise pour partir', () => {
     const st = partie();
     donne(st, 0, 'vitesse');
-    st.phase = 'but';
-    majPouvoirs(st, PRET_MAX_S + 1);
+    st.phase = 'engagement';
+    majPouvoirs(rink, st, 5);
+    expect(st.pouvoirs![0].actif).toBeNull();
     expect(st.pouvoirs![0].pret).toBe('vitesse');
     st.phase = 'jeu';
-    majPouvoirs(st, PRET_MAX_S - 0.5);
-    expect(st.pouvoirs![0].pret).toBe('vitesse');
-    majPouvoirs(st, 0.6);
+    majPouvoirs(rink, st, 1 / 120);
+    expect(st.pouvoirs![0].actif).toBe('vitesse');
     expect(st.pouvoirs![0].pret).toBeNull();
-    expect(st.evenements.some((e) => e.type === 'pouvoir' && e.quoi === 'perdu')).toBe(true);
-    // la jauge repart pour le suivant
-    passes(st, 0, SEUIL_PASSES);
-    expect(st.pouvoirs![0].pret).not.toBeNull();
+  });
+
+  it('chaque bonus a une durée limitée (10 s au plus), même le but x2', () => {
+    for (const id of POUVOIRS) {
+      expect(Number.isFinite(DEF_POUVOIRS[id].duree)).toBe(true);
+      expect(DEF_POUVOIRS[id].duree).toBeLessThanOrEqual(10);
+    }
+    expect(DEF_POUVOIRS.double.duree).toBe(10);
+    const st = partie();
+    donne(st, 0, 'double');
+    majPouvoirs(rink, st, 1 / 120);
+    expect(st.pouvoirs![0].actif).toBe('double');
+    majPouvoirs(rink, st, 10);
+    expect(st.pouvoirs![0].actif).toBeNull();
   });
 
   it('tirage pondéré : seuls les bonus déjà en jeu sortent, chacun avec la même chance', () => {
@@ -144,10 +159,10 @@ describe('bonus : jauge de passes et tirage', () => {
     donne(st, 0, 'vitesse');
     activePouvoir(rink, st, 0, st.controles[0]);
     st.phase = 'but';
-    majPouvoirs(st, 10);
+    majPouvoirs(rink, st, 10);
     expect(st.pouvoirs![0].actif).toBe('vitesse');
     st.phase = 'jeu';
-    majPouvoirs(st, DEF_POUVOIRS.vitesse.duree + 0.1);
+    majPouvoirs(rink, st, DEF_POUVOIRS.vitesse.duree + 0.1);
     expect(st.pouvoirs![0].actif).toBeNull();
     expect(st.evenements.some((e) => e.type === 'pouvoir' && e.quoi === 'fin')).toBe(true);
   });
@@ -192,50 +207,7 @@ describe('bonus : effets', () => {
     expect(st.pouvoirs![0].actif).toBeNull();
   });
 
-  it('tir guidé : le tir est plus dangereux et s’incurve vers la cage', () => {
-    const st = partie();
-    const s = st.controles[0]!;
-    s.x = rink.cx;
-    s.y = rink.cy - 50;
-    s.tient = true;
-    st.palet.porteur = s;
-    donne(st, 0, 'guide');
-    activePouvoir(rink, st, 0, s);
-    // tir parallèle à la ligne de but : sans guidage, il passerait loin de la cage
-    tir(st, rink, s, 0, 1);
-    expect(st.palet.guide).not.toBeNull();
-    expect(st.pouvoirs![0].actif).toBeNull();
-    expect(GUIDE_BONUS).toBeGreaterThan(0);
-    const segs = segmentsCage(rink, false);
-    for (let i = 0; i < 40; i++) majPalet(rink, st, 1 / 240, segs);
-    expect(st.palet.vy).toBeGreaterThan(30);
-  });
-
-  it('ricochet : le palet repart de la bande au moins aussi vite qu’il y est arrivé', () => {
-    const rebond = (avecBonus: boolean) => {
-      const st = partie();
-      const s = st.controles[0]!;
-      if (avecBonus) {
-        donne(st, 0, 'ricochet');
-        activePouvoir(rink, st, 0, s);
-      }
-      for (const o of st.patineurs) o.y = rink.cy + 80;
-      const p = st.palet;
-      p.porteur = null;
-      p.dernier = s;
-      p.x = rink.cx;
-      p.y = rink.y + 10;
-      p.vx = 0;
-      p.vy = -300;
-      const segs = segmentsCage(rink, false);
-      for (let i = 0; i < 20; i++) majPalet(rink, st, 1 / 240, segs);
-      return p.vy;
-    };
-    expect(rebond(true)).toBeGreaterThan(290);
-    expect(rebond(false)).toBeLessThan(250);
-  });
-
-  it('mode savon : une mise en échec contre l’équipe glisse en esquive', () => {
+  it('full esquive : une mise en échec contre l’équipe glisse en esquive', () => {
     const st = partie();
     donne(st, 0, 'savon');
     activePouvoir(rink, st, 0, st.controles[0]);
@@ -253,15 +225,49 @@ describe('bonus : effets', () => {
     expect(attaquant.sonne).toBeGreaterThan(0);
   });
 
-  it('l’ordinateur déclenche son bonus quand il a le palet', () => {
+  it('full esquive : le coup de crosse, lui, prend toujours le palet', () => {
+    const st = partie();
+    donne(st, 0, 'savon');
+    activePouvoir(rink, st, 0, st.controles[0]);
+    const porteur = st.controles[0]!;
+    const voleur = st.patineurs.find((s) => s.eq === 1)!;
+    prendPalet(st, porteur);
+    // crosse contre crosse : le porteur regarde à droite, le voleur à gauche, face à face
+    Object.assign(porteur, { x: rink.cx, y: rink.cy, face: 0, vx: 0, vy: 0 });
+    Object.assign(voleur, { x: rink.cx + 16, y: rink.cy, face: Math.PI, vx: 0, vy: 0, pokeT: -10, recupCd: 0 });
+    coupDeCrosse(st, voleur);
+    const hasard = vi.spyOn(Math, 'random').mockReturnValue(0);
+    try {
+      st.palet.x = pointCrosse(porteur).x;
+      st.palet.y = pointCrosse(porteur).y;
+      recuperations(st, 1 / 120);
+    } finally {
+      hasard.mockRestore();
+    }
+    expect(st.palet.porteur).toBeNull();
+    expect(st.palet.dernier).toBe(voleur);
+  });
+
+  it('l’ordinateur reçoit son bonus tout seul : le porteur du palet devient doré', () => {
     const st = partie();
     donne(st, 1, 'vitesse');
     const porteur = st.patineurs.find((s) => s.eq === 1)!;
     prendPalet(st, porteur);
-    st.pouvoirs![1].attente = 1;
-    iaPouvoirs(rink, st);
+    majPouvoirs(rink, st, 1 / 120);
     expect(st.pouvoirs![1].actif).toBe('vitesse');
     expect(st.pouvoirs![1].dore).toBe(porteur.rang);
+  });
+
+  it('tir surpuissant en cours : le bouton TIR passe en or pour l’équipe, pas pour l’adversaire', () => {
+    const st = partie();
+    expect(boutonBonus(st, 0)).toBeNull();
+    donne(st, 0, 'puissant');
+    majPouvoirs(rink, st, 1 / 120);
+    expect(boutonBonus(st, 0)).toBe('tir');
+    expect(boutonBonus(st, 1)).toBeNull();
+    donne(st, 1, 'vitesse');
+    majPouvoirs(rink, st, 1 / 120);
+    expect(boutonBonus(st, 1)).toBeNull();
   });
 });
 
@@ -351,42 +357,17 @@ describe('bonus : lot 3', () => {
     for (let i = 0; i < 30 && st.phase === 'jeu'; i++) pas(rink, st, 1 / 120);
   }
 
-  it('gamelle : un but dans les 10 s enlève un but à l’adversaire (jamais sous zéro)', () => {
-    const st = partie();
-    st.score = [0, 2];
-    donne(st, 0, 'gamelle');
-    activePouvoir(rink, st, 0, st.controles[0]);
-    marqueA0(st);
-    expect(st.score).toEqual([1, 1]);
-    expect(st.pouvoirs![0].actif).toBeNull();
-    expect(st.evenements.some((e) => e.type === 'glitch' && e.eq === 1)).toBe(true);
-
-    const zero = partie();
-    donne(zero, 0, 'gamelle');
-    activePouvoir(rink, zero, 0, zero.controles[0]);
-    marqueA0(zero);
-    expect(zero.score).toEqual([1, 0]);
-  });
-
-  it('un but met fin aux bonus en cours des deux équipes, un bonus prêt reste en main', () => {
+  it('un but met fin à tous les bonus des deux équipes, même à un tirage en cours', () => {
     const st = partie();
     donne(st, 1, 'inversion');
     activePouvoir(rink, st, 1, st.patineurs.find((s) => s.eq === 1)!);
-    donne(st, 0, 'ricochet');
+    donne(st, 0, 'freeze');
+    st.pouvoirs![0].tirage = 1;
     marqueA0(st);
     expect(st.score[0]).toBe(1);
     expect(st.pouvoirs![1].actif).toBeNull();
-    expect(st.pouvoirs![0].pret).toBe('ricochet');
-  });
-
-  it('gamelle : sans but dans les 10 s, rien ne se passe', () => {
-    const st = partie();
-    st.score = [0, 2];
-    donne(st, 0, 'gamelle');
-    activePouvoir(rink, st, 0, st.controles[0]);
-    majPouvoirs(st, DEF_POUVOIRS.gamelle.duree + 0.1);
-    expect(st.pouvoirs![0].actif).toBeNull();
-    expect(st.score).toEqual([0, 2]);
+    expect(st.pouvoirs![0].pret).toBeNull();
+    expect(st.pouvoirs![0].tirage).toBe(0);
   });
 
   it('surnombre : un renfort entre pour la durée du bonus, puis repart', () => {
@@ -402,7 +383,7 @@ describe('bonus : lot 3', () => {
     expect(Math.hypot(renfort.vx, renfort.vy)).toBeGreaterThan(0);
     // on lui donne le palet et la main, puis le bonus se termine
     prendPalet(st, renfort);
-    majPouvoirs(st, DEF_POUVOIRS.surnombre.duree);
+    majPouvoirs(rink, st, DEF_POUVOIRS.surnombre.duree);
     expect(st.patineurs).toHaveLength(n);
     expect(st.palet.porteur).toBeNull();
     expect(st.controles[0]).not.toBe(renfort);
@@ -420,7 +401,7 @@ describe('bonus : lot 3', () => {
     expect(client.patineurs).toHaveLength(hote.patineurs.length);
     expect(client.patineurs.at(-1)!.renfort).toBe(true);
     expect(client.patineurs.at(-1)!.eq).toBe(1);
-    majPouvoirs(hote, DEF_POUVOIRS.surnombre.duree);
+    majPouvoirs(rink, hote, DEF_POUVOIRS.surnombre.duree);
     inst = decodeInstantane(encodeInstantane(hote, rink, 2))!;
     appliqueInstantane(client, inst, inst, 1, rink);
     expect(client.patineurs.some((s) => s.renfort)).toBe(false);
@@ -432,14 +413,17 @@ describe('bonus : lot 3', () => {
     const h0 = st.horloge;
     for (let i = 0; i < 240; i++) pas(rink, st, 1 / 120);
     expect(st.horloge).toBe(h0);
-    expect(st.pouvoirs![0].pret).toBe('vitesse');
-    activePouvoir(rink, st, 0, st.controles[0]);
-    majPouvoirs(st, DEF_POUVOIRS.vitesse.duree + 0.1);
-    majPouvoirs(st, 1);
-    expect(st.pouvoirs![0].pret).toBe('vitesse');
-    // il ne se perd pas
-    majPouvoirs(st, 30);
-    expect(st.pouvoirs![0].pret).toBe('vitesse');
+    // le bonus choisi part tout seul
+    expect(st.pouvoirs![0].actif).toBe('vitesse');
+    let fini = false;
+    for (let i = 0; i < (DEF_POUVOIRS.vitesse.duree + 0.1) * 120 && !fini; i++) {
+      majPouvoirs(rink, st, 1 / 120);
+      fini = st.pouvoirs![0].actif === null;
+    }
+    expect(fini).toBe(true);
+    // puis il revient peu après
+    majPouvoirs(rink, st, 1);
+    expect(st.pouvoirs![0].actif).toBe('vitesse');
     passes(st, 1, 10);
     expect(st.pouvoirs![1].pret).toBeNull();
   });
@@ -450,33 +434,35 @@ describe('bonus en Wi-Fi', () => {
     const st = partie();
     st.humains = [true, true];
     st.pouvoirs![0].passes = 2;
-    donne(st, 1, 'ricochet');
+    donne(st, 1, 'inversion');
     st.pouvoirs![1].tirage = 0.5;
     st.pouvoirs![0].actif = 'double';
-    st.pouvoirs![0].reste = Infinity;
-    st.palet.lueur = 1;
+    st.pouvoirs![0].reste = 7.5;
+    st.palet.lueur = 3;
     const inst = decodeInstantane(encodeInstantane(st, rink, 3))!;
     const client = partie();
     appliqueInstantane(client, inst, inst, 1, rink);
     expect(client.pouvoirs![0].passes).toBe(2);
     expect(client.pouvoirs![0].actif).toBe('double');
-    expect(client.pouvoirs![0].reste).toBe(Infinity);
-    expect(client.pouvoirs![1].pret).toBe('ricochet');
+    expect(client.pouvoirs![0].reste).toBeCloseTo(7.5, 1);
+    expect(client.pouvoirs![1].pret).toBe('inversion');
     expect(client.pouvoirs![1].tirage).toBeCloseTo(0.5, 2);
-    expect(client.palet.lueur).toBe(1);
+    expect(client.palet.lueur).toBe(3);
 
     const sans = decodeInstantane(encodeInstantane(partie(false), rink, 4))!;
     expect(sans.pouvoirs).toBeNull();
   });
 
-  it('l’appui sur BONUS arrive une seule fois à l’hôte', () => {
+  it('plus de bouton BONUS : les entrées n’en portent plus, et l’appui sur ÉCHEC arrive une seule fois', () => {
     const em = new EmetteurEntrees();
     const hote = new EntreeDistante();
     hote.recoit(em.encode(INTENT_VIDE), 0);
-    const p = em.encode({ ...INTENT_VIDE, bonusAppui: true });
+    const p = em.encode({ ...INTENT_VIDE, elanAppui: true });
     hote.recoit(p, 0.01);
     hote.recoit(p, 0.02);
-    expect(hote.prochain(0.02).bonusAppui).toBe(true);
-    expect(hote.prochain(0.03).bonusAppui).toBe(false);
+    const i = hote.prochain(0.02);
+    expect(i.elanAppui).toBe(true);
+    expect('bonusAppui' in i).toBe(false);
+    expect(hote.prochain(0.03).elanAppui).toBe(false);
   });
 });

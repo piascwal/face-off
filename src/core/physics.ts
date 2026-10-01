@@ -18,16 +18,11 @@ import {
 import {
   cassePasses,
   DEF_POUVOIRS,
-  gamelle,
   estDore,
   estGele,
   finPouvoir,
-  guidePalet,
   pouvoirActif,
   renversePuissant,
-  ricochet,
-  RICOCHET_GAIN,
-  RICOCHET_VMAX,
   VITESSE_FACTEUR,
 } from './pouvoirs';
 import { rayonGardienEffectif, seuilRattrapeEffectif } from './shooting';
@@ -233,7 +228,7 @@ export function collisionsPatineurs(state: MatchState): void {
       if (o.eq === s.eq || o.sonne > 0 || o.esquiveT > 0) continue;
       const d = Math.hypot(o.x - s.x, o.y - s.y);
       if (d > 12) continue;
-      // bonus « mode savon » : toute mise en échec contre cette équipe glisse en esquive
+      // bonus « full esquive » : toute mise en échec contre cette équipe glisse en esquive (le coup de crosse, lui, passe toujours)
       if (pouvoirActif(state, o.eq, 'savon')) {
         esquive(state, o, s);
         state.evenements.push({ type: 'etincelles', x: (s.x + o.x) / 2, y: (s.y + o.y) / 2 - 4, n: 12, c: '#5cc8ff' });
@@ -397,7 +392,6 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
         p.vy += ((dy / d) * v - p.vy) * k;
       }
     }
-    guidePalet(rink, state, dt);
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     const f = Math.exp(-0.45 * dt);
@@ -408,18 +402,7 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
       p.vx *= 0.96;
       p.vy *= 0.96;
     }
-    // bonus « ricochet » : le palet repart des bandes encore plus vite
-    const rebondit = ricochet(state);
-    const vn = heurteBande(rink, p, p.r, rebondit ? 1 : 0.72);
-    if (rebondit && vn > 25) {
-      const v2 = Math.hypot(p.vx, p.vy);
-      const k = Math.min(RICOCHET_GAIN, RICOCHET_VMAX / Math.max(1, v2));
-      if (k > 1) {
-        p.vx *= k;
-        p.vy *= k;
-      }
-      state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 10, c: '#5cf2ff' });
-    }
+    const vn = heurteBande(rink, p, p.r, 0.72);
     if (vn > 25) {
       state.evenements.push({ type: 'bande', force: vn / 400 });
       if (vn > 200) state.evenements.push({ type: 'secousse', force: 1.2 });
@@ -521,14 +504,16 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
   const double = pouvoirActif(state, eq, 'double');
   state.score[eq] += double ? 2 : 1;
   if (double) finPouvoir(state, eq);
-  // bonus « gamelle » : le but enlève en plus un but à l'adversaire
-  const malus = gamelle(state, eq);
-  // un but met fin aux bonus encore en cours, des deux côtés (un bonus prêt reste en main)
-  finPouvoir(state, 0);
-  finPouvoir(state, 1);
-  cassePasses(state, 0);
-  cassePasses(state, 1);
-  state.palet.guide = null;
+  // un but met fin à tous les bonus, des deux côtés (même un tirage en cours)
+  for (const e of [0, 1] as const) {
+    finPouvoir(state, e);
+    cassePasses(state, e);
+    const pv = state.pouvoirs?.[e];
+    if (pv) {
+      pv.pret = null;
+      pv.tirage = 0;
+    }
+  }
   state.palet.puissant = false;
   state.tirs[eq]++;
   state.phase = 'but';
@@ -546,7 +531,7 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
   state.evenements.push({
     type: 'annonce',
     // un but au bout d'un vrai jeu de passes se fête plus fort
-    txt: malus ? 'BUT + GAMELLE !' : double ? `${DEF_POUVOIRS.double.nom} !` : collectif ? 'BUT COLLECTIF !' : 'BUT !',
+    txt: double ? `${DEF_POUVOIRS.double.nom} !` : collectif ? 'BUT COLLECTIF !' : 'BUT !',
     sous: collectif ? `${p.passes} PASSES  ${state.score[0]} - ${state.score[1]}` : `${state.score[0]} - ${state.score[1]}`,
     c: '#ffd35c',
     duree: ANNONCE_BUT_S,

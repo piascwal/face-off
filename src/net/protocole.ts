@@ -125,7 +125,6 @@ const TYPES_EVENEMENTS = new Set<GameEvent['type']>([
   'annonce',
   'pouvoir',
   'onde',
-  'glitch',
 ]);
 
 /** Prépare les évènements d'un pas pour l'envoi (les références d'objets ne voyagent pas). */
@@ -560,11 +559,11 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
 
 // ---------------------------------------------------------------- entrées --
 
-const TAILLE_ENTREE = 1 + 4 + 12 + 1 + 10;
+const TAILLE_ENTREE = 1 + 4 + 12 + 1 + 8;
 
 /**
  * Côté client : encode l'intention de chaque image. Les appuis ponctuels
- * (tir, passe, élan, bonus) sont transmis comme des *compteurs* cumulés, pas comme
+ * (tir, passe, élan) sont transmis comme des *compteurs* cumulés, pas comme
  * des booléens : si un paquet se perd, le suivant porte le même compteur et
  * l'hôte voit quand même l'appui — ni perdu, ni rejoué deux fois.
  */
@@ -574,7 +573,6 @@ export class EmetteurEntrees {
   private nRelache = 0;
   private nPasse = 0;
   private nElan = 0;
-  private nBonus = 0;
   private tenu = false;
 
   encode(intent: InputIntent): ArrayBuffer {
@@ -588,7 +586,6 @@ export class EmetteurEntrees {
     }
     if (intent.passeAppui) this.nPasse = (this.nPasse + 1) & 0xffff;
     if (intent.elanAppui) this.nElan = (this.nElan + 1) & 0xffff;
-    if (intent.bonusAppui) this.nBonus = (this.nBonus + 1) & 0xffff;
     const buf = new ArrayBuffer(TAILLE_ENTREE);
     const d = new DataView(buf);
     d.setUint8(0, TYPE_ENTREE);
@@ -601,7 +598,6 @@ export class EmetteurEntrees {
     d.setUint16(20, this.nRelache);
     d.setUint16(22, this.nPasse);
     d.setUint16(24, this.nElan);
-    d.setUint16(26, this.nBonus);
     return buf;
   }
 }
@@ -613,8 +609,8 @@ export const SILENCE_ENTREE_S = 0.5;
 /** Côté hôte : reconstruit, pas après pas, l'`InputIntent` du joueur distant. */
 export class EntreeDistante {
   private seq = 0;
-  private compteurs: [number, number, number, number, number] | null = null;
-  private attente = { appui: 0, relache: 0, passe: 0, elan: 0, bonus: 0 };
+  private compteurs: [number, number, number, number] | null = null;
+  private attente = { appui: 0, relache: 0, passe: 0, elan: 0 };
   private tenuEmis = false;
   private ix = 0;
   private iy = 0;
@@ -644,14 +640,13 @@ export class EntreeDistante {
     this.iy = iy;
     this.visee = Number.isFinite(visee) && Math.abs(visee) <= Math.PI + 0.01 ? visee : null;
     this.recuA = maintenant;
-    const c: [number, number, number, number, number] = [d.getUint16(18), d.getUint16(20), d.getUint16(22), d.getUint16(24), d.getUint16(26)];
+    const c: [number, number, number, number] = [d.getUint16(18), d.getUint16(20), d.getUint16(22), d.getUint16(24)];
     if (this.compteurs) {
       const delta = (i: number) => Math.min(EN_ATTENTE_MAX, (c[i]! - this.compteurs![i]! + 0x10000) & 0xffff);
       this.attente.appui = Math.min(EN_ATTENTE_MAX, this.attente.appui + delta(0));
       this.attente.relache = Math.min(EN_ATTENTE_MAX, this.attente.relache + delta(1));
       this.attente.passe = Math.min(EN_ATTENTE_MAX, this.attente.passe + delta(2));
       this.attente.elan = Math.min(EN_ATTENTE_MAX, this.attente.elan + delta(3));
-      this.attente.bonus = Math.min(EN_ATTENTE_MAX, this.attente.bonus + delta(4));
     }
     this.compteurs = c;
     return true;
@@ -676,8 +671,6 @@ export class EntreeDistante {
     if (passeAppui) this.attente.passe--;
     const elanAppui = this.attente.elan > 0;
     if (elanAppui) this.attente.elan--;
-    const bonusAppui = this.attente.bonus > 0;
-    if (bonusAppui) this.attente.bonus--;
     return {
       ix: muet ? 0 : this.ix,
       iy: muet ? 0 : this.iy,
@@ -686,7 +679,6 @@ export class EntreeDistante {
       tirRelache,
       passeAppui,
       elanAppui,
-      bonusAppui,
       viseeManuelle: this.visee,
     };
   }
