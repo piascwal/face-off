@@ -5,9 +5,49 @@
  * envahissent les bords, plus denses vers les coins.
  */
 export class GivreEcran {
-  private flou: HTMLCanvasElement | null = null;
+  /** Images de plus en plus petites (moitié, quart, huitième, seizième) : la chaîne du flou. */
+  private niveaux: HTMLCanvasElement[] = [];
   private motif: HTMLCanvasElement | null = null;
   private tailleMotif = '';
+
+  /**
+   * Floute `ecran` : il est réduit par moitiés successives, puis ré-agrandi par
+   * étapes. Une réduction d'un seul coup (14 fois) ne regarde qu'un pixel sur
+   * quatorze : un joueur qui glisse d'un pixel à la fois apparaissait par
+   * paliers de 14 pixels et clignotait. Réduire par moitiés moyenne tous les
+   * pixels, le flou suit le mouvement sans à-coups. Renvoie l'image floue, à
+   * la taille de `ecran`.
+   */
+  private floute(ecran: HTMLCanvasElement): HTMLCanvasElement {
+    let source: HTMLCanvasElement = ecran;
+    let w = ecran.width;
+    let h = ecran.height;
+    for (let i = 0; i < 4; i++) {
+      w = Math.max(1, Math.round(w / 2));
+      h = Math.max(1, Math.round(h / 2));
+      const c = (this.niveaux[i] ??= document.createElement('canvas'));
+      if (c.width !== w || c.height !== h) {
+        c.width = w;
+        c.height = h;
+      }
+      const k = c.getContext('2d')!;
+      k.imageSmoothingEnabled = true;
+      k.globalAlpha = 1;
+      k.drawImage(source, 0, 0, w, h);
+      source = c;
+    }
+    // retour par étapes successives (seizième, huitième, quart, moitié) : un agrandissement
+    // d'un coup ferait apparaître des blocs, et le flou avancerait par à-coups
+    for (let i = 2; i >= 0; i--) {
+      const c = this.niveaux[i]!;
+      const k = c.getContext('2d')!;
+      k.imageSmoothingEnabled = true;
+      k.clearRect(0, 0, c.width, c.height);
+      k.drawImage(source, 0, 0, c.width, c.height);
+      source = c;
+    }
+    return source;
+  }
 
   /**
    * `ecran` : le canvas déjà dessiné (patinoire), en pixels réels ; `W`×`H` :
@@ -15,27 +55,13 @@ export class GivreEcran {
    */
   dessine(g: CanvasRenderingContext2D, ecran: HTMLCanvasElement, W: number, H: number, E: number, force: number, temps: number): void {
     if (force <= 0) return;
-    // flou fort : l'image réduite 14 fois (et adoucie quand le navigateur sait
-    // flouter un canvas), puis agrandie avec lissage par-dessus la patinoire
-    const fw = Math.max(1, Math.round(ecran.width / 14));
-    const fh = Math.max(1, Math.round(ecran.height / 14));
-    this.flou ??= document.createElement('canvas');
-    const f = this.flou;
-    if (f.width !== fw || f.height !== fh) {
-      f.width = fw;
-      f.height = fh;
-    }
-    const k = f.getContext('2d')!;
-    k.imageSmoothingEnabled = true;
-    if ('filter' in k) k.filter = 'blur(1.5px)';
-    k.clearRect(0, 0, fw, fh);
-    k.drawImage(ecran, 0, 0, fw, fh);
-    if ('filter' in k) k.filter = 'none';
+    // flou fort, calculé sur l'image réduite puis agrandi avec lissage par-dessus la patinoire
+    const flou = this.floute(ecran);
     g.save();
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.imageSmoothingEnabled = true;
     g.globalAlpha = 0.93 * force;
-    g.drawImage(f, 0, 0, ecran.width, ecran.height);
+    g.drawImage(flou, 0, 0, ecran.width, ecran.height);
     g.globalAlpha = 0.22 * force;
     g.fillStyle = '#cdefff';
     g.fillRect(0, 0, ecran.width, ecran.height);

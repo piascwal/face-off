@@ -753,7 +753,7 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 | But x2 | le prochain but de l'équipe compte double ; « 2X » au-dessus de la cage adverse | 10 s |
 | Super héros | super vitesse + un tir surpuissant + freeze des adversaires pendant les 3 premières secondes (`HEROS_FREEZE_S`) ; le tir ne coupe pas le reste du bonus ; deux fois plus rare au tirage | 8 s |
 | Tremblement | tout le monde tombe (la chute de l'esquive, 1,6 s), coéquipiers compris, sauf le porteur du palet ; l'écran tremble fort, grondement, poussière | 2,5 s |
-| Givre | l'écran de tout le monde gèle : patinoire très floue et bleutée, cristaux de glace sur les bords (`render/givre-ecran.ts`) ; le tableau et les commandes restent nets | 7 s |
+| Givre | l'écran de tout le monde gèle : patinoire très floue et bleutée, cristaux de glace sur les bords (`render/givre-ecran.ts`) ; le tableau et les commandes restent nets. Le flou réduit l'image par moitiés successives puis la ré-agrandit par étapes : en une seule réduction (14 fois), un joueur qui glisse apparaissait par paliers de 14 pixels et clignotait | 7 s |
 | Cage géante | la cage adverse s'ouvre deux fois plus large ; le gardien garde sa taille et ne couvre plus les coins ; l'ouverture brille en or | 10 s |
 | Mini cage | sa propre cage rétrécit (×0,45) ; l'ouverture brille en or | 10 s |
 | Gardien endormi | le gardien adverse ne bouge plus, n'attrape plus rien et ne couvre plus que 60 % de son corps ; des « Z » montent au-dessus de lui | 6 s |

@@ -208,11 +208,18 @@ export default async function bonus(env) {
   env.verifie(await env.attendsQue(p, () => window.faceOff.state.phase === 'engagement' || window.faceOff.state.phase === 'jeu', undefined, 3000), 'LOUPÉ : engagement au centre ensuite');
 
   // surnombre : un renfort doré et semi-transparent entre sur la glace
-  const n0 = await p.evaluate(() => window.faceOff.state.patineurs.filter((s) => !s.renfort).length);
-  env.verifie(await donne('surnombre'), 'SURNOMBRE en cours');
-  await attends(400);
-  const n1 = await p.evaluate(() => window.faceOff.state.patineurs.filter((s) => s.renfort).length);
-  env.verifie(n1 === 1 && (await p.evaluate(() => window.faceOff.state.patineurs.length)) === n0 + 1, 'SURNOMBRE : un renfort entre');
+  // (un but de l'ordinateur juste après le départ coupe tous les bonus et fait repartir le renfort : on réessaie)
+  let renfortOk = false;
+  for (let essai = 0; essai < 4 && !renfortOk; essai++) {
+    const n0 = await p.evaluate(() => window.faceOff.state.patineurs.filter((s) => !s.renfort).length);
+    env.verifie(await donne('surnombre'), 'SURNOMBRE en cours');
+    await attends(400);
+    renfortOk = await p.evaluate(
+      (n) => window.faceOff.state.patineurs.filter((s) => s.renfort).length === 1 && window.faceOff.state.patineurs.length === n + 1,
+      n0,
+    );
+  }
+  env.verifie(renfortOk, 'SURNOMBRE : un renfort entre');
   await env.capture(p, '9a-surnombre');
 
   // un but met fin à tous les bonus
