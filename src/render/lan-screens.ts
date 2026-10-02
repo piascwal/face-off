@@ -1,4 +1,4 @@
-import { DUREES, EFFECTIFS } from '@core/constants';
+import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
 import type { BonusEquipe, StatsMatch } from '@core/types';
 import { largeurTexte, texte } from './pixel-font';
 import { px } from './primitives';
@@ -21,6 +21,8 @@ export interface LignePartie {
   adverse: TeamDef | null;
   score: [number, number];
   spect: number;
+  /** Partie coop : on y joue avec l'hôte contre le CPU. */
+  coop: boolean;
   onRejoindre: () => void;
   onRegarder: () => void;
 }
@@ -87,6 +89,7 @@ export function dessineLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
       texte(g, p.equipe.code, x + 96, y + 4, couleurNom(p.equipe.interieur), 1, 'g');
       const n = EFFECTIFS[p.effectifIdx] ?? 3;
       texte(g, `${n} C ${n}  ${(DUREES[p.dureeIdx] ?? 180) / 60} MIN`, x + 150, y + 4, C.gris, 1, 'g');
+      if (p.coop) texte(g, 'COOP', x + 224, y + 4, VERT, 1, 'g');
       texte(g, 'REJOINDRE >', x + w - 6, y + 4, C.or, 1, 'd');
     }
     if (!occupe) boutons.push({ x, y, w, h: 16, act: p.plein ? p.onRegarder : p.onRejoindre });
@@ -121,6 +124,12 @@ export function dessineLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
 // ======================================================= réglages de l'hôte ==
 
 export interface EtatConfigLan {
+  /** Coop : l'hôte et l'invité jouent ensemble contre le CPU. */
+  coop: boolean;
+  /** Niveau du CPU en coop (index dans NIVEAUX). */
+  niveauIdx: number;
+  onCoop: () => void;
+  onNiveau: () => void;
   effectifIdx: number;
   dureeIdx: number;
   assistTir: boolean;
@@ -151,11 +160,10 @@ export function dessineConfigLan(g: CanvasRenderingContext2D, boutons: ZoneBouto
   const cx = Math.round(W / 2);
   texte(g, 'NOUVELLE PARTIE WIFI', cx, 4, C.blanc, 2, 'c');
   const pw = 230;
-  const ph = 122;
-  const py = 24;
-  panneau(g, cx - pw / 2, py, pw, ph);
   const n = EFFECTIFS[etat.effectifIdx] ?? 3;
   const lignes: [string, string, () => void][] = [
+    ['MODE', etat.coop ? 'COOP' : 'VERSUS', etat.onCoop],
+    ...(etat.coop ? ([['NIVEAU DU CPU', NIVEAUX[etat.niveauIdx]?.nom ?? 'NORMAL', etat.onNiveau]] as [string, string, () => void][]) : []),
     ['EQUIPES', `${n} CONTRE ${n}`, etat.onEffectif],
     ['DUREE', `${(DUREES[etat.dureeIdx] ?? 180) / 60} MIN`, etat.onDuree],
     ['ASSISTANCE TIR', oui(etat.assistTir), etat.onAssistTir],
@@ -164,12 +172,24 @@ export function dessineConfigLan(g: CanvasRenderingContext2D, boutons: ZoneBouto
     ['RALENTI DES BUTS', oui(etat.ralenti), etat.onRalenti],
     ['BONUS', oui(etat.pouvoirs), etat.onPouvoirs],
   ];
+  const pas = 14;
+  const ph = 8 + lignes.length * pas;
+  const py = 22;
+  panneau(g, cx - pw / 2, py, pw, ph);
   lignes.forEach(([k, v, act], i) => {
-    const y = py + 6 + i * 16;
-    texte(g, k, cx - pw / 2 + 10, y + 4, C.gris, 1, 'g');
-    bouton(g, boutons, `< ${v} >`, cx + pw / 2 - 110, y, 100, 13, act, { couleur: '#232a58' });
+    const y = py + 5 + i * pas;
+    texte(g, k, cx - pw / 2 + 10, y + 3, C.gris, 1, 'g');
+    bouton(g, boutons, `< ${v} >`, cx + pw / 2 - 110, y, 100, 12, act, { couleur: '#232a58', texte: i === 0 && etat.coop ? VERT : undefined });
   });
-  texte(g, 'CES REGLAGES VALENT POUR LES DEUX JOUEURS', cx, py + ph + 7, '#6f7aa6', 1, 'c');
+  texte(
+    g,
+    etat.coop ? 'VOUS JOUEZ ENSEMBLE CONTRE LE CPU' : 'CES REGLAGES VALENT POUR LES DEUX JOUEURS',
+    cx,
+    py + ph + 6,
+    etat.coop ? VERT : '#6f7aa6',
+    1,
+    'c',
+  );
   const by = H - 22;
   bouton(g, boutons, '< RETOUR', cx - pw / 2, by, 70, 16, etat.onRetour, { couleur: '#232a58' });
   bouton(g, boutons, 'CREER LA PARTIE', cx + pw / 2 - 112, by, 112, 16, etat.onCreer, ROUGE);
@@ -182,6 +202,8 @@ function resumeConfig(g: CanvasRenderingContext2D, cx: number, y: number, c: Res
 }
 
 export interface ResumeConfig {
+  coop: boolean;
+  niveauIdx: number;
   effectifIdx: number;
   dureeIdx: number;
   assistTir: boolean;
@@ -246,9 +268,10 @@ export function dessineSalon(g: CanvasRenderingContext2D, boutons: ZoneBouton[],
   texte(g, "SALLE D'ATTENTE", cx, 4, C.blanc, 2, 'c');
 
   const cw = Math.min(150, Math.floor((W - 60) / 2));
-  carteJoueur(g, cx - 18 - cw, 26, cw, 'HOTE', etat.hote, temps, '');
-  carteJoueur(g, cx + 18, 26, cw, 'INVITE', etat.invite, temps, etat.connexionEnCours ? 'UN JOUEUR ARRIVE' : "EN ATTENTE D'UN JOUEUR");
-  texte(g, 'VS', cx, 44, C.or, 2, 'c');
+  const coop = etat.config.coop;
+  carteJoueur(g, cx - 18 - cw, 26, cw, coop ? 'JOUEUR 1 - HOTE' : 'HOTE', etat.hote, temps, '');
+  carteJoueur(g, cx + 18, 26, cw, coop ? 'JOUEUR 2' : 'INVITE', etat.invite, temps, etat.connexionEnCours ? 'UN JOUEUR ARRIVE' : "EN ATTENTE D'UN JOUEUR");
+  texte(g, coop ? '+' : 'VS', cx, 44, coop ? VERT : C.or, 2, 'c');
   if (!etat.invite) texte(g, 'SUR L\'AUTRE APPAREIL : MULTI WIFI', cx + 18 + cw / 2, 80, '#6f7aa6', 1, 'c');
 
   // handicap sous chaque carte : réglable par l'hôte, affiché chez l'invité
@@ -257,13 +280,19 @@ export function dessineSalon(g: CanvasRenderingContext2D, boutons: ZoneBouton[],
     [1, cx + 18, !!etat.invite],
   ];
   for (const [place, x, visible] of places) {
-    if (!visible) continue;
+    // coop : pas de handicap, c'est le niveau du CPU qui règle la difficulté
+    if (!visible || coop) continue;
     const b = etat.bonus[place];
     const couleur = b === 'aucun' ? C.gris : C.or;
     if (hote) bouton(g, boutons, `< ${LIBELLES_BONUS[b]} >`, x + 10, 79, cw - 20, 12, () => etat.onBonus(place), { couleur: '#232a58', texte: couleur });
     else texte(g, LIBELLES_BONUS[b], x + cw / 2, 82, couleur, 1, 'c');
   }
-  if (etat.invite) texte(g, etat.bilan ?? 'PREMIER DUEL ENTRE VOUS', cx, 97, etat.bilan ? C.blanc : '#6f7aa6', 1, 'c');
+  if (coop) {
+    texte(g, 'COOP : A DEUX CONTRE LE CPU', cx, 80, VERT, 1, 'c');
+    texte(g, `NIVEAU DU CPU : ${NIVEAUX[etat.config.niveauIdx]?.nom ?? 'NORMAL'}`, cx, 94, C.or, 1, 'c');
+  } else if (etat.invite) {
+    texte(g, etat.bilan ?? 'PREMIER DUEL ENTRE VOUS', cx, 97, etat.bilan ? C.blanc : '#6f7aa6', 1, 'c');
+  }
 
   resumeConfig(g, cx, 110, etat.config);
   if (etat.code) {
@@ -302,6 +331,8 @@ export interface EtatChoixLan {
   /** Place de ce joueur : 0 = gauche (hôte), 1 = droite (invité). */
   moi: 0 | 1;
   cotes: [CoteChoixLan, CoteChoixLan];
+  /** Coop : l'hôte choisit l'équipe commune, l'invité celle que le CPU jouera. */
+  coop: boolean;
   /** Mon maillot est identique à celui de l'adversaire déjà prêt : impossible de valider. */
   maillotPris: boolean;
   onPrecedent: () => void;
@@ -330,7 +361,8 @@ export function dessineChoixLan(
   const cx = Math.round(W / 2);
   const moitie = Math.floor(W / 2);
   const bas = H - 22;
-  texte(g, etat.etape === 'equipes' ? 'CHOIX DES EQUIPES' : 'CHOIX DES MAILLOTS', cx, 2, C.blanc, 1, 'c');
+  const titre = etat.etape === 'equipes' ? 'CHOIX DES EQUIPES' : 'CHOIX DES MAILLOTS';
+  texte(g, etat.coop ? `COOP : ${titre}` : titre, cx, 2, etat.coop ? VERT : C.blanc, 1, 'c');
   px(g, moitie - 1, 12, 1, bas - 16, '#2a3160');
 
   const autre = etat.cotes[etat.moi === 0 ? 1 : 0];
@@ -339,13 +371,15 @@ export function dessineChoixLan(
     const x = place === 0 ? 0 : moitie;
     const w = place === 0 ? moitie : W - moitie;
     const actif = place === etat.moi && !c.pret;
+    // coop : à gauche l'équipe des deux joueurs, à droite le CPU
+    const nom = etat.coop ? (place === 0 ? 'NOTRE EQUIPE' : 'ADVERSAIRE CPU') : c.nom;
     if (etat.etape === 'equipes') {
-      dessinePanneauEquipe(g, boutons, x, w, H, c.nom, c.carte, actif ? etat.onPrecedent : null, actif ? etat.onSuivant : null, {
+      dessinePanneauEquipe(g, boutons, x, w, H, nom, c.carte, actif ? etat.onPrecedent : null, actif ? etat.onSuivant : null, {
         echelleLogo: 0.42,
         hauteurNotes: 0.63,
       });
     } else {
-      dessinePanneauMaillot(g, boutons, sprites, x, w, H, c.nom, { def: c.carte.def, variante: c.variante }, place === 0, actif ? etat.onToggleMaillot : null);
+      dessinePanneauMaillot(g, boutons, sprites, x, w, H, nom, { def: c.carte.def, variante: c.variante }, place === 0, actif ? etat.onToggleMaillot : null);
     }
     const sx = x + w / 2;
     const sy = bas - 12;
@@ -355,7 +389,8 @@ export function dessineChoixLan(
       texte(g, 'MAILLOT DEJA PRIS', sx, sy, '#ff9a5c', 1, 'c');
     } else {
       g.globalAlpha = place === etat.moi ? 1 : 0.5 + 0.5 * Math.abs(Math.sin(temps * 2.5));
-      texte(g, place === etat.moi ? 'A VOUS DE CHOISIR' : `CHOISIT${points(temps)}`, sx, sy, C.gris, 1, 'c');
+      const qui = etat.coop && place !== etat.moi ? c.nom : '';
+      texte(g, place === etat.moi ? 'A VOUS DE CHOISIR' : `${qui ? `${qui} ` : ''}CHOISIT${points(temps)}`, sx, sy, C.gris, 1, 'c');
       g.globalAlpha = 1;
     }
   }

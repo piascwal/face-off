@@ -32,6 +32,8 @@ export interface Preferences {
   coupe: EtatCoupe | null;
   /** Bonus (power-ups) activés en match. */
   bonus: boolean;
+  /** Multi Wi-Fi : créer une partie en coop (à deux contre le CPU) plutôt qu'en versus. */
+  coopWifi: boolean;
   /** Bonus choisi pour le mode entraînement (gardé d'une fois sur l'autre). */
   bonusEntrainement: PouvoirId;
 }
@@ -70,6 +72,7 @@ const DEFAUT: Preferences = {
   mode: 'classique',
   coupe: null,
   bonus: true,
+  coopWifi: false,
   bonusEntrainement: 'puissant',
 };
 
@@ -101,6 +104,7 @@ export function chargePreferences(): Preferences {
   if ((pref.mode as string) === 'coupe') pref.mode = 'coupe8';
   if (!MODES.includes(pref.mode)) pref.mode = 'classique';
   pref.coupe = lisCoupe(pref.coupe);
+  if (typeof pref.coopWifi !== 'boolean') pref.coopWifi = false;
   if (!POUVOIRS.includes(pref.bonusEntrainement)) pref.bonusEntrainement = 'puissant';
   if (modifie) sauvePreferences(pref);
   return pref;

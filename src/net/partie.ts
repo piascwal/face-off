@@ -15,6 +15,7 @@
  * celles reçues du client, puis diffuse l'état obtenu.
  */
 
+import { NIVEAUX } from '@core/constants';
 import { BONUS_EQUIPE, type BonusEquipe } from '@core/types';
 
 export type VarianteMaillot = 'interieur' | 'exterieur';
@@ -54,6 +55,13 @@ export interface ConfigLan {
   ralenti: boolean;
   /** Bonus (power-ups) en jeu. */
   pouvoirs: boolean;
+  /**
+   * Coop : l'hôte et l'invité forment la même équipe contre le CPU. L'hôte
+   * choisit alors l'équipe commune, l'invité l'équipe adverse (jouée par le CPU).
+   */
+  coop: boolean;
+  /** Niveau du CPU en coop (index dans NIVEAUX) ; ignoré en versus. */
+  niveau: number;
 }
 
 export interface EtatPartieLan {
@@ -299,7 +307,8 @@ export function lisConfig(o: unknown): ConfigLan | null {
   const c = o as Record<string, unknown>;
   if (!entier(c.effectif, 9) || !entier(c.duree, 9)) return null;
   if (typeof c.assistTir !== 'boolean' || typeof c.assistPasse !== 'boolean' || typeof c.changementAuto !== 'boolean') return null;
-  if (typeof c.ralenti !== 'boolean' || typeof c.pouvoirs !== 'boolean') return null;
+  if (typeof c.ralenti !== 'boolean' || typeof c.pouvoirs !== 'boolean' || typeof c.coop !== 'boolean') return null;
+  if (!entier(c.niveau, NIVEAUX.length - 1)) return null;
   return {
     effectif: c.effectif,
     duree: c.duree,
@@ -308,6 +317,8 @@ export function lisConfig(o: unknown): ConfigLan | null {
     changementAuto: c.changementAuto,
     ralenti: c.ralenti,
     pouvoirs: c.pouvoirs,
+    coop: c.coop,
+    niveau: c.niveau,
   };
 }
 

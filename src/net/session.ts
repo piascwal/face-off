@@ -216,6 +216,7 @@ export class SessionHote {
       spect: this.presents.length,
       adverse: invite?.equipe ?? '',
       score: [...this.score],
+      coop: c.coop,
     });
   }
 

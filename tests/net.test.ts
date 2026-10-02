@@ -93,6 +93,7 @@ describe('empreinte du réseau local', () => {
       spect: 2,
       adverse: 'nice',
       score: [2, 1],
+      coop: false,
       v: 1,
       t: 1,
     };
@@ -102,6 +103,8 @@ describe('empreinte du réseau local', () => {
     expect(valideAnnonce({ ...ok, score: [1, -3] }, ok.id, 0)).toBeNull();
     expect(valideAnnonce({ ...ok, spect: 1.5 }, ok.id, 0)).toBeNull();
     expect(valideAnnonce(ok, 'fedcba9876543210', 0)).toBeNull();
+    expect(valideAnnonce({ ...ok, coop: true }, ok.id, 0)?.coop).toBe(true);
+    expect(valideAnnonce({ ...ok, coop: 'oui' }, ok.id, 0)).toBeNull();
     expect(valideAnnonce({ ...ok, nom: '<script>' }, ok.id, 0)).toBeNull();
     expect(valideAnnonce({ ...ok, effectif: 50 }, ok.id, 0)).toBeNull();
     expect(valideSignal({ type: 'offre', sdp: 'x'.repeat(20_000), nom: 'A' })).toBeNull();

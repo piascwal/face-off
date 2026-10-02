@@ -16,6 +16,8 @@ function etatVide(): MatchState {
     patineurs: [],
     humains: [true, false],
     controles: [null, null],
+    coop: false,
+    partenaire: null,
     gardiens: [nouveauGardien(0), nouveauGardien(1)],
     palet: nouveauPalet(),
     score: [0, 0],

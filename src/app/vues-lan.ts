@@ -1,4 +1,4 @@
-import { DUREES, EFFECTIFS } from '@core/constants';
+import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
 import { trouveEquipe } from '@core/teams';
 import { BONUS_EQUIPE, type MatchState } from '@core/types';
 import { maillotsIdentiques, type ConfigLan, type EtatPartieLan, type JoueurLan } from '@net/partie';
@@ -134,7 +134,9 @@ export class VuesLan {
             tirs: state.tirs,
             stats: state.stats,
             prolong: state.prolong,
-            noms: [partie.joueurs[0].nom, partie.joueurs[1]?.nom ?? ''],
+            noms: partie.config.coop
+              ? [`${partie.joueurs[0].nom} ET ${partie.joueurs[1]?.nom ?? ''}`, 'LE CPU']
+              : [partie.joueurs[0].nom, partie.joueurs[1]?.nom ?? ''],
             onQuitter: () => this.lan.ouvre(),
           });
         } else dessineFinLan(g, boutons, W, H, temps, this.finProps(state, partie));
@@ -195,6 +197,7 @@ export class VuesLan {
         adverse: p.adverse ? trouveTeamDef(p.adverse) : null,
         score: p.score,
         spect: p.spect,
+        coop: p.coop,
         onRejoindre: () => this.lan.rejoins(p),
         onRegarder: () => this.lan.rejoins(p, true),
       })),
@@ -207,11 +210,18 @@ export class VuesLan {
 
   private configProps(): EtatConfigLan {
     const pref = this.app.pref;
-    const bascule = (cle: 'assistTir' | 'assistPasse' | 'changementAuto' | 'ralentiButs' | 'bonus') => () => {
+    const bascule = (cle: 'assistTir' | 'assistPasse' | 'changementAuto' | 'ralentiButs' | 'bonus' | 'coopWifi') => () => {
       pref[cle] = !pref[cle];
       sauvePreferences(pref);
     };
     return {
+      coop: pref.coopWifi,
+      niveauIdx: pref.niveau,
+      onCoop: bascule('coopWifi'),
+      onNiveau: () => {
+        pref.niveau = (pref.niveau + 1) % NIVEAUX.length;
+        sauvePreferences(pref);
+      },
       effectifIdx: pref.effectif,
       dureeIdx: pref.duree,
       assistTir: pref.assistTir,
@@ -239,6 +249,8 @@ export class VuesLan {
 
   private resumeConfig(c: ConfigLan): ResumeConfig {
     return {
+      coop: c.coop,
+      niveauIdx: c.niveau,
       effectifIdx: c.effectif,
       dureeIdx: c.duree,
       assistTir: c.assistTir,
@@ -290,6 +302,7 @@ export class VuesLan {
     const autre = moi === 0 ? b : a;
     return {
       etape: e.phase,
+      coop: e.config.coop,
       moi,
       cotes: [cote(a), cote(b)],
       maillotPris: e.phase === 'maillots' && autre.pret && maillotsIdentiques(e),
@@ -308,9 +321,10 @@ export class VuesLan {
       score: state.score,
       tirs: state.tirs,
       stats: state.stats,
-      bilan: this.bilanContre(e),
+      bilan: e.config.coop ? 'A DEUX CONTRE LE CPU' : this.bilanContre(e),
       prolong: state.prolong,
-      moi,
+      // l'équipe de ce joueur (la même pour les deux en coop), pour lire victoire ou défaite
+      moi: this.lan.eqLocal,
       monVote: e.joueurs[moi]?.vote ?? null,
       voteAdverse: e.joueurs[eux]?.vote ?? null,
       nomAdverse: e.joueurs[eux]?.nom ?? '',

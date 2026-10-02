@@ -1,6 +1,6 @@
 import { meilleurReceveur, menaceEchec } from '@core/actions';
 import { BUT_DEMI } from '@core/constants';
-import { ALERTE_FIN_S, DEF_POUVOIRS, demiCage, effetActif, estGele, estInverse, gardienEndormi, HEROS_FREEZE_S, joueurDore } from '@core/pouvoirs';
+import { ALERTE_FIN_S, DEF_POUVOIRS, demiCage, effetActif, estGele, estDore, estInverse, gardienEndormi, HEROS_FREEZE_S, joueurDore, joueursDores } from '@core/pouvoirs';
 import { butAttaque } from '@core/shooting';
 import { equipe } from '@core/state-helpers';
 import type { MatchState, Rink, Skater, Supporter, TeamId } from '@core/types';
@@ -29,7 +29,7 @@ function aspectBonus(state: MatchState, s: Skater): AspectBonus | null {
   const confus = estInverse(state, s.eq);
   const pv = state.pouvoirs[s.eq];
   // le renfort du surnombre est toujours doré (et semi-transparent)
-  const dore = (!!pv.actif && joueurDore(state, s.eq) === s) || s.renfort;
+  const dore = (!!pv.actif && estDore(state, s)) || s.renfort;
   if (!dore && !gele && !confus) return null;
   let or = dore;
   if (dore && pv.reste < ALERTE_FIN_S) {
@@ -122,7 +122,7 @@ let calqueNoir: HTMLCanvasElement | null = null;
  * gardien adverse qu'il va défier. L'équipe dans le noir garde juste une
  * petite lueur autour du joueur qu'elle pilote, pour savoir où il est.
  */
-function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eqLocal: TeamId | null): void {
+function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eqLocal: TeamId | null, pilote: Skater | null): void {
   for (const eq of [0, 1] as TeamId[]) {
     const pv = state.pouvoirs?.[eq];
     if (pv?.actif !== 'blackout') continue;
@@ -153,11 +153,11 @@ function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eq
         k.arc(x, y, r, 0, Math.PI * 2);
         k.fill();
       });
-    const spot = joueurDore(state, eq);
-    if (spot) trou(spot.x, spot.y - 8, [30, 25, 21]);
+    const spots = joueursDores(state, eq);
+    for (const spot of spots) trou(spot.x, spot.y - 8, [30, 25, 21]);
     const gardien = state.gardiens[eq === 0 ? 1 : 0];
     trou(gardien.x, gardien.y - 7, [26, 21, 17]);
-    const moi = eqLocal !== null && eqLocal !== eq ? state.controles[eqLocal] : null;
+    const moi = eqLocal !== null && eqLocal !== eq ? pilote : null;
     if (moi) trou(moi.x, moi.y - 8, [11, 8]);
     k.globalAlpha = 1;
     k.globalCompositeOperation = 'source-over';
@@ -166,8 +166,7 @@ function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eq
     // les faisceaux des projecteurs sur la glace
     g.globalAlpha = 0.2 * force;
     g.fillStyle = '#fff3b0';
-    for (const p of [spot, gardien]) {
-      if (!p) continue;
+    for (const p of [...spots, gardien]) {
       g.beginPath();
       g.ellipse(p.x, p.y + 2, 18, 7, 0, 0, Math.PI * 2);
       g.fill();
@@ -200,6 +199,8 @@ export function dessineScene(
    * local) ; null pour un spectateur, qui ne pilote personne.
    */
   eqLocal: TeamId | null = 0,
+  /** Le patineur piloté sur cet écran : en coop, l'invité pilote `state.partenaire`. */
+  moi: Skater | null = eqLocal !== null ? state.controles[eqLocal] : null,
 ): void {
   const p = state.palet;
   p.trace.push({ x: p.x, y: p.y });
@@ -229,7 +230,7 @@ export function dessineScene(
 
   // en match, on repère ses coéquipiers et le receveur que viserait une passe
   if (state.mode === 'match' && ecranUI === 'jeu' && eqLocal !== null) {
-    const c = state.controles[eqLocal];
+    const c = moi;
     let rec = null;
     if (c && c.tient && state.phase === 'jeu') {
       const m = Math.hypot(c.ex, c.ey);
@@ -259,7 +260,7 @@ export function dessineScene(
     ...state.patineurs.map((s) => ({
       y: s.y,
       f: () => {
-        const pilote = eqLocal !== null && s === state.controles[eqLocal];
+        const pilote = moi !== null && s === moi;
         dessinePatineur(g, sprites, s, state.temps, pilote, equipes, aspectBonus(state, s), pilote && menaceEchec(state, s) !== null);
       },
     })),
@@ -273,7 +274,7 @@ export function dessineScene(
 
   marqueursDouble(g, rink, state);
   sommeil(g, state);
-  blackout(g, rink, state, eqLocal);
+  blackout(g, rink, state, eqLocal, moi);
   for (const o of effets.ondes) {
     const u = 1 - o.vie / o.max;
     g.globalAlpha = 1 - u;

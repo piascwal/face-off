@@ -412,8 +412,9 @@ export class GameApp {
       // en réseau, l'hôte ne met jamais la simulation en pause : l'autre joueur continue
       const hote = reseau ? lan.hote : null;
       const maintenant = performance.now() / 1000;
-      const entree = (eq: TeamId): InputIntent =>
-        eq === 0 ? this.entrees.consomme() : hote ? hote.entreeInvite(maintenant) : INTENT_VIDE;
+      // l'hôte pilote le patineur de l'équipe 0 ; l'invité, l'équipe 1 (versus) ou le partenaire (coop)
+      const entree = (eq: TeamId, partenaire?: boolean): InputIntent =>
+        eq === 0 && !partenaire ? this.entrees.consomme() : hote ? hote.entreeInvite(maintenant) : INTENT_VIDE;
       // pause partagée : la simulation est figée pour les deux joueurs
       this.cumul = lan.pause ? 0 : this.cumul + dt;
       while (this.cumul >= PAS_FIXE) {
@@ -463,16 +464,18 @@ export class GameApp {
     const sy = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
     g.setTransform(E, 0, 0, E, sx * E, sy * E);
     const ralenti = this.ralenti.actif && !!this.etatRalenti && this.ecranUI === 'jeu';
+    const vue = ralenti ? this.etatRalenti! : state;
     dessineScene(
       g,
       this.rink,
-      ralenti ? this.etatRalenti! : state,
+      vue,
       this.decor,
       this.sprites,
       this.effets,
       this.ecranUI,
       this.equipesActuelles,
       lan.spectateur ? null : lan.eqLocal,
+      lan.pilote(vue),
     );
     g.setTransform(E, 0, 0, E, 0, 0);
     // bonus « givre » : l'écran de tout le monde gèle (la patinoire seulement, pas le tableau ni les commandes)
@@ -550,7 +553,7 @@ export class GameApp {
     }
     // le spectateur n'a pas de commandes : sa barre de réactions est dessinée à part
     if (lan.spectateur) return;
-    const pilote = state.controles[lan.eqLocal];
+    const pilote = lan.pilote(state);
     const ui = this.entrees.instantaneUI();
     // bonus qui se joue avec un bouton (tir surpuissant) : ce bouton passe en or
     const boutonDore = boutonBonus(state, lan.eqLocal);

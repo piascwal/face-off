@@ -207,7 +207,14 @@ export function joueurDore(state: MatchState, eq: TeamId): Skater | null {
   return state.patineurs.find((s) => s.eq === eq && s.rang === p.dore) ?? null;
 }
 
-export const estDore = (state: MatchState, s: Skater): boolean => state.pouvoirs !== null && joueurDore(state, s.eq) === s;
+/** Tous les joueurs dorés de l'équipe : en coop, les deux humains profitent du bonus. */
+export function joueursDores(state: MatchState, eq: TeamId): Skater[] {
+  const d = joueurDore(state, eq);
+  if (!d) return [];
+  return state.coop && eq === 0 && state.partenaire ? [d, state.partenaire] : [d];
+}
+
+export const estDore = (state: MatchState, s: Skater): boolean => state.pouvoirs !== null && joueursDores(state, s.eq).includes(s);
 
 /**
  * Une passe réussie de plus pour l'équipe : au seuil, un bonus est tiré
@@ -384,15 +391,18 @@ function retireRenfort(state: MatchState, eq: TeamId): void {
   if (p.passe?.vers === r) p.passe = null;
   if (state.reception?.qui === r) state.reception = null;
   state.patineurs.splice(state.patineurs.indexOf(r), 1);
-  if (state.controles[eq] === r) {
-    // la main revient au coéquipier le plus proche du palet
+  // la main revient au coéquipier le plus proche du palet (jamais celui de l'autre humain, en coop)
+  const reprend = (): Skater | null => {
     let best: Skater | null = null;
     for (const s of state.patineurs) {
-      if (s.eq === eq && (!best || Math.hypot(s.x - p.x, s.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y))) best = s;
+      if (s.eq !== eq || s.humain) continue;
+      if (!best || Math.hypot(s.x - p.x, s.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y)) best = s;
     }
-    state.controles[eq] = best;
     if (best) best.humain = true;
-  }
+    return best;
+  };
+  if (state.controles[eq] === r) state.controles[eq] = reprend();
+  if (state.partenaire === r) state.partenaire = reprend();
   state.evenements.push({ type: 'onde', x: r.x, y: r.y, r: 20, c: '#ffd35c' });
   state.evenements.push({ type: 'etincelles', x: r.x, y: r.y - 6, n: 12, c: '#ffd35c' });
 }
@@ -550,7 +560,7 @@ export function tirLoupe(state: MatchState, s: Skater, x: number, y: number): bo
 export function estGele(state: MatchState, s: Skater): boolean {
   const pv = state.pouvoirs;
   if (!pv) return false;
-  for (const eq of [0, 1] as TeamId[]) if (effetActif(state, eq, 'freeze') && joueurDore(state, eq) !== s) return true;
+  for (const eq of [0, 1] as TeamId[]) if (effetActif(state, eq, 'freeze') && !joueursDores(state, eq).includes(s)) return true;
   return false;
 }
 

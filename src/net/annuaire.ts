@@ -27,6 +27,8 @@ export interface AnnoncePartie {
   adverse: string;
   /** Score du match en cours (ou du dernier). */
   score: [number, number];
+  /** Partie coop : l'invité joue avec l'hôte contre le CPU. */
+  coop: boolean;
   v: number;
   t: number;
   /** Index local du salon où l'annonce a été vue (non transmis). */
@@ -56,6 +58,7 @@ export function valideAnnonce(o: unknown, idTopic: string, salon: number): Annon
   if (typeof a.adverse !== 'string' || !/^([a-z]{2,16})?$/.test(a.adverse)) return null;
   const sc = a.score;
   if (!Array.isArray(sc) || sc.length !== 2 || !sc.every((x) => typeof x === 'number' && Number.isInteger(x) && x >= 0 && x < 100)) return null;
+  if (typeof a.coop !== 'boolean') return null;
   if (typeof a.v !== 'number' || typeof a.t !== 'number' || !Number.isFinite(a.t)) return null;
   return {
     id: a.id,
@@ -67,6 +70,7 @@ export function valideAnnonce(o: unknown, idTopic: string, salon: number): Annon
     spect: a.spect,
     adverse: a.adverse,
     score: [sc[0] as number, sc[1] as number],
+    coop: a.coop,
     v: a.v,
     t: a.t,
     salon,

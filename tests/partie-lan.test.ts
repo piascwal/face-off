@@ -15,7 +15,7 @@ import {
   type EtatPartieLan,
 } from '../src/net/partie';
 
-const CONFIG = { effectif: 0, duree: 1, assistTir: true, assistPasse: false, changementAuto: true, ralenti: true, pouvoirs: false };
+const CONFIG = { effectif: 0, duree: 1, assistTir: true, assistPasse: false, changementAuto: true, ralenti: true, pouvoirs: false, coop: false, niveau: 1 };
 const A = '0123456789abcdef';
 const B = 'fedcba9876543210';
 

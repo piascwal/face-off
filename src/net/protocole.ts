@@ -208,6 +208,8 @@ export interface EtatPatineur {
   tient: boolean;
   arme: boolean;
   humain: boolean;
+  /** Coop : le patineur du second humain (l'invité). */
+  partenaire: boolean;
   /** Équipe, et renfort du bonus surnombre (joueur en plus, ajouté en fin de liste). */
   eq: TeamId;
   renfort: boolean;
@@ -233,6 +235,8 @@ export interface Instantane {
   pouvoirs: [EtatPouvoirs, EtatPouvoirs] | null;
   marqueur: TeamId | null;
   humains: [boolean, boolean];
+  /** Coop : deux humains dans l'équipe 0 (voir `MatchState.coop`). */
+  coop: boolean;
   score: [number, number];
   tirs: [number, number];
   lampe: [number, number];
@@ -292,7 +296,8 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
       (state.marqueur !== null ? 8 : 0) |
       (state.marqueur === 1 ? 16 : 0) |
       (state.humains[0] ? 32 : 0) |
-      (state.humains[1] ? 64 : 0),
+      (state.humains[1] ? 64 : 0) |
+      (state.coop ? 4 : 0),
   );
   u16(state.score[0]);
   u16(state.score[1]);
@@ -331,7 +336,7 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
     const s = state.patineurs[i]!;
     for (const v of [s.x, s.y, s.vx, s.vy, s.face, s.charge, s.elanT, s.elanCd, s.sonne, s.anim, s.ex, s.ey, s.esquiveT, s.prepaEchecT, s.chuteT, s.chuteD, s.flashT, s.tirT]) f(v);
     f(s.vise ?? NaN);
-    u8((s.tient ? 1 : 0) | (s.arme ? 2 : 0) | (s.humain ? 4 : 0) | (s.renfort ? 8 : 0) | (s.eq === 1 ? 16 : 0));
+    u8((s.tient ? 1 : 0) | (s.arme ? 2 : 0) | (s.humain ? 4 : 0) | (s.renfort ? 8 : 0) | (s.eq === 1 ? 16 : 0) | (s === state.partenaire ? 32 : 0));
   }
   for (const gk of state.gardiens) for (const v of [gk.a, gk.x, gk.y, gk.tient, gk.secoue]) f(v);
   const p = state.palet;
@@ -447,6 +452,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
       arme: (b & 2) !== 0,
       humain: (b & 4) !== 0,
       renfort: (b & 8) !== 0,
+      partenaire: (b & 32) !== 0,
       eq: b & 16 ? 1 : 0,
     });
   }
@@ -475,6 +481,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
     pouvoirs: fl & 2 ? pouvoirs : null,
     marqueur: fl & 8 ? (fl & 16 ? 1 : 0) : null,
     humains: [(fl & 32) !== 0, (fl & 64) !== 0],
+    coop: (fl & 4) !== 0,
     score,
     tirs,
     lampe,
@@ -514,6 +521,7 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
   state.pouvoirs = b.pouvoirs ? [{ ...b.pouvoirs[0] }, { ...b.pouvoirs[1] }] : null;
   state.marqueur = b.marqueur;
   state.humains = [...b.humains];
+  state.coop = b.coop;
   state.score = [...b.score];
   state.tirs = [...b.tirs];
   state.lampe = [...b.lampe];
@@ -561,6 +569,11 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
     s.tient = sb.tient;
     s.arme = sb.arme;
     s.humain = sb.humain;
+  }
+  state.partenaire = null;
+  if (b.coop) {
+    const ip = b.patineurs.findIndex((sb, i) => sb.partenaire && i < n);
+    if (ip >= 0) state.partenaire = state.patineurs[ip]!;
   }
   for (const eq of [0, 1] as TeamId[]) {
     const ga = a.gardiens[eq];

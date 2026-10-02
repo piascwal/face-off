@@ -1,7 +1,7 @@
 import { DUREES, EFFECTIFS } from '@core/constants';
 import { creePartie, type OptionsPartie } from '@core/rules';
 import { trouveEquipe } from '@core/teams';
-import { INTENT_VIDE, type MatchState, type Rink, type TeamId } from '@core/types';
+import { INTENT_VIDE, type MatchState, type Rink, type Skater, type TeamId } from '@core/types';
 import type { AnnoncePartie } from '@net/annuaire';
 import { estReaction, type ActionLan, type ConfigLan, type EtatPartieLan, type PhaseLan, type Place } from '@net/partie';
 import { angleVersHote, decodeInstantane, directionVersHote, encodeInstantane, evenementsPourEnvoi, type MsgCtrl } from '@net/protocole';
@@ -29,12 +29,12 @@ import { demandePleinEcranPaysage } from './pwa';
 
 /**
  * Match en réseau local : l'hôte simule (équipe 0), le client affiche et
- * envoie ses entrées (équipe 1) ; un spectateur affiche comme le client,
- * sans rien piloter.
+ * envoie ses entrées (équipe 1, ou le second patineur de l'équipe 0 en coop) ;
+ * un spectateur affiche comme le client, sans rien piloter.
  */
 export type JeuReseau =
-  | { role: 'hote'; eqLocal: 0; dernierEnvoi: number }
-  | { role: 'client'; eqLocal: 1; synchro: SynchroClient; spectateur: boolean };
+  | { role: 'hote'; eqLocal: TeamId; dernierEnvoi: number }
+  | { role: 'client'; eqLocal: TeamId; synchro: SynchroClient; spectateur: boolean };
 
 function messageErreurReseau(e: unknown): string {
   const m = e instanceof Error ? e.message : '';
@@ -103,6 +103,17 @@ export class ParcoursLan {
 
   get place(): Place {
     return this.hote ? 0 : 1;
+  }
+
+  /** Le patineur que cet appareil pilote : en coop, l'invité pilote le second patineur de l'équipe 0. */
+  pilote(state: MatchState): Skater | null {
+    if (this.spectateur) return null;
+    return state.coop && this.place === 1 ? state.partenaire : state.controles[this.eqLocal];
+  }
+
+  /** Partie en coop : les deux joueurs jouent ensemble contre le CPU. */
+  get coop(): boolean {
+    return !!this.partie?.config.coop;
   }
 
   /** Cet appareil regarde la partie sans y jouer. */
@@ -234,6 +245,8 @@ export class ParcoursLan {
       changementAuto: pref.changementAuto,
       ralenti: pref.ralentiButs,
       pouvoirs: pref.bonus,
+      coop: pref.coopWifi,
+      niveau: pref.niveau,
     };
     const equipeConnue = (id: string) => EQUIPES_JOUABLES.some((e) => e.id === id);
     SessionHote.cree({ nom: pref.pseudo, appareil: pref.appareil, equipe: pref.equipeJoueur, config }, equipeConnue).then(
@@ -328,8 +341,11 @@ export class ParcoursLan {
     const n = EQUIPES_JOUABLES.length;
     const i = Math.max(0, EQUIPES_JOUABLES.findIndex((d) => d.id === moi.equipe));
     const id = EQUIPES_JOUABLES[(i + sens + n) % n]!.id;
-    this.app.pref.equipeJoueur = id;
-    sauvePreferences(this.app.pref);
+    // en coop, l'invité choisit l'équipe du CPU : ce n'est pas la sienne, on ne la retient pas
+    if (!(e.config.coop && this.place === 1)) {
+      this.app.pref.equipeJoueur = id;
+      sauvePreferences(this.app.pref);
+    }
     this.agit({ a: 'equipe', equipe: id });
   }
 
@@ -364,8 +380,9 @@ export class ParcoursLan {
     const c = e.config;
     const options: OptionsPartie = {
       mode: 'match',
-      // coéquipiers CPU au même niveau des deux côtés : seul le talent des humains départage
-      niveauIdx: 1,
+      // versus : coéquipiers CPU au même niveau des deux côtés, seul le talent des humains départage ;
+      // coop : le niveau du CPU est celui que l'hôte a réglé
+      niveauIdx: c.coop ? c.niveau : 1,
       dureeIdx: Math.min(c.duree, DUREES.length - 1),
       effectifIdx: Math.min(c.effectif, EFFECTIFS.length - 1),
       equipeJoueur: trouveEquipe(eqs[0].teamId),
@@ -373,8 +390,9 @@ export class ParcoursLan {
       assistTir: c.assistTir,
       assistPasse: c.assistPasse,
       changementAuto: c.changementAuto,
-      humains: [true, true],
-      bonus: [...e.bonus],
+      humains: [true, !c.coop],
+      coop: c.coop,
+      bonus: c.coop ? ['aucun', 'aucun'] : [...e.bonus],
       dureeBut: dureeBut(c.ralenti),
       pouvoirs: c.pouvoirs,
     };
@@ -391,14 +409,14 @@ export class ParcoursLan {
     app.ecranUI = 'jeu';
     app.enPause = false;
     // repris en route : le compte à rebours de reprise suffit
-    if (this.finReprise === null) app.effets.annonce('PRETS ?', 'MATCH EN RESEAU', C.blanc, 1.5);
+    if (this.finReprise === null) app.effets.annonce('PRETS ?', c.coop ? 'COOP CONTRE LE CPU' : 'MATCH EN RESEAU', C.blanc, 1.5);
   }
 
   private surCtrlClient(m: MsgCtrl): void {
     if (m.t === 'debut') {
       const c = this.client;
       const e = c?.partie;
-      if (c && e) this.demarreMatch(e, { role: 'client', eqLocal: 1, synchro: new SynchroClient(m.s0), spectateur: c.spectateur });
+      if (c && e) this.demarreMatch(e, { role: 'client', eqLocal: e.config.coop ? 0 : 1, synchro: new SynchroClient(m.s0), spectateur: c.spectateur });
     } else if (m.t === 'reaction') {
       this.ajouteReaction(m.r, m.de);
     } else if (m.t === 'ev') {
@@ -477,7 +495,7 @@ export class ParcoursLan {
     if (this.jeu.role === 'hote') this.hote?.finMatch();
     this.phaseVue = 'fin';
     const adv = this.partie?.joueurs[this.place === 0 ? 1 : 0];
-    if (adv && !this.spectateur) {
+    if (adv && !this.spectateur && !this.coop) {
       const moi = this.eqLocal;
       const eux = moi === 0 ? 1 : 0;
       const sc = state.score;

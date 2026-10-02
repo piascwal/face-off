@@ -28,23 +28,31 @@ export const pointCrosse = (s: Skater): { x: number; y: number } => ({
   y: s.y + Math.sin(s.face) * 8 + 1,
 });
 
-/** Chaque humain ne pilote qu'un seul patineur de son équipe à la fois. */
-export function controle(state: MatchState, s: Skater): void {
-  if (state.mode !== 'match' || !state.humains[s.eq] || state.controles[s.eq] === s) return;
+/**
+ * Chaque humain ne pilote qu'un seul patineur de son équipe à la fois. En coop,
+ * l'équipe 0 a deux humains (`siege` 0 : l'hôte, 1 : l'invité) qui ne peuvent
+ * pas se prendre le même patineur.
+ */
+export function controle(state: MatchState, s: Skater, siege: 0 | 1 = 0): void {
+  if (state.mode !== 'match' || !state.humains[s.eq]) return;
+  const second = siege === 1 && state.coop && s.eq === 0;
+  const actuel = second ? state.partenaire : state.controles[s.eq];
+  const autre = state.coop && s.eq === 0 ? (second ? state.controles[0] : state.partenaire) : null;
+  if (actuel === s || autre === s) return;
   // freeze de son équipe : on garde la main sur le seul joueur qui bouge
-  if (state.controles[s.eq] && effetActif(state, s.eq, 'freeze')) return;
-  const a = state.controles[s.eq];
-  if (a) {
-    a.humain = false;
-    a.arme = false;
-    a.charge = 0;
-    a.vise = null;
-    a.ia.t = 0;
+  if (actuel && effetActif(state, s.eq, 'freeze')) return;
+  if (actuel) {
+    actuel.humain = false;
+    actuel.arme = false;
+    actuel.charge = 0;
+    actuel.vise = null;
+    actuel.ia.t = 0;
   }
   s.humain = true;
   s.arme = false;
   s.charge = 0;
-  state.controles[s.eq] = s;
+  if (second) state.partenaire = s;
+  else state.controles[s.eq] = s;
 }
 
 export function prendPalet(state: MatchState, qui: Porteur): void {
@@ -255,12 +263,12 @@ export function passeJoueur(state: MatchState, s: Skater, ix: number, iy: number
 }
 
 /** Sans le palet, le bouton passe donne la main au coéquipier le plus proche du palet. */
-export function changeJoueur(state: MatchState, eq: TeamId): void {
+export function changeJoueur(state: MatchState, eq: TeamId, siege: 0 | 1 = 0): void {
   const p = state.palet;
   let best: Skater | null = null;
   let dmin = 1e9;
   for (const m of equipe(state, eq)) {
-    if (m === state.controles[eq]) continue;
+    if (m === state.controles[eq] || m === state.partenaire) continue;
     const d = Math.hypot(m.x - p.x, m.y - p.y);
     if (d < dmin) {
       dmin = d;
@@ -268,7 +276,7 @@ export function changeJoueur(state: MatchState, eq: TeamId): void {
     }
   }
   if (best) {
-    controle(state, best);
+    controle(state, best, siege);
     state.evenements.push({ type: 'clic' });
   }
 }
@@ -285,24 +293,26 @@ export function changeJoueur(state: MatchState, eq: TeamId): void {
 export function changeAutoSiLoin(state: MatchState): void {
   const p = state.palet;
   if (p.porteur || p.passe) return;
-  for (const c of state.controles) if (c) changeAutoEquipe(state, c);
+  for (const c of state.controles) if (c) changeAutoEquipe(state, c, 0);
+  if (state.partenaire) changeAutoEquipe(state, state.partenaire, 1);
 }
 
-function changeAutoEquipe(state: MatchState, c: Skater): void {
+function changeAutoEquipe(state: MatchState, c: Skater, siege: 0 | 1): void {
   const p = state.palet;
   const dControle = Math.hypot(c.x - p.x, c.y - p.y);
   if (dControle < CHANGEMENT_AUTO_SEUIL) return;
   let best: Skater | null = null;
   let dmin = 1e9;
   for (const m of equipe(state, c.eq)) {
-    if (m === c || m.sonne > 0) continue;
+    // jamais le patineur de l'autre humain (coop)
+    if (m === c || m.humain || m.sonne > 0) continue;
     const d = Math.hypot(m.x - p.x, m.y - p.y);
     if (d < dmin) {
       dmin = d;
       best = m;
     }
   }
-  if (best && dmin < dControle - CHANGEMENT_AUTO_MARGE) controle(state, best);
+  if (best && dmin < dControle - CHANGEMENT_AUTO_MARGE) controle(state, best, siege);
 }
 
 /**

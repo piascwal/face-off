@@ -27,6 +27,11 @@ export interface OptionsPartie {
   changementAuto?: boolean;
   /** Équipes pilotées par un humain ; par défaut seule l'équipe 0 (solo contre le CPU). */
   humains?: [boolean, boolean];
+  /**
+   * Coop (partie Wi-Fi) : l'hôte et l'invité jouent ensemble l'équipe 0 contre
+   * le CPU (qui garde le niveau `niveauIdx`) ; `humains` est alors ignoré.
+   */
+  coop?: boolean;
   /** Handicap de chaque équipe (partie Wi-Fi) ; aucun par défaut. */
   bonus?: [BonusEquipe, BonusEquipe];
   /** Durée de la phase « but » ; allongée quand le ralenti des buts est activé. */
@@ -83,14 +88,17 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     }
   }
 
+  const coop = opts.mode === 'match' && !!opts.coop && nb >= 2;
   const state: MatchState = {
     mode: opts.mode,
     niv: niveauAdverse,
     nivEq,
     nb,
     patineurs: [],
-    humains: opts.mode === 'demo' ? [false, false] : (opts.humains ?? [true, false]),
+    humains: opts.mode === 'demo' ? [false, false] : coop ? [true, false] : (opts.humains ?? [true, false]),
     controles: [null, null],
+    coop,
+    partenaire: null,
     gardiens: [nouveauGardien(0), nouveauGardien(1)],
     palet: nouveauPalet(),
     // « 1 but d'avance » : l'équipe aidée commence le match en menant
@@ -190,6 +198,9 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
       const premier = state.patineurs.find((s) => s.eq === eq && s.rang === 0);
       if (state.humains[eq] && premier) controle(state, premier);
     }
+    // coop : le second humain démarre avec le coéquipier de rang 1
+    const second = state.patineurs.find((s) => s.eq === 0 && s.rang === 1);
+    if (state.coop && second) controle(state, second, 1);
   }
   state.phase = 'engagement';
   state.phaseT = duree;
