@@ -635,6 +635,17 @@ le callback reçoit `partenaire` pour distinguer les deux humains ;
 l'instantané et le patineur de l'invité). Testé dans `tests/coop.test.ts` et
 par le scénario e2e `coop`.
 
+**Engagement animé.** À chaque balle au centre (début de match, après un but,
+prolongation, après un loupé complet), les joueurs ne sont plus posés : ils
+arrivent en patinant de leur point de départ à leur place, en 0,85 s au plus
+(`APPROCHE_S`). Le joueur de la mise au jeu part de plus loin (58 px, en biais)
+que ses coéquipiers (30 px), glisse en freinant (vitesse maximale au départ,
+gerbe de glace et raclement à la fin), regarde où il va puis se tourne face à
+l'adversaire. Le bandeau « PRETS ? » attend 0,7 s pour ne pas cacher la scène.
+Code : `core/rules.ts::preparerApproche` et `animeApproche` (testé dans
+`tests/engagement.test.ts`) ; en Wi-Fi, seules les positions voyagent, comme
+d'habitude.
+
 ### 9. Handicap, statistiques et ralenti des buts
 
 - **Handicap (Wi-Fi)**. Dans la salle d'attente, l'hôte peut donner un coup de

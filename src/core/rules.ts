@@ -1,10 +1,10 @@
 import { controle } from './actions';
-import { ANNONCE_BUT_S, DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from './constants';
+import { ANNONCE_BUT_S, APPROCHE_COEQUIPIER, APPROCHE_MISE_AU_JEU, APPROCHE_S, DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from './constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from './entities';
 import { cassePasses, etatPouvoirsInitial, finPouvoir } from './pouvoirs';
 import { PROFIL_NEUTRE, type TeamProfile } from './teams';
-import { statsVides, type PouvoirId, type BonusEquipe, type GameMode, type LevelConfig, type MatchState, type Rink, type TeamId } from './types';
-import { clamp, decalageRang } from './utils';
+import { statsVides, type PouvoirId, type BonusEquipe, type GameMode, type LevelConfig, type MatchState, type Rink, type TeamId, type Vec2 } from './types';
+import { angDiff, clamp, decalageRang } from './utils';
 
 export interface OptionsPartie {
   mode: GameMode;
@@ -207,8 +207,81 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
     const actif = state.pouvoirs?.[eq].actif;
     if (actif === 'geante' || actif === 'minicage') finPouvoir(state, eq);
   }
+  preparerApproche(rink, state, duree);
   state.phase = 'engagement';
   state.phaseT = duree;
+}
+
+/**
+ * Engagement : chaque joueur est reculé de son point de départ (le joueur de la
+ * mise au jeu plus loin que ses coéquipiers) et skate vers sa position ; voir
+ * `animeApproche`, qui l'y amène pendant les premières secondes de l'engagement.
+ */
+function preparerApproche(rink: Rink, state: MatchState, duree: number): void {
+  const depart: Vec2[] = [];
+  const cible: Vec2[] = [];
+  for (const s of state.patineurs) {
+    const cote = s.eq === 0 ? -1 : 1;
+    const c = { x: s.x, y: s.y };
+    let d: Vec2;
+    if (s.rang === 0) {
+      // face à face : chacun arrive du fond de son côté, en biais
+      d = { x: c.x + cote * APPROCHE_MISE_AU_JEU, y: c.y + (s.eq === 0 ? 1 : -1) * 16 };
+    } else {
+      const bas = c.y >= rink.cy ? 1 : -1;
+      d = { x: c.x + cote * APPROCHE_COEQUIPIER, y: clamp(c.y + bas * 22, rink.y + 12, rink.y + rink.h - 12) };
+    }
+    depart.push(d);
+    cible.push(c);
+    s.x = d.x;
+    s.y = d.y;
+    const a = Math.atan2(c.y - d.y, c.x - d.x);
+    s.face = a;
+  }
+  state.approche = { t: 0, duree: Math.min(APPROCHE_S, duree * 0.65), depart, cible };
+}
+
+/**
+ * Un pas de l'approche : le joueur glisse vers sa position en freinant (courbe
+ * douce, vitesse maximale au départ), regarde où il va, puis se tourne face à
+ * l'adversaire à l'arrivée. Le palet, lui, reste au centre.
+ */
+export function animeApproche(state: MatchState, dt: number): void {
+  const ap = state.approche;
+  if (!ap || state.phase !== 'engagement') return;
+  const avant = ap.t;
+  ap.t = Math.min(ap.duree, ap.t + dt);
+  const u = ap.t / ap.duree;
+  const e = 1 - (1 - u) * (1 - u);
+  const freine = avant / ap.duree < 0.6 && u >= 0.6;
+  state.patineurs.forEach((s, i) => {
+    const d = ap.depart[i];
+    const c = ap.cible[i];
+    if (!d || !c) return;
+    const x = d.x + (c.x - d.x) * e;
+    const y = d.y + (c.y - d.y) * e;
+    s.vx = (x - s.x) / dt;
+    s.vy = (y - s.y) / dt;
+    s.x = x;
+    s.y = y;
+    const sp = Math.hypot(s.vx, s.vy);
+    s.anim += sp * dt;
+    const but = s.eq === 0 ? 0 : Math.PI;
+    if (u < 1 && sp > 8) {
+      // il regarde où il va, puis se tourne vers le point de mise au jeu sur la fin
+      const cap = u > 0.7 ? but : Math.atan2(s.vy, s.vx);
+      s.face += clamp(angDiff(s.face, cap), -13 * dt, 13 * dt);
+    } else if (u >= 1) {
+      s.vx = s.vy = 0;
+      s.face += clamp(angDiff(s.face, but), -13 * dt, 13 * dt);
+    }
+    // le joueur de la mise au jeu freine en gerbe de glace
+    if (freine && s.rang === 0) {
+      state.evenements.push({ type: 'neige', x: s.x, y: s.y + 3, n: 4, vx: -s.vx * 0.4, vy: -s.vy * 0.4 });
+      state.evenements.push({ type: 'raclement' });
+    }
+  });
+  if (ap.t >= ap.duree) state.approche = null;
 }
 
 /** Fin du temps réglementaire : renvoie s'il faut jouer une prolongation ou finir le match. */

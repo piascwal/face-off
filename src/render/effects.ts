@@ -40,12 +40,20 @@ export interface Onde {
   max: number;
 }
 
+/** Engagement : « PRETS ? » n'apparaît qu'une fois les joueurs arrivés (voir `APPROCHE_S` dans core/constants.ts). */
+const RETARD_PRETS_S = 0.7;
+
 export interface Banniere {
   txt: string;
   sous: string;
   c: string;
   vie: number;
   max: number;
+  /**
+   * Secondes avant que le bandeau n'apparaisse : « PRETS ? » attend que les
+   * joueurs de l'engagement soient arrivés, pour qu'on les voie se placer.
+   */
+  retard?: number;
   /** Id de l'écusson géant affiché derrière le bandeau (but marqué par cette équipe). */
   logoId?: string;
   /** Célébration du buteur : feuille de son équipe (maillot compris) et tirage du dessin. */
@@ -133,7 +141,7 @@ export class SystemeEffets {
   }
 
   annonce(txt: string, sous: string, c: string, duree = 1.6, logoId?: string, celebration?: Banniere['celebration']): void {
-    this.banniere = { txt, sous, c, vie: duree, max: duree, logoId, celebration };
+    this.banniere = { txt, sous, c, vie: duree, max: duree, logoId, celebration, retard: txt === 'PRETS ?' ? RETARD_PRETS_S : 0 };
   }
 
   /** Consomme les évènements de gameplay produits par un pas de simulation. */

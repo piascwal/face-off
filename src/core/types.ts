@@ -300,6 +300,12 @@ export interface MatchState {
   figeT: number;
   /** Bonus « envahissement » : les supporters sur la glace. */
   supporters: Supporter[];
+  /**
+   * Engagement : les joueurs arrivent patinant de leur point de départ à leur
+   * position (`depart` → `cible`, un par patineur, dans l'ordre de `patineurs`).
+   * Absent hors de l'animation ; non transmis en Wi-Fi (seules les positions le sont).
+   */
+  approche?: { t: number; duree: number; depart: Vec2[]; cible: Vec2[] } | null;
   /** Évènements à effet de bord produits pendant le dernier pas de simulation. */
   evenements: GameEvent[];
   /** Réglages « avancés » du menu, ignorés en mode démo (toujours activés). */

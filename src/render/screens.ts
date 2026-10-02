@@ -212,7 +212,8 @@ export function dessineFin(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
 export function dessineBanniere(g: CanvasRenderingContext2D, W: number, rink: Rink, banniere: Banniere | null, ecranUI: string): void {
   if (!banniere || ecranUI === 'menu') return;
   const b = banniere;
-  const age = b.max - b.vie;
+  const age = b.max - b.vie - (b.retard ?? 0);
+  if (age < 0) return;
   const e = b.txt.length > 9 ? 2 : 3;
   const entree = Math.min(1, age * 6);
   const cx = Math.round(W / 2);

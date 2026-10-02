@@ -146,3 +146,11 @@ export const CHANGEMENT_AUTO_MARGE = 24;
  * buteur qui traverse l'écran doit tenir dedans (voir render/celebration.ts).
  */
 export const ANNONCE_BUT_S = 2.9;
+
+/**
+ * Engagement : les joueurs arrivent en patinant (durée de l'approche, en s) ;
+ * le joueur de la mise au jeu part de plus loin que ses coéquipiers.
+ */
+export const APPROCHE_S = 0.85;
+export const APPROCHE_MISE_AU_JEU = 58;
+export const APPROCHE_COEQUIPIER = 30;

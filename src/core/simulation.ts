@@ -11,7 +11,7 @@ import {
   type SegmentCage,
 } from './physics';
 import { demiCage, estGele, estInverse, LOUPE_IMPACT, LOUPE_REBOND, LOUPE_S, majPouvoirs, majSupporters } from './pouvoirs';
-import { engagement, finMatch, finTempsReglementaire } from './rules';
+import { animeApproche, engagement, finMatch, finTempsReglementaire } from './rules';
 import { INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from './types';
 import { alea } from './utils';
 
@@ -77,6 +77,7 @@ export function pas(
   const segsSansFace: SegmentCage[] = segmentsCage(rink, false, demis);
 
   for (const s of state.patineurs) bougePatineur(rink, state, s, dt, segsAvecFace);
+  animeApproche(state, dt);
   majSupporters(rink, state, dt);
   collisionsPatineurs(state);
   for (const gk of state.gardiens) majGardien(rink, state, gk, dt);
@@ -132,7 +133,7 @@ export function pas(
     }
     if (state.phaseT <= 0) {
       engagement(rink, state, 1.3);
-      state.evenements.push({ type: 'annonce', txt: 'PRETS ?', sous: '', c: '#ffffff', duree: 1.1 });
+      state.evenements.push({ type: 'annonce', txt: 'PRETS ?', sous: '', c: '#ffffff', duree: 1.25 });
     }
   } else if (state.phase === 'but') {
     state.phaseT -= dt;
@@ -141,7 +142,7 @@ export function pas(
         finMatch(rink, state);
       } else {
         engagement(rink, state, 1.3);
-        state.evenements.push({ type: 'annonce', txt: 'PRETS ?', sous: '', c: '#ffffff', duree: 1.1 });
+        state.evenements.push({ type: 'annonce', txt: 'PRETS ?', sous: '', c: '#ffffff', duree: 1.25 });
       }
     }
   }
