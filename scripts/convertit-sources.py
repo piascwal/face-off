@@ -838,8 +838,8 @@ CELEBRATIONS = [
      'gants': [(13, 32, 36, 50), (58, 37, 80, 53)], 'culotte': (13, 62, 50, 82),
      'crosse': [(76, 18, 74, 85, 2.8), (65, 1, 77, 15, 3.5)]},
     # barbu, un gant pointé vers la foule, l'autre poing levé (sans crosse)
-    {'nom': 'celebration-7', 'casque': (49, 0, 73, 15), 'visage': (50, 13, 73, 37),
-     'gants': [(7, 13, 29, 40), (79, 7, 99, 36)], 'culotte': (20, 64, 62, 86),
+    {'nom': 'celebration-7', 'periode': 6.4, 'casque': (45, 0, 67, 14), 'visage': (46, 12, 67, 34),
+     'gants': [(6, 12, 27, 37), (72, 6, 91, 33)], 'culotte': (18, 59, 57, 79),
      'crosse': []},
 ]
 
