@@ -62,7 +62,7 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 | `coupe` | Mode coupe de 8 équipes : ancienne sauvegarde migrée, choix, tableau, dévoilement, élimination, titre |
 | `coupe16` | Coupe de 16 équipes : bouton MODE (classique, coupe 8, coupe 16), huitièmes à la finale, titre, élimination dès les huitièmes (tours suivants simulés) |
 | `multi` | Un vrai match à deux joueurs : les touches de l'invité pilotent son joueur chez l'hôte, positions identiques, tir (charge et geste) vu des deux côtés, but et score synchronisés, reprise, bonus en Wi-Fi (envahissement, cage géante, givre, tremblement et son secousse, loupé complet déclenché par le tir de l'invité), fin de match au même score |
-| `coop` | Mode coop à deux contre le CPU : réglage MODE de l'hôte, choix des équipes (équipe commune, équipe du CPU), les touches de chacun ne pilotent que son patineur, tir de l'invité, but et score identiques, changement de joueur sans jamais prendre le patineur de l'autre, bonus pour l'équipe, fin de match sans bilan de duel, revanche |
+| `coop` | Mode coop à deux contre le CPU : réglage MODE de l'hôte, choix des équipes et maillots par l'hôte seul (l'invité regarde, son « prêt » ne compte pas), les touches de chacun ne pilotent que son patineur, tir de l'invité, but et score identiques, changement de joueur sans jamais prendre le patineur de l'autre, bonus doré qui suit le porteur du palet, fin de match sans bilan de duel, revanche |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
 | `bonus` | Bonus en solo : jauge, 4e passe (gros « BONUS » doré sans combo), départ automatique, but x2 limité à 10 s, freeze, inversion, full esquive, tir surpuissant (bouton TIR doré), super héros, tremblement, givre, cage géante, mini cage, gardien endormi, blackout, envahissement, loupé complet, surnombre, un but qui coupe tout, option du menu, mode entraînement |
 | `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), invité qui ne revient pas, coupure pendant le choix des équipes |
@@ -602,25 +602,31 @@ porte la mention COOP.
 - **Le salon** affiche « JOUEUR 1 + JOUEUR 2 » et le niveau du CPU ; pas de
   handicap (c'est le niveau du CPU qui règle la difficulté) ni de bilan de
   duels.
-- **Choix des équipes et des maillots** : l'hôte choisit l'équipe commune
-  (« NOTRE ÉQUIPE »), l'invité celle que jouera le CPU (« ADVERSAIRE CPU »).
-  Les deux valident, comme en versus.
+- **Choix des équipes et des maillots** : l'hôte règle tout, l'équipe commune
+  (« NOTRE ÉQUIPE ») comme celle du CPU (« ADVERSAIRE CPU »), avec des flèches
+  sur chaque panneau (au clavier : gauche/droite pour son équipe, haut/bas pour
+  le CPU). L'invité regarde les choix se faire et n'a rien à valider : le
+  « PRÊT » de l'hôte suffit à passer à l'étape suivante.
 - **En match**, l'hôte pilote un patineur et l'invité un autre, tous deux de
   l'équipe 0 ; les coéquipiers CPU jouent comme d'habitude, et passer le palet
   à l'autre humain est la base du jeu. Chacun a son bouton CHANGE : il donne la
   main à un coéquipier CPU, jamais au patineur de l'autre (le changement
-  automatique non plus). L'invité voit une flèche blanche sur le patineur de
-  l'hôte, et inversement.
-- **Les bonus** de l'équipe profitent aux deux humains : tous deux sont dorés
-  (super vitesse, tir surpuissant, freeze, blackout), et le freeze n'immobilise
-  ni l'un ni l'autre.
-- **Fin de match** : victoire ou défaite pour les deux ; on vote REJOUER ou
-  CHANGER D'ÉQUIPES comme en versus. Pas de bilan de duel (le CPU n'en est pas
-  un).
+  automatique non plus). Ma flèche est bleue ; celle de l'autre humain est
+  rouge vif, bien visible sur la glace (en versus comme en coop).
+- **Les bonus** de l'équipe ne s'appliquent qu'à celui des deux humains qui a
+  le palet : il est doré (super vitesse, tir surpuissant et son bouton TIR doré,
+  freeze, blackout...), et l'or passe de l'un à l'autre avec le palet, puis
+  reste sur le dernier porteur si le palet est libre. L'autre humain n'a aucun
+  avantage et subit comme les CPU un freeze ou un tremblement de son propre
+  bonus (`MatchState.pouvoirs[0].dore` garde le siège doré, 0 ou 1).
+- **Fin de match** : le même écran que partout (victoire ou défaite, score,
+  statistiques du match : tirs cadrés, passes, possession, mises en échec,
+  meilleure combo), puis on vote REJOUER ou CHANGER D'ÉQUIPES comme en versus.
+  Pas de bilan de duel (le CPU n'en est pas un).
 
 Code : `MatchState.coop` et `MatchState.partenaire` (le patineur de l'invité),
 `OptionsPartie.coop`, `controle(state, s, siege)` et `changeJoueur(..., siege)`
-(`core/actions.ts`), `joueursDores` (`core/pouvoirs.ts`), `pas(..., entree)` dont
+(`core/actions.ts`), `siegeDe` et `joueurDore` (`core/pouvoirs.ts`), `pas(..., entree)` dont
 le callback reçoit `partenaire` pour distinguer les deux humains ;
 `ConfigLan.coop`/`niveau` (`net/partie.ts`) ; protocole v20 (le drapeau coop de
 l'instantané et le patineur de l'invité). Testé dans `tests/coop.test.ts` et

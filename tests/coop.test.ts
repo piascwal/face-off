@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { changeAutoSiLoin, changeJoueur, controle, prendPalet } from '../src/core/actions';
 import { CHANGEMENT_AUTO_MARGE, CHANGEMENT_AUTO_SEUIL } from '../src/core/constants';
-import { activePouvoir, estDore, estGele, joueursDores } from '../src/core/pouvoirs';
+import { activePouvoir, boutonBonus, estDore, estGele, joueurDore, majPouvoirs } from '../src/core/pouvoirs';
 import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
 import { pas } from '../src/core/simulation';
 import { INTENT_VIDE, type MatchState, type Skater } from '../src/core/types';
 import { appliqueInstantane, decodeInstantane, encodeInstantane } from '../src/net/protocole';
-import { lisConfig } from '../src/net/partie';
+import { appliqueAction, inviteArrive, lisAction, lisConfig, nouvellePartie, type ConfigLan } from '../src/net/partie';
 
 const rink = calculeRink(400, 200);
 
@@ -121,22 +121,46 @@ describe('coop : deux humains dans la même équipe', () => {
     expect(st.partenaire).toBe(invite);
   });
 
-  it('un bonus de l’équipe dore les deux humains, et le freeze les épargne tous les deux', () => {
+  it('le bonus ne profite qu’au porteur du palet : l’or passe de l’un à l’autre avec lui', () => {
     const st = coop();
     const hote = st.controles[0]!;
     const invite = st.partenaire!;
     const cpu = equipe0(st).find((s) => s !== hote && s !== invite)!;
+    prendPalet(st, hote);
     st.pouvoirs![0].pret = 'freeze';
     st.pouvoirs![0].tirage = 0;
     expect(activePouvoir(rink, st, 0, hote)).toBe(true);
-    expect(joueursDores(st, 0)).toEqual([hote, invite]);
+    expect(joueurDore(st, 0)).toBe(hote);
     expect(estDore(st, hote)).toBe(true);
-    expect(estDore(st, invite)).toBe(true);
-    expect(estDore(st, cpu)).toBe(false);
+    expect(estDore(st, invite)).toBe(false);
+    // le freeze atteint l'autre humain comme les CPU
     expect(estGele(st, hote)).toBe(false);
-    expect(estGele(st, invite)).toBe(false);
+    expect(estGele(st, invite)).toBe(true);
     expect(estGele(st, cpu)).toBe(true);
-    expect(estGele(st, st.patineurs.find((s) => s.eq === 1)!)).toBe(true);
+    // passe réussie : le palet change de main, et l'or avec lui
+    prendPalet(st, invite);
+    majPouvoirs(rink, st, 1 / 120);
+    expect(joueurDore(st, 0)).toBe(invite);
+    expect(estGele(st, invite)).toBe(false);
+    expect(estGele(st, hote)).toBe(true);
+    // palet perdu en route : l'or reste sur le dernier porteur
+    st.palet.porteur = null;
+    majPouvoirs(rink, st, 1 / 120);
+    expect(joueurDore(st, 0)).toBe(invite);
+  });
+
+  it('seul le joueur doré a le bouton TIR doré', () => {
+    const st = coop();
+    const hote = st.controles[0]!;
+    const invite = st.partenaire!;
+    prendPalet(st, invite);
+    st.pouvoirs![0].pret = 'puissant';
+    st.pouvoirs![0].tirage = 0;
+    expect(activePouvoir(rink, st, 0, invite)).toBe(true);
+    expect(joueurDore(st, 0)).toBe(invite);
+    expect(boutonBonus(st, 0, invite)).toBe('tir');
+    expect(boutonBonus(st, 0, hote)).toBeNull();
+    expect(boutonBonus(st, 0)).toBe('tir');
   });
 
   it('l’équipe 1 reste menée par le CPU et le match se joue normalement', () => {
@@ -181,5 +205,60 @@ describe('coop : réseau', () => {
     expect(lisConfig({ ...base, coop: 'oui', niveau: 1 })).toBeNull();
     expect(lisConfig({ ...base, coop: false, niveau: 7 })).toBeNull();
     expect(lisConfig({ ...base, coop: false, niveau: 1.5 })).toBeNull();
+  });
+});
+
+describe('coop : choix des équipes par l’hôte seul', () => {
+  const CONFIG: ConfigLan = { effectif: 1, duree: 1, assistTir: true, assistPasse: true, changementAuto: true, ralenti: true, pouvoirs: true, coop: true, niveau: 1 };
+  const A = '0123456789abcdef';
+  const B = 'fedcba9876543210';
+  const salon = () => {
+    const e = nouvellePartie(CONFIG, 'LYNX 12', 'toulouse', A);
+    inviteArrive(e, 'BISON 15', 'nice', B);
+    appliqueAction(e, 0, { a: 'lancer' });
+    return e;
+  };
+
+  it('l’hôte règle l’équipe commune et celle du CPU, l’invité ne règle rien', () => {
+    const e = salon();
+    expect(e.phase).toBe('equipes');
+    appliqueAction(e, 0, { a: 'equipe', equipe: 'angers' });
+    appliqueAction(e, 0, { a: 'equipe', equipe: 'rouen', cpu: true });
+    expect(e.joueurs[0].equipe).toBe('angers');
+    expect(e.joueurs[1]!.equipe).toBe('rouen');
+    appliqueAction(e, 1, { a: 'equipe', equipe: 'chicago' });
+    appliqueAction(e, 1, { a: 'equipe', equipe: 'chicago', cpu: true });
+    expect(e.joueurs[0].equipe).toBe('angers');
+    expect(e.joueurs[1]!.equipe).toBe('rouen');
+  });
+
+  it('le « prêt » de l’hôte suffit : l’invité suit, et ses propres « prêt » sont ignorés', () => {
+    const e = salon();
+    appliqueAction(e, 1, { a: 'pret', pret: true });
+    expect(e.phase).toBe('equipes');
+    appliqueAction(e, 0, { a: 'pret', pret: true });
+    expect(e.phase).toBe('maillots');
+    expect(e.joueurs.every((j) => j && !j.pret)).toBe(true);
+    // maillots : l'hôte règle les deux côtés, puis lance le match
+    appliqueAction(e, 0, { a: 'variante', variante: 'exterieur', cpu: true });
+    expect(e.joueurs[1]!.variante).toBe('exterieur');
+    appliqueAction(e, 1, { a: 'variante', variante: 'interieur', cpu: true });
+    expect(e.joueurs[1]!.variante).toBe('exterieur');
+    expect(appliqueAction(e, 0, { a: 'pret', pret: true })).toBe(true);
+    expect(e.phase).toBe('match');
+  });
+
+  it('deux maillots identiques empêchent le départ, même sans « prêt » de l’invité', () => {
+    const e = salon();
+    appliqueAction(e, 0, { a: 'equipe', equipe: 'nice', cpu: false });
+    appliqueAction(e, 0, { a: 'pret', pret: true });
+    expect(e.phase).toBe('maillots');
+    appliqueAction(e, 0, { a: 'variante', variante: 'interieur', cpu: true });
+    expect(appliqueAction(e, 0, { a: 'pret', pret: true })).toBe(false);
+    expect(e.phase).toBe('maillots');
+  });
+
+  it('le réseau ne transmet jamais le choix « cpu » d’un client', () => {
+    expect(lisAction({ a: 'equipe', equipe: 'nice', cpu: true })).toEqual({ a: 'equipe', equipe: 'nice' });
   });
 });

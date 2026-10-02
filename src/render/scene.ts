@@ -1,6 +1,6 @@
 import { meilleurReceveur, menaceEchec } from '@core/actions';
 import { BUT_DEMI } from '@core/constants';
-import { ALERTE_FIN_S, DEF_POUVOIRS, demiCage, effetActif, estGele, estDore, estInverse, gardienEndormi, HEROS_FREEZE_S, joueurDore, joueursDores } from '@core/pouvoirs';
+import { ALERTE_FIN_S, DEF_POUVOIRS, demiCage, effetActif, estGele, estDore, estInverse, gardienEndormi, HEROS_FREEZE_S, joueurDore } from '@core/pouvoirs';
 import { butAttaque } from '@core/shooting';
 import { equipe } from '@core/state-helpers';
 import type { MatchState, Rink, Skater, Supporter, TeamId } from '@core/types';
@@ -153,8 +153,8 @@ function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eq
         k.arc(x, y, r, 0, Math.PI * 2);
         k.fill();
       });
-    const spots = joueursDores(state, eq);
-    for (const spot of spots) trou(spot.x, spot.y - 8, [30, 25, 21]);
+    const spot = joueurDore(state, eq);
+    if (spot) trou(spot.x, spot.y - 8, [30, 25, 21]);
     const gardien = state.gardiens[eq === 0 ? 1 : 0];
     trou(gardien.x, gardien.y - 7, [26, 21, 17]);
     const moi = eqLocal !== null && eqLocal !== eq ? pilote : null;
@@ -166,7 +166,8 @@ function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eq
     // les faisceaux des projecteurs sur la glace
     g.globalAlpha = 0.2 * force;
     g.fillStyle = '#fff3b0';
-    for (const p of [...spots, gardien]) {
+    for (const p of [spot, gardien]) {
+      if (!p) continue;
       g.beginPath();
       g.ellipse(p.x, p.y + 2, 18, 7, 0, 0, Math.PI * 2);
       g.fill();

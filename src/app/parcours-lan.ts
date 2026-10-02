@@ -328,25 +328,34 @@ export class ParcoursLan {
     }
   }
 
-  /** Flèches du choix d'équipe : ne change que sa propre équipe (retenue pour la prochaine fois). */
-  tourneEquipe(sens: 1 | -1): void {
+  /**
+   * Flèches du choix d'équipe : chacun ne change que sa propre équipe (retenue
+   * pour la prochaine fois). En coop, l'hôte règle les deux côtés (`cote` 0 :
+   * l'équipe commune, 1 : celle du CPU) et l'invité ne règle rien.
+   */
+  tourneEquipe(sens: 1 | -1, cote: Place = this.place): void {
     const e = this.partie;
     const moi = e?.joueurs[this.place];
     if (!e || !moi || moi.pret) return;
+    const coop = e.config.coop;
+    if (coop && this.place !== 0) return;
+    const cible = coop ? e.joueurs[cote] : moi;
+    if (!cible) return;
+    const cpu = coop && cote === 1;
     this.app.audio.clic();
     if (e.phase === 'maillots') {
-      this.agit({ a: 'variante', variante: moi.variante === 'interieur' ? 'exterieur' : 'interieur' });
+      this.agit({ a: 'variante', variante: cible.variante === 'interieur' ? 'exterieur' : 'interieur', cpu });
       return;
     }
     const n = EQUIPES_JOUABLES.length;
-    const i = Math.max(0, EQUIPES_JOUABLES.findIndex((d) => d.id === moi.equipe));
+    const i = Math.max(0, EQUIPES_JOUABLES.findIndex((d) => d.id === cible.equipe));
     const id = EQUIPES_JOUABLES[(i + sens + n) % n]!.id;
-    // en coop, l'invité choisit l'équipe du CPU : ce n'est pas la sienne, on ne la retient pas
-    if (!(e.config.coop && this.place === 1)) {
+    // l'équipe du CPU n'est pas la nôtre : on ne la retient pas
+    if (!cpu) {
       this.app.pref.equipeJoueur = id;
       sauvePreferences(this.app.pref);
     }
-    this.agit({ a: 'equipe', equipe: id });
+    this.agit({ a: 'equipe', equipe: id, cpu });
   }
 
   private basculePret(): void {
@@ -556,6 +565,9 @@ export class ParcoursLan {
     if (ecran === 'lanChoix' && !e.repeat) {
       if (e.code === 'ArrowLeft') this.tourneEquipe(-1);
       else if (e.code === 'ArrowRight') this.tourneEquipe(1);
+      // coop : haut et bas règlent l'équipe du CPU
+      else if (e.code === 'ArrowUp') this.tourneEquipe(-1, 1);
+      else if (e.code === 'ArrowDown') this.tourneEquipe(1, 1);
     }
   }
 }

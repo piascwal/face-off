@@ -57,7 +57,8 @@ export interface ConfigLan {
   pouvoirs: boolean;
   /**
    * Coop : l'hôte et l'invité forment la même équipe contre le CPU. L'hôte
-   * choisit alors l'équipe commune, l'invité l'équipe adverse (jouée par le CPU).
+   * choisit seul l'équipe commune (`joueurs[0]`) et l'équipe du CPU
+   * (`joueurs[1]`) ; l'invité regarde, et son « prêt » suit celui de l'hôte.
    */
   coop: boolean;
   /** Niveau du CPU en coop (index dans NIVEAUX) ; ignoré en versus. */
@@ -87,8 +88,9 @@ export interface EtatPartieLan {
 
 export type ActionLan =
   | { a: 'lancer' }
-  | { a: 'equipe'; equipe: string }
-  | { a: 'variante'; variante: VarianteMaillot }
+  /** `cpu` (coop, hôte seulement) : l'équipe du CPU plutôt que l'équipe commune. */
+  | { a: 'equipe'; equipe: string; cpu?: boolean }
+  | { a: 'variante'; variante: VarianteMaillot; cpu?: boolean }
   | { a: 'pret'; pret: boolean }
   | { a: 'vote'; vote: VoteFin | null }
   | { a: 'pause'; on: boolean }
@@ -199,21 +201,30 @@ export function versFin(e: EtatPartieLan): void {
 export function appliqueAction(e: EtatPartieLan, qui: Place, action: ActionLan, equipeConnue: (id: string) => boolean = () => true): boolean {
   const moi = e.joueurs[qui];
   const autre = e.joueurs[qui === 0 ? 1 : 0];
+  const coop = e.config.coop;
   if (!moi) return false;
   switch (action.a) {
     case 'lancer':
       if (qui === 0 && e.phase === 'attente' && autre) versEquipes(e);
       return false;
-    case 'equipe':
-      if (e.phase === 'equipes' && !moi.pret && equipeConnue(action.equipe)) moi.equipe = action.equipe;
+    case 'equipe': {
+      // coop : l'hôte règle les deux côtés, l'invité ne règle rien
+      const cible = coop ? (qui === 0 ? (action.cpu ? autre : moi) : null) : moi;
+      if (cible && e.phase === 'equipes' && !moi.pret && equipeConnue(action.equipe)) cible.equipe = action.equipe;
       return false;
-    case 'variante':
-      if (e.phase === 'maillots' && !moi.pret) moi.variante = action.variante;
+    }
+    case 'variante': {
+      const cible = coop ? (qui === 0 ? (action.cpu ? autre : moi) : null) : moi;
+      if (cible && e.phase === 'maillots' && !moi.pret) cible.variante = action.variante;
       return false;
+    }
     case 'pret': {
       if (e.phase !== 'equipes' && e.phase !== 'maillots') return false;
-      if (action.pret && e.phase === 'maillots' && autre?.pret && maillotsIdentiques(e)) return false;
+      // coop : seul l'hôte valide, l'invité suit
+      if (coop && qui !== 0) return false;
+      if (action.pret && e.phase === 'maillots' && (coop || autre?.pret) && maillotsIdentiques(e)) return false;
       moi.pret = action.pret;
+      if (coop && autre) autre.pret = action.pret;
       if (!autre?.pret || !moi.pret) return false;
       if (e.phase === 'equipes') {
         const [hote, invite] = e.joueurs as [JoueurLan, JoueurLan];
@@ -226,6 +237,7 @@ export function appliqueAction(e: EtatPartieLan, qui: Place, action: ActionLan, 
       }
       if (maillotsIdentiques(e)) {
         moi.pret = false;
+        if (coop && autre) autre.pret = false;
         return false;
       }
       e.phase = 'match';

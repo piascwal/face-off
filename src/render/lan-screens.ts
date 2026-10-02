@@ -331,13 +331,14 @@ export interface EtatChoixLan {
   /** Place de ce joueur : 0 = gauche (hôte), 1 = droite (invité). */
   moi: 0 | 1;
   cotes: [CoteChoixLan, CoteChoixLan];
-  /** Coop : l'hôte choisit l'équipe commune, l'invité celle que le CPU jouera. */
+  /** Coop : l'hôte choisit à la fois l'équipe commune et celle du CPU ; l'invité regarde. */
   coop: boolean;
   /** Mon maillot est identique à celui de l'adversaire déjà prêt : impossible de valider. */
   maillotPris: boolean;
-  onPrecedent: () => void;
-  onSuivant: () => void;
-  onToggleMaillot: () => void;
+  /** `cote` : le panneau touché (en coop, l'hôte règle les deux). */
+  onPrecedent: (cote: 0 | 1) => void;
+  onSuivant: (cote: 0 | 1) => void;
+  onToggleMaillot: (cote: 0 | 1) => void;
   onPret: (pret: boolean) => void;
   onQuitter: () => void;
 }
@@ -366,43 +367,51 @@ export function dessineChoixLan(
   px(g, moitie - 1, 12, 1, bas - 16, '#2a3160');
 
   const autre = etat.cotes[etat.moi === 0 ? 1 : 0];
+  // coop : seul l'hôte règle (les deux côtés) et valide ; l'invité regarde
+  const invite = etat.coop && etat.moi === 1;
   for (const place of [0, 1] as const) {
     const c = etat.cotes[place];
     const x = place === 0 ? 0 : moitie;
     const w = place === 0 ? moitie : W - moitie;
-    const actif = place === etat.moi && !c.pret;
+    const moiAgit = etat.coop ? etat.moi === 0 : place === etat.moi;
+    const actif = moiAgit && !etat.cotes[etat.coop ? 0 : place].pret;
     // coop : à gauche l'équipe des deux joueurs, à droite le CPU
     const nom = etat.coop ? (place === 0 ? 'NOTRE EQUIPE' : 'ADVERSAIRE CPU') : c.nom;
     if (etat.etape === 'equipes') {
-      dessinePanneauEquipe(g, boutons, x, w, H, nom, c.carte, actif ? etat.onPrecedent : null, actif ? etat.onSuivant : null, {
+      dessinePanneauEquipe(g, boutons, x, w, H, nom, c.carte, actif ? () => etat.onPrecedent(place) : null, actif ? () => etat.onSuivant(place) : null, {
         echelleLogo: 0.42,
         hauteurNotes: 0.63,
       });
     } else {
-      dessinePanneauMaillot(g, boutons, sprites, x, w, H, nom, { def: c.carte.def, variante: c.variante }, place === 0, actif ? etat.onToggleMaillot : null);
+      dessinePanneauMaillot(g, boutons, sprites, x, w, H, nom, { def: c.carte.def, variante: c.variante }, place === 0, actif ? () => etat.onToggleMaillot(place) : null);
     }
     const sx = x + w / 2;
     const sy = bas - 12;
-    if (c.pret) {
+    if (etat.cotes[etat.coop ? 0 : place].pret) {
       texte(g, 'PRET !', sx, sy, VERT, 1, 'c');
-    } else if (place === etat.moi && etat.maillotPris) {
+    } else if (moiAgit && etat.maillotPris) {
       texte(g, 'MAILLOT DEJA PRIS', sx, sy, '#ff9a5c', 1, 'c');
     } else {
-      g.globalAlpha = place === etat.moi ? 1 : 0.5 + 0.5 * Math.abs(Math.sin(temps * 2.5));
-      const qui = etat.coop && place !== etat.moi ? c.nom : '';
-      texte(g, place === etat.moi ? 'A VOUS DE CHOISIR' : `${qui ? `${qui} ` : ''}CHOISIT${points(temps)}`, sx, sy, C.gris, 1, 'c');
+      g.globalAlpha = moiAgit ? 1 : 0.5 + 0.5 * Math.abs(Math.sin(temps * 2.5));
+      const qui = invite ? `${etat.cotes[0].nom} ` : '';
+      texte(g, moiAgit ? 'A VOUS DE CHOISIR' : `${qui}CHOISIT${points(temps)}`, sx, sy, C.gris, 1, 'c');
       g.globalAlpha = 1;
     }
   }
 
   const moi = etat.cotes[etat.moi];
   bouton(g, boutons, '< QUITTER', 4, bas, 66, 16, etat.onQuitter, { couleur: '#232a58' });
-  if (!moi.pret) {
+  if (invite) {
+    // l'invité n'a rien à valider : il suit les choix de l'hôte
+    g.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(temps * 2.5));
+    texte(g, `${etat.cotes[0].nom} CHOISIT LES EQUIPES${points(temps)}`, cx, bas + 5, C.or, 1, 'c');
+    g.globalAlpha = 1;
+  } else if (!moi.pret) {
     if (etat.maillotPris) texte(g, 'CHANGEZ DE MAILLOT', cx, bas + 5, '#ff9a5c', 1, 'c');
     else bouton(g, boutons, 'PRET', cx - 45, bas, 90, 16, () => etat.onPret(true), { e: 2, ...ROUGE });
   } else {
     bouton(g, boutons, 'MODIFIER', cx - 40, bas, 80, 16, () => etat.onPret(false), { couleur: '#232a58' });
-    if (!autre.pret) texte(g, `EN ATTENTE DE ${autre.nom}`, W - 6, bas + 5, C.or, 1, 'd');
+    if (!etat.coop && !autre.pret) texte(g, `EN ATTENTE DE ${autre.nom}`, W - 6, bas + 5, C.or, 1, 'd');
   }
 }
 

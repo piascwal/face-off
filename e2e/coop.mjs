@@ -1,6 +1,7 @@
 /**
  * Mode coop : l'hôte et l'invité forment la même équipe contre le CPU.
- * L'hôte pilote un patineur de l'équipe 0, l'invité le second ; l'équipe 1
+ * L'hôte choisit seul les deux équipes (l'invité regarde et n'a rien à valider) ;
+ * il pilote un patineur de l'équipe 0, l'invité le second ; l'équipe 1
  * n'a aucun humain ; les commandes, le tir, le but et le score passent d'un
  * écran à l'autre ; un bonus profite aux deux ; fin de match et revanche.
  */
@@ -20,22 +21,41 @@ export default async function coop(env) {
   await env.capture(H, '0-salon-hote');
   await env.capture(I, '0-salon-invite');
 
-  // choix des équipes : l'hôte règle l'équipe commune, l'invité celle du CPU
+  // choix des équipes : l'hôte règle l'équipe commune ET celle du CPU, l'invité regarde
   await H.evaluate(() => window.faceOff.lan.agit({ a: 'lancer' }));
   await attends(500);
   env.verifie(await env.attendsQue(I, () => window.faceOff.ecranUI === 'lanChoix'), 'l\'invité arrive au choix des équipes');
-  await I.evaluate(() => window.faceOff.lan.tourneEquipe(1));
+  const choix = () => H.evaluate(() => window.faceOff.lan.partie.joueurs.map((j) => j.equipe));
+  const e0 = await choix();
+  await I.evaluate(() => { window.faceOff.lan.tourneEquipe(1, 0); window.faceOff.lan.tourneEquipe(1, 1); });
   await attends(300);
-  const equipes = await H.evaluate(() => window.faceOff.lan.partie.joueurs.map((j) => j.equipe));
-  env.verifie(equipes[0] !== equipes[1], `l'invité choisit l'équipe adverse (${equipes})`);
+  env.verifie((await choix()).join() === e0.join(), 'l\'invité ne change aucune équipe');
+  await H.evaluate(() => { window.faceOff.lan.tourneEquipe(1, 0); window.faceOff.lan.tourneEquipe(1, 1); window.faceOff.lan.tourneEquipe(1, 1); });
+  await attends(300);
+  const e1 = await choix();
+  env.verifie(e1[0] !== e0[0] && e1[1] !== e0[1], `l'hôte change l'équipe commune et celle du CPU (${e0} -> ${e1})`);
+  env.verifie(await env.attendsQue(I, (eq) => window.faceOff.lan.partie.joueurs.map((j) => j.equipe).join() === eq, e1.join()), 'l\'invité voit ces choix');
   await env.capture(H, '0-choix-hote');
   await env.capture(I, '0-choix-invite');
-  await lan.lanceMatch(env, hote, invite);
+  // l'invité n'a rien à valider : le « prêt » de l'hôte suffit
+  await I.evaluate(() => window.faceOff.lan.agit({ a: 'pret', pret: true }));
+  await attends(300);
+  env.verifie(await H.evaluate(() => window.faceOff.lan.partie.phase) === 'equipes', 'le « prêt » de l\'invité ne compte pas');
+  await H.evaluate(() => window.faceOff.lan.agit({ a: 'pret', pret: true }));
+  env.verifie(await env.attendsQue(H, () => window.faceOff.lan.partie.phase === 'maillots', undefined, 3000), 'l\'hôte seul fait passer aux maillots');
+  const maillotCpu = await H.evaluate(() => window.faceOff.lan.partie.joueurs[1].variante);
+  await H.evaluate(() => window.faceOff.lan.tourneEquipe(1, 1));
+  await attends(300);
+  env.verifie(await H.evaluate(() => window.faceOff.lan.partie.joueurs[1].variante) !== maillotCpu, 'l\'hôte règle aussi le maillot du CPU');
+  await env.capture(I, '0-maillots-invite');
+  await H.evaluate(() => window.faceOff.lan.agit({ a: 'pret', pret: true }));
+  env.verifie(await env.attendsQue(I, () => window.faceOff.ecranUI === 'jeu', undefined, 6000), 'le match démarre chez l\'invité sans qu\'il ait rien validé');
   env.verifie(await env.attendsQue(H, () => window.faceOff.state.phase === 'jeu', undefined, 8000), 'engagement joué');
   env.verifie(
-    await H.evaluate((eq) => window.faceOff.equipesActuelles[1].teamId === eq[1], equipes),
-    'le CPU joue l\'équipe choisie par l\'invité',
+    await H.evaluate((eq) => window.faceOff.equipesActuelles[0].teamId === eq[0] && window.faceOff.equipesActuelles[1].teamId === eq[1], e1),
+    'les deux équipes sont celles choisies par l\'hôte',
   );
+
 
   // 1) les deux humains sont dans l'équipe 0, le CPU garde l'équipe 1
   const roles = await H.evaluate(() => {
@@ -182,7 +202,20 @@ export default async function coop(env) {
   await enJeu();
   await H.evaluate(() => Object.assign(window.faceOff.state.pouvoirs[0], { actif: null, pret: 'savon', tirage: 0 }));
   env.verifie(await env.attendsQue(I, () => window.faceOff.state.pouvoirs?.[0].actif === 'savon', undefined, 4000), 'FULL ESQUIVE : l\'invité voit le bonus de l\'équipe');
-  await attends(400);
+  await H.evaluate(() => {
+    const st = window.faceOff.state;
+    st.palet.porteur = st.controles[0];
+    st.controles[0].tient = true;
+  });
+  env.verifie(await env.attendsQue(I, () => window.faceOff.state.pouvoirs[0].dore === 0, undefined, 2000), 'l\'or est sur l\'hôte tant qu\'il a le palet');
+  await H.evaluate(() => {
+    const st = window.faceOff.state;
+    st.controles[0].tient = false;
+    st.palet.porteur = st.partenaire;
+    st.partenaire.tient = true;
+  });
+  env.verifie(await env.attendsQue(I, () => window.faceOff.state.pouvoirs[0].dore === 1, undefined, 2000), 'le palet passe à l\'invité : l\'or le suit (chez les deux)');
+  env.verifie(await H.evaluate(() => window.faceOff.state.pouvoirs[0].dore) === 1, 'idem chez l\'hôte');
   await env.capture(I, '6-bonus');
 
   // 7) fin de match : même résultat pour les deux, puis revanche à deux votes

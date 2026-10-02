@@ -9,6 +9,8 @@ import type { EquipeVisuelle } from './team-visuals';
 /** Couleur fixe du repère « c'est vous » — jamais celle d'un maillot, pour ne
  * jamais se confondre avec une équipe (voir dessinePatineur). */
 const COULEUR_CONTROLE = MARQUE.bleu;
+/** Flèche de l'autre humain (adversaire ou partenaire) : rouge vif, pour se repérer même sur la glace blanche. */
+const COULEUR_AUTRE_HUMAIN = '#ff2d3d';
 
 /**
  * Anneau pulsant au sol sous un patineur — sert de base aux indicateurs
@@ -41,7 +43,7 @@ function lueurSol(g: CanvasRenderingContext2D, x: number, y: number, r: number, 
 /**
  * Flèche pointée vers le joueur qu'on pilote (bas de la pointe en `y`) :
  * se repère d'un coup d'œil, même dans une mêlée. `simple` : version plus
- * petite, pour le joueur de l'autre humain en Wi-Fi.
+ * petite.
  */
 function flecheControle(g: CanvasRenderingContext2D, x: number, y: number, couleur = COULEUR_CONTROLE, simple = false): void {
   const lignes = simple ? [5, 3, 1] : [9, 7, 5, 3, 1];
@@ -118,7 +120,7 @@ function dessineAuSol(
   const hy = by + t.y * e;
   if (frame === 1) etoiles(g, hx, hy - 5, temps);
   if (estControle) flecheControle(g, Math.round(hx), Math.round(hy) - 8 + Math.round(Math.sin(temps * 6)));
-  else if (s.humain) flecheControle(g, Math.round(hx), Math.round(hy) - 8, equipes[s.eq].clair, true);
+  else if (s.humain) flecheControle(g, Math.round(hx), Math.round(hy) - 8, COULEUR_AUTRE_HUMAIN);
 }
 
 /**
@@ -369,8 +371,8 @@ export function dessinePatineur(
   if (estControle) {
     flecheControle(g, Math.round(s.x), teteY - 2 + Math.round(Math.sin(temps * 6)));
   } else if (s.humain) {
-    // l'adversaire humain d'une partie en réseau : petite flèche à ses couleurs
-    flecheControle(g, Math.round(s.x), teteY - 2, equipes[s.eq].clair, true);
+    // l'autre humain d'une partie en réseau (adversaire ou partenaire) : petite flèche rouge
+    flecheControle(g, Math.round(s.x), teteY - 2, COULEUR_AUTRE_HUMAIN);
   }
   if (estControle && s.arme && s.vise !== null) {
     // flèche de visée pointillée, qui s'allonge avec la puissance

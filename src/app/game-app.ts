@@ -556,7 +556,7 @@ export class GameApp {
     const pilote = lan.pilote(state);
     const ui = this.entrees.instantaneUI();
     // bonus qui se joue avec un bouton (tir surpuissant) : ce bouton passe en or
-    const boutonDore = boutonBonus(state, lan.eqLocal);
+    const boutonDore = boutonBonus(state, lan.eqLocal, pilote);
     dessineCommandes(g, this.W, this.H, state.temps, pilote, ui, !!pilote && menaceEchec(state, pilote) !== null, boutonDore);
     if (pilote?.arme) dessineJaugeTir(g, this.H, pilote.charge, state.temps);
   }
