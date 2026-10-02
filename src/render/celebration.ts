@@ -95,3 +95,56 @@ export function dessineCelebration(
   g.drawImage(img, r.sx, r.sy, r.sw, r.sh, Math.round(x), Math.round(y), w, h);
   g.imageSmoothingEnabled = lisse;
 }
+
+/** Hauteur (px logiques) du buteur qui célèbre sur la glace : celle d'un patineur, mesurée sur le premier dessin. */
+export const CELEBRATION_GLACE_HAUTEUR = 34;
+
+/**
+ * La célébration en cours (dessin tiré au sort, feuille de l'équipe) pendant la
+ * traversée du buteur devant l'écran ; null avant, après, ou sans bandeau de but.
+ */
+export function celebrationEnCours(banniere: Banniere | null): { spriteId: string; tirage: number } | null {
+  const c = banniere?.celebration;
+  if (!c || !banniere) return null;
+  const t = banniere.max - banniere.vie;
+  return t >= 0 && t <= CELEBRATION.retard + CELEBRATION.duree ? c : null;
+}
+
+/**
+ * Le buteur sur la glace prend le dessin de la célébration (le même que celui
+ * qui glisse devant l'écran, aux mêmes couleurs) : il regarde à gauche ou à
+ * droite selon la direction où il patine (le joystick pour un joueur), pose les
+ * patins au sol comme les autres joueurs. Renvoie la hauteur de sa tête, où
+ * se pose la flèche du joueur piloté ; null si le dessin n'est pas encore chargé.
+ */
+export function dessineButeurGlace(
+  g: CanvasRenderingContext2D,
+  sprites: BanqueSprites,
+  celeb: { spriteId: string; tirage: number },
+  x: number,
+  y: number,
+  versLaGauche: boolean,
+): number | null {
+  const sprite = sprites.spriteCelebration(celeb.spriteId, celeb.tirage);
+  if (!sprite) return null;
+  const M = sprites.meta.celebration;
+  const k = CELEBRATION_GLACE_HAUTEUR / M.reference;
+  const w = M.tileW * k;
+  const h = M.tileH * k;
+  const haut = Math.round(y - h);
+  const tete = Math.round(y - CELEBRATION_GLACE_HAUTEUR * 0.88);
+  const { img, rect: r } = sprite;
+  const lisse = g.imageSmoothingEnabled;
+  g.imageSmoothingEnabled = false;
+  if (versLaGauche) {
+    g.save();
+    g.translate(Math.round(x + w * 0.47), 0);
+    g.scale(-1, 1);
+    g.drawImage(img, r.sx, r.sy, r.sw, r.sh, 0, haut, w, h);
+    g.restore();
+  } else {
+    g.drawImage(img, r.sx, r.sy, r.sw, r.sh, Math.round(x - w * 0.47), haut, w, h);
+  }
+  g.imageSmoothingEnabled = lisse;
+  return tete;
+}

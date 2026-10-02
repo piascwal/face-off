@@ -4,7 +4,8 @@ import { ALERTE_FIN_S, DEF_POUVOIRS, demiCage, effetActif, estGele, estDore, est
 import { butAttaque } from '@core/shooting';
 import { equipe } from '@core/state-helpers';
 import type { MatchState, Rink, Skater, Supporter, TeamId } from '@core/types';
-import { dessineGardien, dessinePalet, dessineParticules, dessinePatineur, TracesGlace, type AspectBonus } from './entities-render';
+import { celebrationEnCours, dessineButeurGlace } from './celebration';
+import { dessineGardien, dessinePalet, dessineParticules, dessinePatineur, flecheControle, TracesGlace, type AspectBonus } from './entities-render';
 import { BULLE_GROSSE_VIE, type Bulle, type SystemeEffets } from './effects';
 import { anneau, ellipseOmbre, px } from './primitives';
 import { dessineCage, dessineLampe } from './rink-render';
@@ -245,6 +246,16 @@ export function dessineScene(
       y: s.y,
       f: () => {
         const pilote = moi !== null && s === moi;
+        // le buteur célèbre sur la glace avec le dessin de la célébration (le même que celui qui glisse devant)
+        const celeb = state.phase === 'but' && s === state.buteur ? celebrationEnCours(effets.banniere) : null;
+        if (celeb) {
+          const tete = dessineButeurGlace(g, sprites, celeb, s.x, s.y + 6, Math.cos(s.face) < 0);
+          if (tete !== null) {
+            if (pilote) flecheControle(g, Math.round(s.x), tete - 2 + Math.round(Math.sin(state.temps * 6)));
+            else if (s.humain) flecheControle(g, Math.round(s.x), tete - 2, '#ff2d3d', true);
+            return;
+          }
+        }
         dessinePatineur(g, sprites, s, state.temps, pilote, equipes, aspectBonus(state, s), pilote && menaceEchec(state, s) !== null);
       },
     })),

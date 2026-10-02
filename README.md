@@ -635,6 +635,17 @@ le callback reçoit `partenaire` pour distinguer les deux humains ;
 l'instantané et le patineur de l'invité). Testé dans `tests/coop.test.ts` et
 par le scénario e2e `coop`.
 
+**Le buteur célèbre aussi sur la glace.** Pendant que le bandeau « BUT ! »,
+l'écusson et le buteur en grand traversent l'écran, le jeu reste visible
+derrière (assombri) et le buteur y est dessiné avec le même sprite de
+célébration que celui qui glisse devant (même dessin tiré au sort, mêmes
+couleurs). Il regarde à gauche ou à droite selon la direction où il patine :
+si c'est vous, le joystick (ou les flèches) l'oriente et le déplace comme
+d'habitude ; l'ordinateur fait son tour d'honneur. Au bout de la traversée
+(2 s), il reprend son sprite de patineur. Code : `render/celebration.ts`
+(`celebrationEnCours`, `dessineButeurGlace`) ; le buteur est désigné dans
+l'instantané (protocole v22), l'invité le voit donc aussi.
+
 **Engagement animé.** À chaque balle au centre (début de match, après un but,
 prolongation, après un loupé complet), les joueurs ne sont plus posés : ils
 arrivent en patinant de leur point de départ à leur place, en 0,85 s au plus
@@ -797,7 +808,7 @@ Code : `core/pouvoirs.ts` (règles, tirage, départ automatique, effets ; testé
 (jauges, tirage), `render/scene.ts` (le « BONUS » doré), feuille dorée calculée à la volée
 (`BanqueSprites.spriteJoueurDore`). En Wi-Fi, les bonus voyagent dans
 l'instantané (protocole v19 : en plus, le tir déjà fait du super héros, les
-supporters et la phase de loupé ; v20 : le mode coop ; v21 : la super passe) ; les
+supporters et la phase de loupé ; v20 : le mode coop ; v21 : la super passe ; v22 : le buteur qui célèbre) ; les
 effets d'écran (tremblement, givre, blackout) se calculent sur chaque appareil
 à partir de l'état du bonus.
 

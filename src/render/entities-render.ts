@@ -45,7 +45,7 @@ function lueurSol(g: CanvasRenderingContext2D, x: number, y: number, r: number, 
  * se repère d'un coup d'œil, même dans une mêlée. `simple` : version plus
  * petite.
  */
-function flecheControle(g: CanvasRenderingContext2D, x: number, y: number, couleur = COULEUR_CONTROLE, simple = false): void {
+export function flecheControle(g: CanvasRenderingContext2D, x: number, y: number, couleur = COULEUR_CONTROLE, simple = false): void {
   const lignes = simple ? [5, 3, 1] : [9, 7, 5, 3, 1];
   const y0 = y - lignes.length;
   // contour d'un pixel autour de la pointe

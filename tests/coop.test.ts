@@ -296,3 +296,30 @@ describe('coop : choix des équipes par l’hôte seul', () => {
     expect(lisAction({ a: 'equipe', equipe: 'nice', cpu: true })).toEqual({ a: 'equipe', equipe: 'nice' });
   });
 });
+
+describe('célébration : le buteur voyage en Wi-Fi', () => {
+  it('l’instantané désigne le buteur pendant la phase « but », et le client le retrouve', () => {
+    const st = coop();
+    const buteur = st.patineurs.find((s) => s.eq === 0 && s !== st.controles[0])!;
+    st.buteur = buteur;
+    st.marqueur = 0;
+    st.phase = 'but';
+    const dec = decodeInstantane(encodeInstantane(st, rink, 1))!;
+    expect(dec.patineurs.flatMap((p, i) => (p.buteur ? [i] : []))).toEqual([st.patineurs.indexOf(buteur)]);
+    const client = coop();
+    appliqueInstantane(client, dec, dec, 1, rink);
+    expect(client.buteur).toBe(client.patineurs[st.patineurs.indexOf(buteur)]);
+  });
+
+  it('hors phase « but », personne ne célèbre (le dernier buteur est oublié)', () => {
+    const st = coop();
+    st.buteur = st.patineurs[0]!;
+    st.phase = 'jeu';
+    const dec = decodeInstantane(encodeInstantane(st, rink, 1))!;
+    expect(dec.patineurs.some((p) => p.buteur)).toBe(false);
+    const client = coop();
+    client.buteur = client.patineurs[1]!;
+    appliqueInstantane(client, dec, dec, 1, rink);
+    expect(client.buteur).toBeNull();
+  });
+});

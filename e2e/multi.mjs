@@ -91,6 +91,8 @@ export default async function multi(env) {
   env.verifie(await env.attendsQue(I, () => window.faceOff.state.phase === 'but', undefined, 3000), 'but : la célébration démarre chez l\'invité');
   const scores = [await etat(H, () => [...window.faceOff.state.score]), await etat(I, () => [...window.faceOff.state.score])];
   env.verifie(scores[0][0] === 1 && scores[0].join() === scores[1].join(), `même score des deux côtés (${scores[0]} / ${scores[1]})`);
+  env.verifie(await env.attendsQue(I, () => window.faceOff.state.phase === 'but' && !!window.faceOff.state.buteur, undefined, 2000), 'le buteur est connu chez l\'invité (il célèbre avec le sprite de célébration)');
+  await attends(900);
   await env.capture(I, '3-but');
   // le ralenti du but s'achève chez les deux (« passer »)
   await attends(300);
