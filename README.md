@@ -706,7 +706,7 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 | Gardien endormi | le gardien adverse ne bouge plus, n'attrape plus rien et ne couvre plus que 60 % de son corps ; des « Z » montent au-dessus de lui | 6 s |
 | Blackout | les lumières s'éteignent (après deux clignotements) : tout est noir, sauf deux projecteurs, sur le joueur doré et sur le gardien adverse ; l'équipe dans le noir garde une petite lueur autour du joueur qu'elle pilote, et intercepte (×0,5) et vole (×0,3) moins bien | 8 s |
 | Envahissement | 5 supporters aux couleurs de l'équipe sautent des tribunes et foncent sur les adversaires (deux sur le porteur) ; au contact, l'adversaire est freiné net et peut lâcher le palet (« OUPS ! ») ; à la fin, ils regagnent les tribunes | 8 s |
-| Loupé complet | si un adversaire tire pendant le bonus, son tir est raté d'office : le palet vole vers la caméra et brise l'écran (fissures, éclats, « LOUPE ! », bruit de verre), puis engagement au centre ; le bonus est consommé | 10 s max |
+| Loupé complet | si un adversaire tire pendant le bonus, son tir est raté d'office : le palet part en cloche (son ombre sur la glace), claque contre le bord de l'écran, revient vers la caméra en grossissant et brise la vitre (fissures, éclats, « LOUPE ! », bruit de verre), puis engagement au centre ; le bonus est consommé | 10 s max |
 
 **Supporters.** Les dessins viennent de `assets/sprites-src/supporters/`
 (fond magenta, comme les autres sources) : pour en ajouter un, il suffit d'y

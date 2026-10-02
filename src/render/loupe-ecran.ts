@@ -1,14 +1,16 @@
-import { LOUPE_IMPACT, LOUPE_S } from '@core/pouvoirs';
+import { LOUPE_IMPACT, LOUPE_REBOND, LOUPE_S } from '@core/pouvoirs';
 import type { MatchState } from '@core/types';
 import { texte } from './pixel-font';
 import { C } from './theme';
 
 /**
- * Bonus « loupé complet » : le tir adverse part droit sur la caméra. Le palet
- * grossit en filant de la crosse vers le milieu de l'écran, frappe la vitre,
- * qui se fissure en étoile ; des éclats tombent, « LOUPÉ ! » s'affiche, puis
- * l'image s'efface sur l'engagement. Tout se déduit de la phase `loupe` et
- * de son temps restant : chaque écran (Wi-Fi, spectateur) joue la même scène.
+ * Bonus « loupé complet » : le tir adverse s'envole. Le palet part de la
+ * crosse en cloche (son ombre reste sur la glace), claque contre le bord de
+ * l'écran le plus proche, puis revient droit sur la caméra en grossissant et
+ * brise la vitre, qui se fissure en étoile ; des éclats tombent, « LOUPÉ ! »
+ * s'affiche, puis l'image s'efface sur l'engagement. Tout se déduit de la
+ * phase `loupe`, de son temps restant et de la position du palet : chaque
+ * écran (Wi-Fi, spectateur) joue la même scène.
  */
 export function dessineLoupe(g: CanvasRenderingContext2D, W: number, H: number, state: MatchState): void {
   if (state.phase !== 'loupe') return;
@@ -16,21 +18,49 @@ export function dessineLoupe(g: CanvasRenderingContext2D, W: number, H: number, 
   const p = state.palet;
   const cx = W / 2;
   const cy = H / 2;
-  if (age < LOUPE_IMPACT) {
-    // le palet vole vers la caméra : il part de la crosse et grossit très vite à la fin
-    const u = age / LOUPE_IMPACT;
-    const k = u * u * u;
-    const x = p.x + (cx - p.x) * k;
-    const y = p.y + (cy - p.y) * k;
-    const r = 2 + 58 * k;
-    // traînée : quelques palets fantômes derrière lui
+  // le bord de l'écran visé : celui (haut ou bas) le plus proche du tireur, un peu vers le centre
+  const bx = p.x + (cx - p.x) * 0.35;
+  const by = p.y < cy ? 6 : H - 6;
+  if (age < LOUPE_REBOND) {
+    // aller : une cloche, l'ombre glisse sur la glace sous le palet
+    const u = age / LOUPE_REBOND;
+    const sx = p.x + (bx - p.x) * u;
+    const sy = p.y + (by - p.y) * u;
+    const h = Math.sin(u * Math.PI * 0.85) * 26 + u * 6;
+    ombre(g, sx, sy, 4 + h * 0.05, 1 - u * 0.4);
     for (let i = 3; i >= 1; i--) {
-      const ku = Math.max(0, u - i * 0.06) ** 3;
-      g.globalAlpha = 0.18 * (4 - i);
-      palet(g, p.x + (cx - p.x) * ku, p.y + (cy - p.y) * ku, 2 + 58 * ku, age);
+      const v = Math.max(0, u - i * 0.07);
+      const hv = Math.sin(v * Math.PI * 0.85) * 26 + v * 6;
+      g.globalAlpha = 0.15 * (4 - i);
+      palet(g, p.x + (bx - p.x) * v, p.y + (by - p.y) * v - hv, 4 + hv * 0.08, age * 2);
     }
     g.globalAlpha = 1;
-    palet(g, x, y, r, age);
+    palet(g, sx, sy - h, 4 + h * 0.08, age * 2);
+    return;
+  }
+  if (age < LOUPE_IMPACT) {
+    const t0 = age - LOUPE_REBOND;
+    // le choc contre le bord : une étoile blanche
+    if (t0 < 0.12) {
+      g.globalAlpha = 1 - t0 / 0.12;
+      etoile(g, bx, by, 10 + t0 * 120);
+      g.globalAlpha = 1;
+    }
+    // retour : il revient vers le centre et grossit très vite, son ombre reste en bas et s'efface
+    const u = t0 / (LOUPE_IMPACT - LOUPE_REBOND);
+    const k = u * u;
+    const depart = by;
+    const x = bx + (cx - bx) * k;
+    const y = depart + (cy - depart) * k;
+    const r = 6 + 56 * k * k;
+    ombre(g, bx + (cx - bx) * u * 0.5, by + (by < cy ? 40 : -40) + (cy - by) * u * 0.4, 5 + r * 0.25, 0.5 * (1 - u));
+    for (let i = 3; i >= 1; i--) {
+      const ku = Math.max(0, u - i * 0.05) ** 2;
+      g.globalAlpha = 0.16 * (4 - i);
+      palet(g, bx + (cx - bx) * ku, depart + (cy - depart) * ku, 6 + 56 * ku * ku, age * 3);
+    }
+    g.globalAlpha = 1;
+    palet(g, x, y, r, age * 3);
     return;
   }
   const t = age - LOUPE_IMPACT;
@@ -47,20 +77,57 @@ export function dessineLoupe(g: CanvasRenderingContext2D, W: number, H: number, 
   fissures(g, cx, cy, W, H);
   // le palet reste un instant collé dans la vitre, puis glisse vers le bas
   const chute = Math.max(0, t - 0.25);
-  palet(g, cx, cy + chute * chute * 260, 60, 0);
+  palet(g, cx, cy + chute * chute * 260, 62, 0);
   eclats(g, cx, cy, t);
   const pop = t < 0.1 ? 3 : 2;
-  texte(g, 'LOUPE !', cx, cy - 64, Math.floor(t * 8) % 2 ? C.blanc : '#ff5a4e', pop, 'c');
+  texte(g, 'LOUPE !', cx, cy - 72, Math.floor(t * 8) % 2 ? C.blanc : '#ff5a4e', pop, 'c');
   g.globalAlpha = 1;
 }
 
-/** Un palet vu de face : disque noir, tranche grise, reflet ; il tourne un peu en volant. */
-function palet(g: CanvasRenderingContext2D, x: number, y: number, r: number, age: number): void {
-  const ry = r * (0.55 + 0.1 * Math.sin(age * 30));
+/** L'ombre du palet en l'air, sur la glace. */
+function ombre(g: CanvasRenderingContext2D, x: number, y: number, r: number, a: number): void {
+  if (a <= 0) return;
+  g.fillStyle = `rgba(10,16,40,${0.35 * a})`;
+  g.beginPath();
+  g.ellipse(x, y + 2, r, r * 0.4, 0, 0, Math.PI * 2);
+  g.fill();
+}
+
+/** Étoile de choc (le palet contre le bord de l'écran). */
+function etoile(g: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = 2;
+  g.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    g.moveTo(x + Math.cos(a) * r * 0.3, y + Math.sin(a) * r * 0.3);
+    g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+  }
+  g.stroke();
+}
+
+/**
+ * Un palet vu en trois quarts : la face du dessus (disque noir, reflet), et
+ * sa tranche bien épaisse dessous ; il tournoie un peu en volant.
+ */
+function palet(g: CanvasRenderingContext2D, x: number, y: number, r: number, tour: number): void {
+  const ry = r * (0.62 + 0.12 * Math.sin(tour * 9));
+  const epais = r * 0.42;
+  // la tranche : un cylindre entre la face du dessus et celle du dessous
   g.fillStyle = '#05060c';
   g.beginPath();
-  g.ellipse(x, y + r * 0.12, r, ry, 0, 0, Math.PI * 2);
+  g.ellipse(x, y + epais, r, ry, 0, 0, Math.PI);
+  g.lineTo(x - r, y);
+  g.ellipse(x, y, r, ry, 0, Math.PI, 0, true);
+  g.closePath();
   g.fill();
+  // stries de la tranche
+  g.strokeStyle = 'rgba(70,76,96,0.8)';
+  g.lineWidth = Math.max(1, r * 0.04);
+  g.beginPath();
+  g.ellipse(x, y + epais * 0.5, r * 0.995, ry, 0, 0.15, Math.PI - 0.15);
+  g.stroke();
+  // la face du dessus
   g.fillStyle = '#2a2e3e';
   g.beginPath();
   g.ellipse(x, y, r, ry, 0, 0, Math.PI * 2);

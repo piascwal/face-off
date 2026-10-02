@@ -10,7 +10,7 @@ import {
   segmentsCage,
   type SegmentCage,
 } from './physics';
-import { demiCage, estGele, estInverse, LOUPE_IMPACT, LOUPE_S, majPouvoirs, majSupporters } from './pouvoirs';
+import { demiCage, estGele, estInverse, LOUPE_IMPACT, LOUPE_REBOND, LOUPE_S, majPouvoirs, majSupporters } from './pouvoirs';
 import { engagement, finMatch, finTempsReglementaire } from './rules';
 import { INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from './types';
 import { alea } from './utils';
@@ -117,6 +117,12 @@ export function pas(
     state.phaseT -= dt;
     const p = state.palet;
     p.vx = p.vy = 0;
+    // le palet claque contre le bord de l'écran avant de revenir
+    const rebond = LOUPE_S - LOUPE_REBOND;
+    if (avant > rebond && state.phaseT <= rebond) {
+      state.evenements.push({ type: 'bande', force: 1 });
+      state.evenements.push({ type: 'secousse', force: 2.5 });
+    }
     const impact = LOUPE_S - LOUPE_IMPACT;
     if (avant > impact && state.phaseT <= impact) {
       state.evenements.push({ type: 'verre' });

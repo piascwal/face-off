@@ -118,9 +118,13 @@ export const SUPPORTER_RAYON = 11;
 /** Freinage (par s) d'un adversaire accroché par un supporter, et taux (par s) auquel il lâche le palet. */
 export const SUPPORTER_FREIN = 7;
 export const SUPPORTER_PERTE = 1.4;
-/** Loupé complet : durée de la scène (palet vers la caméra, écran brisé), et instant de l'impact. */
-export const LOUPE_S = 2.2;
-export const LOUPE_IMPACT = 0.55;
+/**
+ * Loupé complet : durée de la scène, instant où le palet (parti en l'air)
+ * rebondit sur le bord de l'écran, et instant où il revient briser la vitre.
+ */
+export const LOUPE_S = 2.6;
+export const LOUPE_REBOND = 0.42;
+export const LOUPE_IMPACT = 0.95;
 /** Surnombre : rang donné au renfort (hors des rangs de l'effectif, pour le reconnaître). */
 export const RANG_RENFORT = 9;
 /** Mode entraînement : délai (s) avant que le bonus choisi revienne, après usage. */
