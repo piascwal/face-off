@@ -188,8 +188,10 @@ export default async function bonus(env) {
 
   // super passe : une passe arrive toujours au coéquipier, même avec des adversaires pile sur la ligne
   env.verifie(await donne('superpasse'), 'SUPER PASSE en cours');
+  // (une passe qui ne part pas parce que le clavier a été lu trop tôt ne compte pas : on recommence ; une interception, si)
   let recu = 0;
-  for (let essai = 0; essai < 3; essai++) {
+  let interceptees = 0;
+  for (let essai = 0; essai < 8 && recu < 3; essai++) {
     await enJeu();
     await p.evaluate(() => {
       const st = window.faceOff.state;
@@ -223,14 +225,17 @@ export default async function bonus(env) {
     if (essai === 0) await env.capture(p, '10f-super-passe');
     // la passe arrive (jusqu'à 2,5 s : la machine peut être lente)
     await env.attendsQue(p, () => !window.faceOff.state.palet.passe && !!window.faceOff.state.palet.porteur, undefined, 2500);
-    // une passe réussie de plus, et un coéquipier tient le palet
-    recu += await p.evaluate((n) => {
+    // la passe est partie : un coéquipier tient le palet (réussie) ou un adversaire (interceptée)
+    const issue = await p.evaluate((n) => {
       const st = window.faceOff.state;
       const po = st.palet.porteur;
-      return st.stats.passes[0] === n + 1 && po && po.eq === 0 ? 1 : 0;
+      if (st.stats.passes[0] === n + 1 && po && po.eq === 0) return 'ok';
+      return po && po.eq === 1 ? 'interceptee' : 'rien';
     }, avant);
+    if (issue === 'ok') recu++;
+    else if (issue === 'interceptee') interceptees++;
   }
-  env.verifie(recu === 3, `SUPER PASSE : 3 passes sur 3 arrivent au coéquipier (${recu}/3)`);
+  env.verifie(recu === 3 && interceptees === 0, `SUPER PASSE : 3 passes sur 3 arrivent au coéquipier, aucune interceptée (${recu}/3, ${interceptees} interceptée(s))`);
 
   env.verifie(await donne('minicage'), 'MINI CAGE en cours');
   await attends(300);

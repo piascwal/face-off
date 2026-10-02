@@ -25,11 +25,11 @@
     "tete": 0
   },
   "gardien": {
-    "tileW": 132,
-    "tileH": 115,
+    "tileW": 137,
+    "tileH": 109,
     "pied": {
-      "x": 71.3,
-      "y": 113
+      "x": 75.5,
+      "y": 107
     }
   },
   "portrait": {

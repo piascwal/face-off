@@ -265,6 +265,13 @@ du vrai pixel art, puis les décline pour chaque équipe.
   clairs, casque, gants, peau, barbe, emplacement de l'écusson, contour, ou
   « à garder » (crosse, culotte, patins, grille du masque).
 
+Le gardien est un dessin à part (`gardien.jpg`, sur fond magenta, sans glace) :
+le maillot rouge, le casque (base dorée, bande rouge), les empiècements et les
+bandes suivent l'équipe, l'écusson est posé sur la poitrine, alors que le cuir
+brun-or des jambières, du blocage et du gant d'attrape, la crosse et la grille
+du masque gardent leurs couleurs (zones en tête de `gardien()` dans
+`convertit-sources.py` : à ajuster si le dessin change).
+
 Il écrit `joueur.png` / `gardien.png`, leurs cartes de rôles
 (`*-roles.png`) et `sprites.json` (tailles de case, ancrages) dans
 `assets/sprites-src/`. Ces fichiers sont committés : `npm run sprites` n'a

@@ -56,7 +56,7 @@ export interface MetaSprites {
 
 const META_DEFAUT: MetaSprites = {
   joueur: { tileW: 133, tileH: 105, images: 4, arret: 0, pied: { x: 52, y: 101 }, tete: 0, echelle: 0.28, decalage: 10 },
-  gardien: { tileW: 132, tileH: 115, pied: { x: 71, y: 113 }, echelle: 0.2, decalage: -41 },
+  gardien: { tileW: 137, tileH: 109, pied: { x: 75.8, y: 107 }, echelle: 0.2, decalage: -41 },
   tir: { tileW: 153, tileH: 120, images: 4, pied: { x: 72.9, y: 119 }, tete: [18, 18, 19, 19], echelle: 0.28, decalage: 10 },
   echec: { tileW: 138, tileH: 109, images: 1, pied: { x: 63.1, y: 108 }, tete: 2, echelle: 0.28, decalage: 10 },
   supporters: { tileW: 115, tileH: 123, images: 6, pied: { x: 57.5, y: 122 }, echelle: 0.28 },
