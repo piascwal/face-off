@@ -1,0 +1,4 @@
+{
+  "commentaire": "Zones (x0, y0, x1, y1, en pixels du dessin pixelisé et recadré) qui gardent leur couleur d'origine : le bois de la grosse caisse (ses cercles dorés ne doivent pas prendre la couleur de l'équipe) et les lacets des bottes.",
+  "garde": [[62, 38, 78, 56], [17, 112, 29, 118]]
+}

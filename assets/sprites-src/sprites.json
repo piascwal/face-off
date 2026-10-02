@@ -82,11 +82,11 @@
   },
   "supporters": {
     "tileW": 115,
-    "tileH": 117,
-    "images": 3,
+    "tileH": 123,
+    "images": 6,
     "pied": {
       "x": 57.5,
-      "y": 116
+      "y": 122
     }
   },
   "celebration": {

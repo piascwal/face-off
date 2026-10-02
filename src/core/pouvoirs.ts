@@ -463,11 +463,13 @@ function tremblement(state: MatchState): void {
  * et en bas de la patinoire) et foncent sur les adversaires.
  */
 function envahissement(rink: Rink, state: MatchState, eq: TeamId): void {
+  // les cinq dessins se suivent à partir d'un point de départ au hasard : tous les supporters servent à tour de rôle
+  const debut = Math.floor(Math.random() * 256);
   for (let i = 0; i < ENVAHISSEMENT_N; i++) {
     const haut = i % 2 === 0;
     const x = rink.x + rink.w * (0.18 + (0.64 * i) / (ENVAHISSEMENT_N - 1));
     const y = haut ? rink.y + 4 : rink.y + rink.h - 4;
-    state.supporters.push({ x, y, vx: 0, vy: haut ? 80 : -80, eq, img: i, sortie: false });
+    state.supporters.push({ x, y, vx: 0, vy: haut ? 80 : -80, eq, img: debut + i, sortie: false });
     state.evenements.push({ type: 'neige', x, y, n: 5 });
   }
   state.evenements.push({ type: 'ovation', niveau: 1 });

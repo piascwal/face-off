@@ -768,7 +768,8 @@ déposer son image et de relancer `python3 scripts/convertit-sources.py` puis
 `npm run sprites`. Le rouge vif prend la couleur principale de l'équipe, le
 jaune et l'or sa couleur secondaire, le reste garde ses couleurs. Si un
 détail rouge ou jaune doit rester tel quel (des cheveux roux), un fichier
-`<nom>.json` à côté de l'image liste ces zones (voir `supporter-1.json`).
+`<nom>.json` à côté de l'image liste ces zones (voir `supporter-1.json` pour des cheveux roux, `supporter-4.json` pour le bois d'une grosse caisse).
+Il y a six supporters (un amateur à la cloche, une fan qui montre du doigt, un barbu à la main géante, un tambour et une joueuse de caisse claire, une meneuse au mégaphone) : la Foule en tire cinq, qui se suivent à partir d'un point de départ au hasard, pour que tous servent à tour de rôle.
 Feuilles par équipe : `supporters-<id>.png`.
 
 **Loupé complet.** C'est une phase de jeu à part (`loupe`, `LOUPE_S`) :

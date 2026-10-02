@@ -59,7 +59,7 @@ const META_DEFAUT: MetaSprites = {
   gardien: { tileW: 132, tileH: 115, pied: { x: 71, y: 113 }, echelle: 0.2, decalage: -41 },
   tir: { tileW: 153, tileH: 120, images: 4, pied: { x: 72.9, y: 119 }, tete: [18, 18, 19, 19], echelle: 0.28, decalage: 10 },
   echec: { tileW: 138, tileH: 109, images: 1, pied: { x: 63.1, y: 108 }, tete: 2, echelle: 0.28, decalage: 10 },
-  supporters: { tileW: 115, tileH: 117, images: 3, pied: { x: 57.5, y: 116 }, echelle: 0.28 },
+  supporters: { tileW: 115, tileH: 123, images: 6, pied: { x: 57.5, y: 122 }, echelle: 0.28 },
   portrait: { tileW: 92, tileH: 116 },
   chute: { tileW: 176, tileH: 102, images: 2, pied: { x: 88, y: 43 }, tete: [{ x: 114, y: 31 }, { x: 125, y: 39 }], echelle: 0.22 },
   celebration: { tileW: 134, tileH: 148, images: 4, reference: 122 },
