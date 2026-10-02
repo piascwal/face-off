@@ -4,7 +4,7 @@ import { largeurTexte, texte } from './pixel-font';
 import { px } from './primitives';
 import type { BanqueSprites } from './sprites';
 import { dessinePanneauEquipe, dessinePanneauMaillot, type CarteEquipe } from './team-select';
-import type { TeamDef, Variante } from './team-visuals';
+import { couleurNom, type TeamDef, type Variante } from './team-visuals';
 import { C } from './theme';
 import { dessineStatsFin } from './screens';
 import { bouton, panneau, type ZoneBouton } from './widgets';
@@ -84,7 +84,7 @@ export function dessineLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
       if (debut + largeurTexte(match) + 8 + largeurTexte(nb) <= fin) texte(g, nb, fin, y + 4, C.gris, 1, 'd');
       texte(g, regarder, x + w - 6, y + 4, '#3fb4e8', 1, 'd');
     } else {
-      texte(g, p.equipe.code, x + 96, y + 4, p.equipe.interieur.clair, 1, 'g');
+      texte(g, p.equipe.code, x + 96, y + 4, couleurNom(p.equipe.interieur), 1, 'g');
       const n = EFFECTIFS[p.effectifIdx] ?? 3;
       texte(g, `${n} C ${n}  ${(DUREES[p.dureeIdx] ?? 180) / 60} MIN`, x + 150, y + 4, C.gris, 1, 'g');
       texte(g, 'REJOINDRE >', x + w - 6, y + 4, C.or, 1, 'd');

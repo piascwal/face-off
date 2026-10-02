@@ -3,7 +3,7 @@ import { zonePause } from './hud-zones';
 import { largeurTexte, texte } from './pixel-font';
 import { px } from './primitives';
 import { C } from './theme';
-import type { EquipeVisuelle } from './team-visuals';
+import { couleurNom, type EquipeVisuelle } from './team-visuals';
 
 const ETOILE = ['00100', '11111', '01110', '01010'];
 
@@ -26,25 +26,34 @@ export function dessineTableau(
   equipes: [EquipeVisuelle, EquipeVisuelle],
 ): void {
   const cx = Math.round(W / 2);
-  // assez large pour les noms longs (TOULOUSE, GRENOBLE) sans toucher le score
+  // assez large pour les noms longs (TOULOUSE, GRENOBLE) sans toucher le score,
+  // et pour un score à deux chiffres de chaque côté de l'horloge
   const plusLong = Math.max(largeurTexte(equipes[0].code), largeurTexte(equipes[1].code));
   const etoiles = state.bonus[0] !== 'aucun' || state.bonus[1] !== 'aucun';
-  const lw = Math.max(150, 2 * (plusLong + 9 + 32 + (etoiles ? 8 : 0)));
+  const largeurScore = largeurTexte('88', 2);
+  const lw = Math.max(150, 2 * (11 + plusLong + (etoiles ? 8 : 0) + 6 + largeurScore + 16));
   const x = cx - lw / 2;
   const y = 2;
   px(g, x - 1, y - 1, lw + 2, 21, C.contour);
   px(g, x, y, lw, 19, '#161b36');
   px(g, x, y, lw, 1, '#2a3160');
   px(g, x, y + 18, lw, 1, '#0f1328');
-  px(g, x + 3, y + 3, 3, 13, equipes[0].maillot);
-  px(g, x + lw - 6, y + 3, 3, 13, equipes[1].maillot);
-  texte(g, equipes[0].code, x + 9, y + 6, equipes[0].clair, 1, 'g');
-  texte(g, equipes[1].code, x + lw - 9, y + 6, equipes[1].clair, 1, 'd');
+  // carré de la couleur du maillot, cerclé de clair : un maillot noir se voit sur le fond sombre
+  for (const [sx, eq] of [
+    [x + 2, 0],
+    [x + lw - 7, 1],
+  ] as const) {
+    px(g, sx, y + 2, 5, 15, '#c9d2e3');
+    px(g, sx + 1, y + 3, 3, 13, equipes[eq].maillot);
+  }
+  texte(g, equipes[0].code, x + 11, y + 6, couleurNom(equipes[0]), 1, 'g');
+  texte(g, equipes[1].code, x + lw - 11, y + 6, couleurNom(equipes[1]), 1, 'd');
   // petite étoile : cette équipe joue avec un handicap (partie Wi-Fi)
-  if (state.bonus[0] !== 'aucun') etoile(g, x + 9 + largeurTexte(equipes[0].code) + 4, y + 7);
-  if (state.bonus[1] !== 'aucun') etoile(g, x + lw - 9 - largeurTexte(equipes[1].code) - 9, y + 7);
-  texte(g, state.score[0], cx - 22, y + 3, C.blanc, 2, 'c');
-  texte(g, state.score[1], cx + 22, y + 3, C.blanc, 2, 'c');
+  if (state.bonus[0] !== 'aucun') etoile(g, x + 11 + largeurTexte(equipes[0].code) + 4, y + 7);
+  if (state.bonus[1] !== 'aucun') etoile(g, x + lw - 11 - largeurTexte(equipes[1].code) - 9, y + 7);
+  // scores collés à l'horloge, chacun vers son équipe : ils grandissent vers l'extérieur
+  texte(g, state.score[0], cx - 17, y + 3, C.blanc, 2, 'd');
+  texte(g, state.score[1], cx + 17, y + 3, C.blanc, 2, 'g');
   let h: string;
   if (state.mode !== 'match') h = 'DEMO';
   else if (state.prolong) h = 'PROL';

@@ -168,6 +168,35 @@ export interface EquipeVisuelle extends Palette {
   logo: string;
 }
 
+/** Luminosité perçue d'une couleur « #rrggbb » (0..255). */
+export function luminosite(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+}
+
+/** Éclaircit une couleur (mélange avec du blanc) jusqu'à ce qu'elle se lise sur un fond sombre. */
+export function lisible(hex: string, minimum = 150): string {
+  let n = parseInt(hex.slice(1), 16);
+  let r = (n >> 16) & 255;
+  let g = (n >> 8) & 255;
+  let b = n & 255;
+  for (let i = 0; i < 12 && 0.299 * r + 0.587 * g + 0.114 * b < minimum; i++) {
+    r += (255 - r) * 0.18;
+    g += (255 - g) * 0.18;
+    b += (255 - b) * 0.18;
+  }
+  n = (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+  return `#${n.toString(16).padStart(6, '0')}`;
+}
+
+/**
+ * La couleur d'une équipe pour écrire son nom sur un fond sombre : la plus
+ * claire de son maillot (le noir de Nice disparaîtrait), éclaircie au besoin.
+ */
+export function couleurNom(pal: Palette): string {
+  return lisible(luminosite(pal.clair) >= luminosite(pal.maillot) ? pal.clair : pal.maillot);
+}
+
 export function resoutEquipe(def: TeamDef, variante: Variante): EquipeVisuelle {
   return {
     id: `${def.id}-${variante}`,

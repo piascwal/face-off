@@ -5,7 +5,7 @@ import { texte } from './pixel-font';
 import { px } from './primitives';
 import type { BanqueSprites } from './sprites';
 import { C } from './theme';
-import { palette, type TeamDef, type Variante } from './team-visuals';
+import { couleurNom, palette, type TeamDef, type Variante } from './team-visuals';
 import { bouton, type ZoneBouton } from './widgets';
 
 export interface CarteEquipe {
@@ -104,9 +104,10 @@ export function dessinePanneauEquipe(
     g.imageSmoothingEnabled = false;
   }
   let y = logoY + tailleLogo + 5;
+  px(g, cx - tailleLogo / 2 - 3, y - 1, tailleLogo + 6, 4, '#c9d2e3');
   px(g, cx - tailleLogo / 2 - 2, y, tailleLogo + 4, 2, pal.maillot);
   y += 8;
-  texte(g, def.code, cx, y, pal.clair, 1, 'c');
+  texte(g, def.code, cx, y, couleurNom(pal), 1, 'c');
   y += 9;
   texte(g, def.nom, cx, y, C.gris, 1, 'c');
 
@@ -187,7 +188,7 @@ export function dessinePanneauMaillot(
   const zoneHaut = 12;
   const zoneBas = H - 26;
   const dy = Math.max(0, Math.round(zoneHaut + (zoneBas - zoneHaut - hauteurBloc) / 2 - hautBloc));
-  texte(g, def.code, cx, hautBloc + dy, def.interieur.clair, 2, 'c');
+  texte(g, def.code, cx, hautBloc + dy, couleurNom(def.interieur), 2, 'c');
 
   // le joueur, de face, porte le maillot choisi ; crosse vers l'extérieur de l'écran
   // (à gauche pour le panneau de gauche : le dessin d'origine la tient à droite)

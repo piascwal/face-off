@@ -1,7 +1,7 @@
 import type { GameEvent, TeamId } from '@core/types';
 import { alea } from '@core/utils';
 import { C } from './theme';
-import { EQUIPES_JOUABLES, resoutEquipe, type EquipeVisuelle } from './team-visuals';
+import { EQUIPES_JOUABLES, luminosite, resoutEquipe, type EquipeVisuelle } from './team-visuals';
 
 export interface Particule {
   x: number;
@@ -50,11 +50,6 @@ export interface Banniere {
   logoId?: string;
   /** Célébration du buteur : feuille de son équipe (maillot compris) et tirage du dessin. */
   celebration?: { spriteId: string; tirage: number };
-}
-
-function luminosite(hex: string): number {
-  const n = parseInt(hex.slice(1), 16);
-  return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
 }
 
 /** Couleur la plus lisible de l'équipe sur le bandeau sombre (un maillot noir,
