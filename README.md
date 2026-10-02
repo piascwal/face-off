@@ -207,10 +207,7 @@ Indicateurs dans `render/entities-render.ts` :
 - un halo bleu clair (couleur fixe, indépendante des maillots) **toujours**
   visible sous **le patineur que vous contrôlez**, palet ou pas, plus un
   double chevron plus gros au-dessus de sa tête ;
-- en réseau, une flèche **rouge vif** au-dessus du patineur de l'autre humain ;
-- quand vous avez le palet, un **anneau pointillé or et orange** tourne autour
-  des patins du coéquipier que viserait une passe (assistance de passe),
-  dessiné par-dessus les joueurs pour rester visible (`render/scene.ts::anneauReceveur`).
+- en réseau, une flèche **rouge vif** au-dessus du patineur de l'autre humain.
 
 Le palet libre change aussi automatiquement de main : si personne ne le
 tient et qu'un coéquipier en est nettement plus proche que le patineur
