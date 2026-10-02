@@ -176,6 +176,24 @@ function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eq
   }
 }
 
+/**
+ * Assistance de passe : le coéquipier que viserait une passe maintenant.
+ * Un anneau pointillé or et orange qui tourne autour de ses patins, dessiné
+ * par-dessus les joueurs pour rester visible même quand il est de face.
+ */
+function anneauReceveur(g: CanvasRenderingContext2D, s: Skater, temps: number): void {
+  const n = 20;
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2 + temps * 3;
+    const x = Math.round(s.x + Math.cos(a) * 12);
+    const y = Math.round(s.y + 3 + Math.sin(a) * 4.5);
+    g.globalAlpha = 0.45;
+    px(g, x - 1, y - 1, 4, 4, C.contour);
+    g.globalAlpha = 1;
+    px(g, x, y, 2, 2, k % 2 ? C.or : '#ff8a2a');
+  }
+}
+
 /** Bonus « but x2 » : un « 2X » clignote au-dessus de la cage que l'équipe attaque. */
 function marqueursDouble(g: CanvasRenderingContext2D, rink: Rink, state: MatchState): void {
   for (const eq of [0, 1] as TeamId[]) {
@@ -230,6 +248,7 @@ export function dessineScene(
   for (const s of state.patineurs) ellipseOmbre(g, s.x, s.y + 3.5, s.chuteT > 0 ? 17 : 10, s.chuteT > 0 ? 3 : 1.8, 0.28);
 
   // en match, on repère ses coéquipiers et le receveur que viserait une passe
+  let receveur: Skater | null = null;
   if (state.mode === 'match' && ecranUI === 'jeu' && eqLocal !== null) {
     const c = moi;
     let rec = null;
@@ -241,17 +260,10 @@ export function dessineScene(
       rec = r?.m ?? null;
     }
     for (const s of equipe(state, eqLocal)) {
-      if (s === c) continue;
-      if (s === rec) {
-        const cl = Math.floor(state.temps * 6) & 1 ? C.or : C.blanc;
-        for (let k = 0; k < 16; k++) {
-          const a = (k / 16) * Math.PI * 2 + state.temps * 3;
-          if (k % 2 === 0) px(g, s.x + Math.cos(a) * 8, s.y + 3 + Math.sin(a) * 3, 1, 1, cl);
-        }
-      } else if (!s.tient) {
-        px(g, s.x - 1, s.y + 5, 3, 1, equipes[eqLocal].maillot);
-      }
+      if (s === c || s === rec) continue;
+      if (!s.tient) px(g, s.x - 1, s.y + 5, 3, 1, equipes[eqLocal].maillot);
     }
+    receveur = rec;
   }
 
   for (const gk of state.gardiens) ellipseOmbre(g, gk.x, gk.y + 3.5, 14, 2, 0.28);
@@ -272,6 +284,7 @@ export function dessineScene(
   ];
   liste.sort((a, b) => a.y - b.y);
   for (const e of liste) e.f();
+  if (receveur) anneauReceveur(g, receveur, state.temps);
 
   marqueursDouble(g, rink, state);
   sommeil(g, state);

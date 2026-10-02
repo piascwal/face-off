@@ -55,9 +55,28 @@ export function controle(state: MatchState, s: Skater, siege: 0 | 1 = 0): void {
   else state.controles[s.eq] = s;
 }
 
+/**
+ * Coop : quel humain prend la main sur le patineur `qui` de l'équipe 0 qui
+ * vient de recevoir le palet. Sur une passe d'un humain, c'est lui (il suit
+ * son palet, comme en solo) ; sur un palet ramassé par un coéquipier CPU,
+ * c'est l'humain le plus proche. Hors coop, toujours le siège 0.
+ */
+function siegeQuiPrend(state: MatchState, qui: Skater, passeur: Porteur | null, passe: boolean): 0 | 1 {
+  const h = state.controles[0];
+  const i = state.partenaire;
+  if (!state.coop || qui.eq !== 0 || !i) return 0;
+  if (qui === i) return 1;
+  if (qui === h) return 0;
+  if (passe && passeur === i) return 1;
+  if (passe && passeur === h) return 0;
+  if (!h) return 1;
+  return Math.hypot(i.x - qui.x, i.y - qui.y) < Math.hypot(h.x - qui.x, h.y - qui.y) ? 1 : 0;
+}
+
 export function prendPalet(state: MatchState, qui: Porteur): void {
   const p = state.palet;
   const passeReussie = estPatineur(qui) && p.passe?.vers === qui;
+  const passeur = p.dernier;
   const equipePrecedente = p.dernier?.eq;
   p.porteur = qui;
   p.dernier = qui;
@@ -77,7 +96,7 @@ export function prendPalet(state: MatchState, qui: Porteur): void {
   if (estPatineur(qui)) {
     qui.tient = true;
     state.evenements.push({ type: 'touche' });
-    controle(state, qui);
+    controle(state, qui, siegeQuiPrend(state, qui, passeur, passeReussie));
     if (passeReussie) {
       state.stats.passes[qui.eq]++;
       state.reception = { qui, t: state.temps };
@@ -243,7 +262,8 @@ export function lancePasse(state: MatchState, x: number, y: number, m: Skater, e
   state.reception = null;
   state.evenements.push({ type: 'frappe', puissance: 0.25 });
   state.evenements.push({ type: 'neige', x, y, n: 3, vx: -p.vx * 0.2, vy: -p.vy * 0.2 });
-  controle(state, m);
+  // la main passe au receveur dès le départ de la passe (en coop : à l'humain qui a passé)
+  controle(state, m, siegeQuiPrend(state, m, p.dernier, true));
 }
 
 export function passeVers(state: MatchState, s: Skater, m: Skater, err = 0.03): void {

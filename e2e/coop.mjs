@@ -198,6 +198,38 @@ export default async function coop(env) {
   env.verifie(apres.nb === 2 && apres.eq.every((e) => e === 0) && apres.h !== apres.i, 'toujours deux humains distincts dans l\'équipe 0 après un changement');
   env.verifie(apres.h === avant.h, 'le changement de l\'invité n\'a pas pris le patineur de l\'hôte');
 
+  // 5 bis) passe de l'invité vers un coéquipier CPU : c'est lui qui garde la main, pas l'hôte
+  await enJeu();
+  const passe = await H.evaluate(() => {
+    const st = window.faceOff.state;
+    const r = window.faceOff.rink;
+    const s = st.partenaire;
+    const h = st.controles[0];
+    const cpu = st.patineurs.find((m) => m.eq === 0 && !m.humain);
+    Object.assign(s, { x: r.cx - 40, y: r.cy, vx: 0, vy: 0 });
+    Object.assign(h, { x: r.cx - 140, y: r.cy + 50, vx: 0, vy: 0 });
+    Object.assign(cpu, { x: r.cx + 40, y: r.cy, vx: 0, vy: 0 });
+    if (st.palet.porteur) st.palet.porteur.tient = false;
+    st.palet.porteur = s;
+    st.palet.dernier = s;
+    s.tient = true;
+    s.recupCd = 0;
+    for (const o of st.patineurs) if (o.eq === 1) Object.assign(o, { x: r.cx, y: r.y + 10, vx: 0, vy: 0 });
+    return { h: st.patineurs.indexOf(h), cpu: st.patineurs.indexOf(cpu), passes: st.stats.passes[0] };
+  });
+  await I.keyboard.down('ArrowRight');
+  await attends(60);
+  await I.keyboard.press('KeyL');
+  await attends(80);
+  await I.keyboard.up('ArrowRight');
+  await attends(900);
+  const apresPasse = await H.evaluate(() => {
+    const st = window.faceOff.state;
+    return { h: st.patineurs.indexOf(st.controles[0]), i: st.patineurs.indexOf(st.partenaire), passes: st.stats.passes[0] };
+  });
+  env.verifie(apresPasse.i === passe.cpu && apresPasse.h === passe.h, `passe de l'invité : il prend la main sur le receveur, l'hôte garde la sienne (${JSON.stringify(passe)} -> ${JSON.stringify(apresPasse)})`);
+  env.verifie(apresPasse.passes === passe.passes + 1, 'la passe compte');
+
   // 6) bonus : il profite aux deux humains
   await enJeu();
   await H.evaluate(() => Object.assign(window.faceOff.state.pouvoirs[0], { actif: null, pret: 'savon', tirage: 0 }));

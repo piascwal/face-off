@@ -206,7 +206,11 @@ Indicateurs dans `render/entities-render.ts` :
   défense pour repérer le porteur adverse) ;
 - un halo bleu clair (couleur fixe, indépendante des maillots) **toujours**
   visible sous **le patineur que vous contrôlez**, palet ou pas, plus un
-  double chevron plus gros au-dessus de sa tête.
+  double chevron plus gros au-dessus de sa tête ;
+- en réseau, une flèche **rouge vif** au-dessus du patineur de l'autre humain ;
+- quand vous avez le palet, un **anneau pointillé or et orange** tourne autour
+  des patins du coéquipier que viserait une passe (assistance de passe),
+  dessiné par-dessus les joueurs pour rester visible (`render/scene.ts::anneauReceveur`).
 
 Le palet libre change aussi automatiquement de main : si personne ne le
 tient et qu'un coéquipier en est nettement plus proche que le patineur
@@ -611,7 +615,9 @@ porte la mention COOP.
   l'équipe 0 ; les coéquipiers CPU jouent comme d'habitude, et passer le palet
   à l'autre humain est la base du jeu. Chacun a son bouton CHANGE : il donne la
   main à un coéquipier CPU, jamais au patineur de l'autre (le changement
-  automatique non plus). Ma flèche est bleue ; celle de l'autre humain est
+  automatique non plus). Sur une passe vers un coéquipier CPU, c'est celui qui
+  a passé qui prend la main sur le receveur ; un palet ramassé par un CPU va à
+  l'humain le plus proche. Ma flèche est bleue ; celle de l'autre humain est
   rouge vif, bien visible sur la glace (en versus comme en coop).
 - **Les bonus** de l'équipe ne s'appliquent qu'à celui des deux humains qui a
   le palet : il est doré (super vitesse, tir surpuissant et son bouton TIR doré,

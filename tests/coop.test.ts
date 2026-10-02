@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changeAutoSiLoin, changeJoueur, controle, prendPalet } from '../src/core/actions';
+import { changeAutoSiLoin, changeJoueur, controle, passeVers, prendPalet } from '../src/core/actions';
 import { CHANGEMENT_AUTO_MARGE, CHANGEMENT_AUTO_SEUIL } from '../src/core/constants';
 import { activePouvoir, boutonBonus, estDore, estGele, joueurDore, majPouvoirs } from '../src/core/pouvoirs';
 import { calculeRink } from '../src/core/rink';
@@ -97,6 +97,40 @@ describe('coop : deux humains dans la même équipe', () => {
     expect(st.controles[0]).toBe(invite);
     expect(st.partenaire).toBe(cpu);
     expect(equipe0(st).filter((s) => s.humain)).toHaveLength(2);
+  });
+
+  it('une passe vers un coéquipier CPU donne la main à celui qui a passé (hôte comme invité)', () => {
+    const st = coop();
+    const hote = st.controles[0]!;
+    const invite = st.partenaire!;
+    const cpu = equipe0(st).find((s) => s !== hote && s !== invite)!;
+    prendPalet(st, invite);
+    passeVers(st, invite, cpu);
+    expect(st.partenaire).toBe(cpu);
+    expect(st.controles[0]).toBe(hote);
+    prendPalet(st, cpu);
+    expect(st.partenaire).toBe(cpu);
+    expect(st.stats.passes[0]).toBe(1);
+    expect(st.pouvoirs![0].passes).toBe(1);
+    // l'hôte passe à son tour au coéquipier libre (l'ancien patineur de l'invité)
+    prendPalet(st, hote);
+    passeVers(st, hote, invite);
+    expect(st.controles[0]).toBe(invite);
+    expect(st.partenaire).toBe(cpu);
+  });
+
+  it('palet ramassé par un coéquipier CPU : l’humain le plus proche en prend la main', () => {
+    const st = coop();
+    const hote = st.controles[0]!;
+    const invite = st.partenaire!;
+    const cpu = equipe0(st).find((s) => s !== hote && s !== invite)!;
+    Object.assign(cpu, { x: 300, y: 100 });
+    Object.assign(invite, { x: 290, y: 110 });
+    Object.assign(hote, { x: 60, y: 100 });
+    st.palet.dernier = st.patineurs.find((s) => s.eq === 1)!;
+    prendPalet(st, cpu);
+    expect(st.partenaire).toBe(cpu);
+    expect(st.controles[0]).toBe(hote);
   });
 
   it('le changement automatique ne vole jamais le patineur de l’autre humain', () => {
