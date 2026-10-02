@@ -228,6 +228,36 @@ const ICONES: Record<PouvoirId | 'inconnu', string[]> = {
     '............',
     '............',
   ],
+  // main géante de supporter
+  envahissement: [
+    '.....yy.....',
+    '.....yy.....',
+    '.....yy.....',
+    '.....yy.....',
+    '...yyyyyy...',
+    '..yyyyyyyy..',
+    '..yyyyyyyy..',
+    '..yywyyyyy..',
+    '...yyyyyy...',
+    '....rrrr....',
+    '....rrrr....',
+    '....rrrr....',
+  ],
+  // vitre brisée par le palet
+  loupe: [
+    'w....w....w.',
+    '.w...w...w..',
+    '..w..w..w...',
+    '...w.w.w....',
+    '....ggg.....',
+    'wwwwgggwwwww',
+    '....ggg.....',
+    '...w.w.w....',
+    '..w..w..w...',
+    '.w...w...w..',
+    'w....w....w.',
+    '............',
+  ],
   // bonus pas encore tiré
   inconnu: [
     '............',

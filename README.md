@@ -61,7 +61,7 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 | `solo` | Au clavier : menu, choix des équipes et maillots (avec retour), match, pause, fin, rejouer, bilan, écran des commandes |
 | `coupe` | Mode coupe : choix, tableau, dévoilement, élimination, titre |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
-| `bonus` | Bonus en solo : jauge, 4e passe (gros « BONUS » doré sans combo), départ automatique, but x2 limité à 10 s, freeze, inversion, full esquive, tir surpuissant (bouton TIR doré), super héros, tremblement, givre, cage géante, mini cage, gardien endormi, blackout, surnombre, un but qui coupe tout, option du menu, mode entraînement |
+| `bonus` | Bonus en solo : jauge, 4e passe (gros « BONUS » doré sans combo), départ automatique, but x2 limité à 10 s, freeze, inversion, full esquive, tir surpuissant (bouton TIR doré), super héros, tremblement, givre, cage géante, mini cage, gardien endormi, blackout, envahissement, loupé complet, surnombre, un but qui coupe tout, option du menu, mode entraînement |
 | `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), invité qui ne revient pas, coupure pendant le choix des équipes |
 
 En local, Chromium doit être installé une fois : `npx playwright install chromium`.
@@ -705,6 +705,21 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 | Mini cage | sa propre cage rétrécit (×0,45) ; l'ouverture brille en or | 10 s |
 | Gardien endormi | le gardien adverse ne bouge plus, n'attrape plus rien et ne couvre plus que 60 % de son corps ; des « Z » montent au-dessus de lui | 6 s |
 | Blackout | les lumières s'éteignent (après deux clignotements) : tout est noir, sauf deux projecteurs, sur le joueur doré et sur le gardien adverse ; l'équipe dans le noir garde une petite lueur autour du joueur qu'elle pilote, et intercepte (×0,5) et vole (×0,3) moins bien | 8 s |
+| Envahissement | 5 supporters aux couleurs de l'équipe sautent des tribunes et foncent sur les adversaires (deux sur le porteur) ; au contact, l'adversaire est freiné net et peut lâcher le palet (« OUPS ! ») ; à la fin, ils regagnent les tribunes | 8 s |
+| Loupé complet | si un adversaire tire pendant le bonus, son tir est raté d'office : le palet vole vers la caméra et brise l'écran (fissures, éclats, « LOUPE ! », bruit de verre), puis engagement au centre ; le bonus est consommé | 10 s max |
+
+**Supporters.** Les dessins viennent de `assets/sprites-src/supporters/`
+(fond magenta, comme les autres sources) : pour en ajouter un, il suffit d'y
+déposer son image et de relancer `python3 scripts/convertit-sources.py` puis
+`npm run sprites`. Le rouge vif prend la couleur principale de l'équipe, le
+jaune et l'or sa couleur secondaire, le reste garde ses couleurs. Si un
+détail rouge ou jaune doit rester tel quel (des cheveux roux), un fichier
+`<nom>.json` à côté de l'image liste ces zones (voir `supporter-1.json`).
+Feuilles par équipe : `supporters-<id>.png`.
+
+**Loupé complet.** C'est une phase de jeu à part (`loupe`, `LOUPE_S`) :
+l'animation (`render/loupe-ecran.ts`) se déduit du temps restant, donc chaque
+écran, Wi-Fi et spectateur compris, joue la même scène.
 
 **Mode entraînement** (Réglages avancés > ENTRAINEMENT) : on choisit un
 bonus dans la grille (le choix est gardé), puis un match sans chrono
@@ -715,7 +730,8 @@ Code : `core/pouvoirs.ts` (règles, tirage, départ automatique, effets ; testé
 `tests/pouvoirs.test.ts`), `render/hud-bonus.ts` et `render/icones-bonus.ts`
 (jauges, tirage), `render/scene.ts` (le « BONUS » doré), feuille dorée calculée à la volée
 (`BanqueSprites.spriteJoueurDore`). En Wi-Fi, les bonus voyagent dans
-l'instantané (protocole v18 : en plus, le tir déjà fait du super héros) ; les
+l'instantané (protocole v19 : en plus, le tir déjà fait du super héros, les
+supporters et la phase de loupé) ; les
 effets d'écran (tremblement, givre, blackout) se calculent sur chaque appareil
 à partir de l'état du bonus.
 

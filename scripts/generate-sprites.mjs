@@ -20,6 +20,7 @@ import {
   feuillePortrait,
   feuilleTir,
   feuilleEchec,
+  feuilleSupporters,
   feuilleVisages,
   VISAGES,
 } from './sprites-illustres.mjs';
@@ -149,13 +150,14 @@ for (const eq of EQUIPES) {
   writeFileSync(path.join(OUT_SPRITES, `chute-${eq.id}.png`), feuilleChute(sources, eq).toBuffer('image/png'));
   writeFileSync(path.join(OUT_SPRITES, `tir-${eq.id}.png`), feuilleTir(sources, eq, logo).toBuffer('image/png'));
   writeFileSync(path.join(OUT_SPRITES, `echec-${eq.id}.png`), feuilleEchec(sources, eq, logo).toBuffer('image/png'));
+  writeFileSync(path.join(OUT_SPRITES, `supporters-${eq.id}.png`), feuilleSupporters(sources, eq).toBuffer('image/png'));
   writeFileSync(path.join(OUT_SPRITES, `celebration-${eq.id}.png`), feuilleCelebrations(sources, eq).toBuffer('image/png'));
 }
 writeFileSync(path.join(OUT_SPRITES, 'visages.png'), feuilleVisages(sources).toBuffer('image/png'));
 writeFileSync(path.join(OUT_SPRITES, 'visages-tir.png'), feuilleVisages(sources, 'tir').toBuffer('image/png'));
 writeFileSync(path.join(OUT_SPRITES, 'visages-echec.png'), feuilleVisages(sources, 'echec').toBuffer('image/png'));
 
-const { joueur, gardien, portrait, chute, celebration, tir, echec } = sources.meta;
+const { joueur, gardien, portrait, chute, celebration, tir, echec, supporters } = sources.meta;
 writeFileSync(
   path.join(OUT_SPRITES, 'meta.json'),
   JSON.stringify(
@@ -167,6 +169,8 @@ writeFileSync(
       // même échelle que le patinage (même hauteur de joueur), même recul de dessin
       tir: { ...tir, echelle: ECHELLE_JOUEUR, decalage: DECALAGE_JOUEUR },
       echec: { ...echec, echelle: ECHELLE_JOUEUR, decalage: DECALAGE_JOUEUR },
+      // les supporters à l'échelle des joueurs
+      supporters: { ...supporters, echelle: ECHELLE_JOUEUR },
       celebration,
       visages: VISAGES.length,
       teamIds: EQUIPES_LOGO.map((e) => e.id),

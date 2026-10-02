@@ -152,6 +152,12 @@ export class MoteurAudio {
     this.souffle(0.06, 'highpass', 2500, 1, 0.4);
     this.ton(120, 0.6, 'square', 0.06, 50, 0.03);
   }
+  /** Loupé complet : l'écran vole en éclats (impact sourd, puis pluie de verre). */
+  verre(): void {
+    this.ton(90, 0.25, 'square', 0.1, 40);
+    this.souffle(0.35, 'highpass', 4000, 0.8, 0.45);
+    for (let i = 0; i < 7; i++) this.ton(2400 + Math.random() * 3000, 0.06, 'sine', 0.04, undefined, 0.05 + i * 0.05 + Math.random() * 0.03);
+  }
   /** Fin d'un bonus : descente courte. */
   bonusFin(): void {
     this.ton(880, 0.18, 'square', 0.05, 330);
@@ -269,6 +275,9 @@ export function joueEvenements(son: MoteurAudio, evenements: GameEvent[]): void 
         break;
       case 'vibre':
         vibre(ev.ms);
+        break;
+      case 'verre':
+        son.verre();
         break;
       case 'pouvoir':
         if (ev.quoi === 'tirage') son.tirageBonus();

@@ -35,6 +35,7 @@ function etatVide(): MatchState {
     entrainement: null,
     reception: null,
     figeT: 0,
+    supporters: [],
     evenements: [],
     assistTir: true,
     assistPasse: true,

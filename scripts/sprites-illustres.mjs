@@ -70,6 +70,8 @@ export async function chargeSources(dossier) {
     tir: await lis('tir.png'),
     tirRoles: await lis('tir-roles.png'),
     echec: await lis('echec.png'),
+    supporters: await lis('supporters.png'),
+    supportersRoles: await lis('supporters-roles.png'),
     echecRoles: await lis('echec-roles.png'),
     chute: await lis('chute.png'),
     chuteRoles: await lis('chute-roles.png'),
@@ -270,6 +272,12 @@ export function feuilleTir(S, eq, logo) {
 export function feuilleEchec(S, eq, logo) {
   const { tileW, tileH } = S.meta.echec;
   return feuilleDeuxSens(repeint(S.echec, S.echecRoles, S.meta.roles, eq, logo, tileW, 1), tileW, tileH, 1);
+}
+
+/** Supporters (bonus envahissement) aux couleurs de l'équipe : une case par supporter (vers la droite), puis en miroir. */
+export function feuilleSupporters(S, eq) {
+  const { tileW, tileH, images } = S.meta.supporters;
+  return feuilleDeuxSens(repeint(S.supporters, S.supportersRoles, S.meta.roles, eq, null, tileW, images), tileW, tileH, images);
 }
 
 /** Défenseur esquivé : plongeon puis allongé (tête vers la droite), puis les mêmes en miroir. */

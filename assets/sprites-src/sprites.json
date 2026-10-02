@@ -73,11 +73,21 @@
   "echec": {
     "tileW": 138,
     "tileH": 109,
+    "images": 1,
     "pied": {
       "x": 63.1,
       "y": 108
     },
     "tete": 2
+  },
+  "supporters": {
+    "tileW": 115,
+    "tileH": 117,
+    "images": 3,
+    "pied": {
+      "x": 57.5,
+      "y": 116
+    }
   },
   "celebration": {
     "tileW": 134,

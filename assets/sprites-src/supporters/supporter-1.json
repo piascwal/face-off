@@ -1,0 +1,4 @@
+{
+  "commentaire": "Zones (x0, y0, x1, y1, en pixels du dessin pixelisé et recadré) qui gardent leur couleur d'origine : ici les cheveux roux, aussi rouges que la veste.",
+  "garde": [[36, 19, 70, 37]]
+}

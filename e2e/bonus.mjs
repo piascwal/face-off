@@ -179,6 +179,34 @@ export default async function bonus(env) {
   await attends(700);
   await env.capture(p, '10g-blackout');
 
+  // lot C : envahissement, les supporters aux couleurs de l'équipe filent sur les adversaires
+  env.verifie(await donne('envahissement'), 'ENVAHISSEMENT en cours');
+  env.verifie((await p.evaluate(() => window.faceOff.state.supporters.length)) === 5, 'ENVAHISSEMENT : 5 supporters sur la glace');
+  await attends(900);
+  await env.capture(p, '11a-envahissement');
+  await p.evaluate(() => window.faceOff.state.pouvoirs[0].actif && (window.faceOff.state.pouvoirs[0].reste = 0.01));
+  env.verifie(await env.attendsQue(p, () => window.faceOff.state.supporters.length === 0, undefined, 5000), 'fin du bonus : les supporters repartent');
+
+  // lot C : loupé complet (bonus de l'ordinateur) — notre tir part vers la caméra et brise l'écran
+  await enJeu();
+  await p.evaluate(() => {
+    const pv = window.faceOff.state.pouvoirs[1];
+    Object.assign(pv, { pret: 'loupe', tirage: 0, actif: null });
+  });
+  env.verifie(await env.attendsQue(p, () => window.faceOff.state.pouvoirs[1].actif === 'loupe', undefined, 1500), 'LOUPE COMPLET de l\'adversaire en cours');
+  await donnePalet();
+  await p.keyboard.down('Space');
+  await attends(150);
+  await p.keyboard.up('Space');
+  env.verifie(await env.attendsQue(p, () => window.faceOff.state.phase === 'loupe', undefined, 1000), 'notre tir : phase LOUPÉ (le palet vole vers la caméra)');
+  await attends(250);
+  await env.capture(p, '11b-loupe-vol');
+  await attends(600);
+  await env.capture(p, '11c-loupe-ecran-brise');
+  const apres = await p.evaluate(() => ({ score: window.faceOff.state.score, actif: window.faceOff.state.pouvoirs[1].actif }));
+  env.verifie(apres.actif === null, 'LOUPÉ : le bonus est consommé');
+  env.verifie(await env.attendsQue(p, () => window.faceOff.state.phase === 'engagement' || window.faceOff.state.phase === 'jeu', undefined, 3000), 'LOUPÉ : engagement au centre ensuite');
+
   // surnombre : un renfort doré et semi-transparent entre sur la glace
   const n0 = await p.evaluate(() => window.faceOff.state.patineurs.filter((s) => !s.renfort).length);
   env.verifie(await donne('surnombre'), 'SURNOMBRE en cours');

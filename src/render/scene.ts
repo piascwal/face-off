@@ -3,7 +3,7 @@ import { BUT_DEMI } from '@core/constants';
 import { ALERTE_FIN_S, DEF_POUVOIRS, demiCage, effetActif, estGele, estInverse, gardienEndormi, HEROS_FREEZE_S, joueurDore } from '@core/pouvoirs';
 import { butAttaque } from '@core/shooting';
 import { equipe } from '@core/state-helpers';
-import type { MatchState, Rink, Skater, TeamId } from '@core/types';
+import type { MatchState, Rink, Skater, Supporter, TeamId } from '@core/types';
 import { dessineGardien, dessinePalet, dessineParticules, dessinePatineur, TracesGlace, type AspectBonus } from './entities-render';
 import { BULLE_GROSSE_VIE, type Bulle, type SystemeEffets } from './effects';
 import { anneau, ellipseOmbre, px } from './primitives';
@@ -80,6 +80,22 @@ function givre(g: CanvasRenderingContext2D, rink: Rink, state: MatchState): void
     }
     g.globalAlpha = 1;
   }
+}
+
+/**
+ * Un supporter de l'envahissement, aux couleurs de son équipe : il sautille
+ * en courant (tourné vers où il va), avec son ombre sur la glace.
+ */
+function dessineSupporter(g: CanvasRenderingContext2D, sprites: BanqueSprites, s: Supporter, i: number, temps: number, equipes: [EquipeVisuelle, EquipeVisuelle]): void {
+  const M = sprites.meta.supporters;
+  const sprite = sprites.spriteSupporter(equipes[s.eq].id, s.img, s.vx < 0);
+  ellipseOmbre(g, s.x, s.y + 3.5, 8, 1.8, 0.28);
+  if (!sprite) return;
+  const e = M.echelle;
+  const saut = Math.round(Math.abs(Math.sin(temps * 13 + i * 1.7)) * 3);
+  const bx = s.x - M.pied.x * e;
+  const by = s.y + 4 - M.pied.y * e - saut;
+  g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, bx, by, M.tileW * e, M.tileH * e);
 }
 
 /** Gardien endormi : des « Z » qui montent en se balançant au-dessus de sa tête. */
@@ -248,7 +264,9 @@ export function dessineScene(
       },
     })),
     ...state.gardiens.map((gk) => ({ y: gk.y, f: () => dessineGardien(g, sprites, gk, state.temps, equipes) })),
-    { y: p.y - 2, f: () => dessinePalet(g, p, state.temps) },
+    // pendant le loupé complet, le palet est « dans la caméra » (voir loupe-ecran.ts)
+    ...(state.phase === 'loupe' ? [] : [{ y: p.y - 2, f: () => dessinePalet(g, p, state.temps) }]),
+    ...state.supporters.map((s, i) => ({ y: s.y, f: () => dessineSupporter(g, sprites, s, i, state.temps, equipes) })),
   ];
   liste.sort((a, b) => a.y - b.y);
   for (const e of liste) e.f();

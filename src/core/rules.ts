@@ -111,6 +111,7 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     entrainement: opts.mode === 'match' ? (opts.entrainement ?? null) : null,
     reception: null,
     figeT: 0,
+    supporters: [],
     evenements: [],
     assistTir: opts.mode === 'demo' ? true : (opts.assistTir ?? true),
     assistPasse: opts.mode === 'demo' ? true : (opts.assistPasse ?? true),

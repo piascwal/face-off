@@ -26,6 +26,8 @@ export const POUVOIRS: PouvoirId[] = [
   'minicage',
   'endormi',
   'blackout',
+  'envahissement',
+  'loupe',
 ];
 
 export interface DefPouvoir {
@@ -53,6 +55,8 @@ export const DEF_POUVOIRS: Record<PouvoirId, DefPouvoir> = {
   minicage: { nom: 'MINI CAGE', duree: 10, dore: false, dispo: true },
   endormi: { nom: 'GARDIEN ENDORMI', duree: 6, dore: false, dispo: true },
   blackout: { nom: 'BLACKOUT', duree: 8, dore: true, dispo: true },
+  envahissement: { nom: 'ENVAHISSEMENT', duree: 8, dore: false, dispo: true },
+  loupe: { nom: 'LOUPE COMPLET', duree: 10, dore: false, dispo: true },
 };
 
 /**
@@ -76,6 +80,8 @@ export const POIDS_POUVOIRS: Record<PouvoirId, number> = {
   minicage: 1,
   endormi: 1,
   blackout: 1,
+  envahissement: 1,
+  loupe: 1,
 };
 
 /** Passes réussies d'affilée pour obtenir un bonus (toujours le même nombre). */
@@ -105,6 +111,16 @@ export const ENDORMI_RAYON = 0.6;
 /** Blackout : l'équipe dans le noir intercepte moins bien (rayon) et vole moins de palets (taux). */
 export const BLACKOUT_INTERCEPTION = 0.5;
 export const BLACKOUT_VOL = 0.3;
+/** Envahissement : nombre de supporters, leur vitesse (px/s), et leur gêne sur un adversaire touché. */
+export const ENVAHISSEMENT_N = 5;
+export const SUPPORTER_VIT = 125;
+export const SUPPORTER_RAYON = 11;
+/** Freinage (par s) d'un adversaire accroché par un supporter, et taux (par s) auquel il lâche le palet. */
+export const SUPPORTER_FREIN = 7;
+export const SUPPORTER_PERTE = 1.4;
+/** Loupé complet : durée de la scène (palet vers la caméra, écran brisé), et instant de l'impact. */
+export const LOUPE_S = 2.2;
+export const LOUPE_IMPACT = 0.55;
 /** Surnombre : rang donné au renfort (hors des rangs de l'effectif, pour le reconnaître). */
 export const RANG_RENFORT = 9;
 /** Mode entraînement : délai (s) avant que le bonus choisi revienne, après usage. */
@@ -232,6 +248,7 @@ export function activePouvoir(rink: Rink, state: MatchState, eq: TeamId, qui: Sk
   state.evenements.push({ type: 'pouvoir', eq, quoi: 'active', id: POUVOIRS.indexOf(id) });
   if (id === 'surnombre') ajouteRenfort(rink, state, eq);
   if (id === 'tremblement') tremblement(state);
+  if (id === 'envahissement') envahissement(rink, state, eq);
   if (id === 'geante' || id === 'minicage') {
     const cible: TeamId = id === 'geante' ? (eq === 0 ? 1 : 0) : eq;
     state.evenements.push({ type: 'onde', x: cible === 0 ? rink.butG : rink.butD, y: rink.cy, r: 30, c: '#ffd35c' });
@@ -250,6 +267,8 @@ export function finPouvoir(state: MatchState, eq: TeamId): void {
   if (!p?.actif) return;
   state.evenements.push({ type: 'pouvoir', eq, quoi: 'fin', id: POUVOIRS.indexOf(p.actif) });
   if (p.actif === 'surnombre') retireRenfort(state, eq);
+  // les supporters repartent vers les tribunes
+  if (p.actif === 'envahissement') for (const s of state.supporters) if (s.eq === eq) s.sortie = true;
   p.actif = null;
   p.reste = 0;
   p.dore = -1;
@@ -398,6 +417,129 @@ function tremblement(state: MatchState): void {
   state.evenements.push({ type: 'secousse', force: 7 });
   state.evenements.push({ type: 'flash', force: 0.2 });
   state.evenements.push({ type: 'vibre', ms: [80, 40, 80, 40, 120] });
+}
+
+/**
+ * Envahissement : des supporters de l'équipe sautent des tribunes (en haut
+ * et en bas de la patinoire) et foncent sur les adversaires.
+ */
+function envahissement(rink: Rink, state: MatchState, eq: TeamId): void {
+  for (let i = 0; i < ENVAHISSEMENT_N; i++) {
+    const haut = i % 2 === 0;
+    const x = rink.x + rink.w * (0.18 + (0.64 * i) / (ENVAHISSEMENT_N - 1));
+    const y = haut ? rink.y + 4 : rink.y + rink.h - 4;
+    state.supporters.push({ x, y, vx: 0, vy: haut ? 80 : -80, eq, img: i, sortie: false });
+    state.evenements.push({ type: 'neige', x, y, n: 5 });
+  }
+  state.evenements.push({ type: 'ovation', niveau: 1 });
+  state.evenements.push({ type: 'secousse', force: 2 });
+}
+
+/**
+ * Les supporters, à chaque pas : en jeu, chacun file sur un adversaire (les
+ * deux premiers sur le porteur du palet s'il est adverse) ; au contact, il
+ * l'accroche (gros freinage) et peut lui faire lâcher le palet. À la fin du
+ * bonus, ils repartent vers la bande la plus proche et disparaissent.
+ */
+export function majSupporters(rink: Rink, state: MatchState, dt: number): void {
+  const L = state.supporters;
+  if (!L.length) return;
+  const p = state.palet;
+  for (let i = 0; i < L.length; i++) {
+    const s = L[i]!;
+    let tx: number;
+    let ty: number;
+    if (s.sortie) {
+      tx = s.x;
+      ty = s.y < rink.cy ? rink.y - 30 : rink.y + rink.h + 30;
+    } else {
+      const adversaires = state.patineurs.filter((o) => o.eq !== s.eq);
+      const porteur = p.porteur && 'face' in p.porteur && p.porteur.eq !== s.eq ? p.porteur : null;
+      const cible = porteur && i < 2 ? porteur : adversaires[i % Math.max(1, adversaires.length)];
+      tx = cible?.x ?? rink.cx;
+      ty = cible?.y ?? rink.cy;
+    }
+    const dx = tx - s.x;
+    const dy = ty - s.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const vit = s.sortie ? SUPPORTER_VIT * 1.2 : SUPPORTER_VIT;
+    const k = Math.min(1, 5 * dt);
+    s.vx += ((dx / d) * vit - s.vx) * k;
+    s.vy += ((dy / d) * vit - s.vy) * k;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    if (!s.sortie) {
+      s.x = Math.max(rink.x + 6, Math.min(rink.x + rink.w - 6, s.x));
+      s.y = Math.max(rink.y + 4, Math.min(rink.y + rink.h - 4, s.y));
+    }
+  }
+  // ils ne s'empilent pas les uns sur les autres
+  for (let i = 0; i < L.length; i++) {
+    for (let j = i + 1; j < L.length; j++) {
+      const a = L[i]!;
+      const b = L[j]!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 0 && d < 9) {
+        const r = (9 - d) / 2;
+        a.x -= (dx / d) * r;
+        a.y -= (dy / d) * r;
+        b.x += (dx / d) * r;
+        b.y += (dy / d) * r;
+      }
+    }
+  }
+  // au contact : l'adversaire est accroché, et le porteur peut lâcher le palet
+  if (state.phase === 'jeu') {
+    for (const s of L) {
+      if (s.sortie) continue;
+      for (const o of state.patineurs) {
+        if (o.eq === s.eq || o.chuteT > 0) continue;
+        if (Math.hypot(o.x - s.x, o.y - s.y) > SUPPORTER_RAYON) continue;
+        const f = Math.exp(-SUPPORTER_FREIN * dt);
+        o.vx *= f;
+        o.vy *= f;
+        if (o.tient && p.porteur === o && Math.random() < SUPPORTER_PERTE * dt) {
+          p.porteur = null;
+          o.tient = false;
+          o.arme = false;
+          o.charge = 0;
+          o.recupCd = 0.5;
+          p.vx = s.vx * 0.6 + (Math.random() - 0.5) * 60;
+          p.vy = s.vy * 0.6 + (Math.random() - 0.5) * 60;
+          state.evenements.push({ type: 'bulle', txt: 'OUPS !', x: o.x, y: o.y - 20, c: '#ffd35c' });
+        }
+      }
+    }
+  }
+  state.supporters = L.filter((s) => !s.sortie || (s.y > rink.y - 24 && s.y < rink.y + rink.h + 24));
+}
+
+/**
+ * Loupé complet : un adversaire tire pendant le bonus. Son tir est forcément
+ * raté : le palet part vers la caméra et brise l'écran (phase `loupe`), puis
+ * engagement au centre ; le bonus est consommé. Renvoie true si c'est le cas.
+ */
+export function tirLoupe(state: MatchState, s: Skater, x: number, y: number): boolean {
+  const adv: TeamId = s.eq === 0 ? 1 : 0;
+  if (!pouvoirActif(state, adv, 'loupe') || state.phase !== 'jeu') return false;
+  const p = state.palet;
+  p.porteur = null;
+  p.x = x;
+  p.y = y;
+  p.vx = p.vy = 0;
+  p.tireur = null;
+  p.passe = null;
+  p.puissant = false;
+  s.tient = false;
+  s.arme = false;
+  s.charge = 0;
+  state.phase = 'loupe';
+  state.phaseT = LOUPE_S;
+  finPouvoir(state, adv);
+  state.evenements.push({ type: 'frappe', puissance: 1 });
+  return true;
 }
 
 /** Freeze : le joueur est-il pris dans la glace (tout le monde sauf le joueur doré de l'équipe qui l'a déclenché) ? */

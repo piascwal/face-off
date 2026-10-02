@@ -10,7 +10,7 @@ import {
   segmentsCage,
   type SegmentCage,
 } from './physics';
-import { demiCage, estGele, estInverse, majPouvoirs } from './pouvoirs';
+import { demiCage, estGele, estInverse, LOUPE_IMPACT, LOUPE_S, majPouvoirs, majSupporters } from './pouvoirs';
 import { engagement, finMatch, finTempsReglementaire } from './rules';
 import { INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from './types';
 import { alea } from './utils';
@@ -76,6 +76,7 @@ export function pas(
   const segsSansFace: SegmentCage[] = segmentsCage(rink, false, demis);
 
   for (const s of state.patineurs) bougePatineur(rink, state, s, dt, segsAvecFace);
+  majSupporters(rink, state, dt);
   collisionsPatineurs(state);
   for (const gk of state.gardiens) majGardien(rink, state, gk, dt);
   majPalet(rink, state, dt / 2, segsSansFace);
@@ -109,6 +110,22 @@ export function pas(
           finMatch(rink, state);
         }
       }
+    }
+  } else if (state.phase === 'loupe') {
+    // loupé complet : le palet vole vers la caméra (le rendu s'en charge), l'écran se brise, puis engagement
+    const avant = state.phaseT;
+    state.phaseT -= dt;
+    const p = state.palet;
+    p.vx = p.vy = 0;
+    const impact = LOUPE_S - LOUPE_IMPACT;
+    if (avant > impact && state.phaseT <= impact) {
+      state.evenements.push({ type: 'verre' });
+      state.evenements.push({ type: 'secousse', force: 6 });
+      if (state.humains[0] || state.humains[1]) state.evenements.push({ type: 'vibre', ms: [60, 30, 100] });
+    }
+    if (state.phaseT <= 0) {
+      engagement(rink, state, 1.3);
+      state.evenements.push({ type: 'annonce', txt: 'PRETS ?', sous: '', c: '#ffffff', duree: 1.1 });
     }
   } else if (state.phase === 'but') {
     state.phaseT -= dt;

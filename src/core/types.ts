@@ -120,7 +120,8 @@ export interface LevelConfig {
   esquive: number;
 }
 
-export type GamePhase = 'engagement' | 'jeu' | 'but' | 'fin';
+/** `loupe` : bonus « loupé complet », le tir adverse part vers la caméra et brise l'écran, puis engagement au centre. */
+export type GamePhase = 'engagement' | 'jeu' | 'but' | 'fin' | 'loupe';
 
 /** Coup de pouce accordé à une équipe pour équilibrer un match entre joueurs de niveaux différents. */
 export type BonusEquipe = 'aucun' | 'gardien' | 'vitesse' | 'tir' | 'but';
@@ -155,7 +156,9 @@ export type PouvoirId =
   | 'geante'
   | 'minicage'
   | 'endormi'
-  | 'blackout';
+  | 'blackout'
+  | 'envahissement'
+  | 'loupe';
 
 /** Bonus d'une équipe : jauge de passes, bonus en main, effet en cours. */
 export interface EtatPouvoirs {
@@ -208,6 +211,8 @@ export type GameEvent =
   | { type: 'pouvoir'; eq: TeamId; quoi: 'tirage' | 'active' | 'fin'; id: number }
   // onde de choc circulaire (rendu) : rayon final `r` (px)
   | { type: 'onde'; x: number; y: number; r: number; c: string }
+  // loupé complet : le palet frappe l'écran, qui se brise
+  | { type: 'verre' }
   // `c` est une couleur neutre de repli ; quand `eq` est fourni, le rendu
   // préfère la couleur de maillot de cette équipe (core ne connaît pas les
   // couleurs de maillot — voir render/team-visuals.ts).
@@ -237,6 +242,20 @@ export const INTENT_VIDE: InputIntent = {
   elanAppui: false,
   viseeManuelle: null,
 };
+
+/** Un supporter du bonus « envahissement », sur la glace. */
+export interface Supporter {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  /** L'équipe qu'il soutient (celle qui a lancé le bonus) : il gêne l'autre. */
+  eq: TeamId;
+  /** Son dessin (modulo le nombre de supporters dessinés). */
+  img: number;
+  /** Il repart vers les tribunes (fin du bonus). */
+  sortie: boolean;
+}
 
 export interface MatchState {
   mode: GameMode;
@@ -272,6 +291,8 @@ export interface MatchState {
   reception: { qui: Skater; t: number } | null;
   /** Arrêt sur image (s) : la simulation se fige un court instant pour souligner une esquive. */
   figeT: number;
+  /** Bonus « envahissement » : les supporters sur la glace. */
+  supporters: Supporter[];
   /** Évènements à effet de bord produits pendant le dernier pas de simulation. */
   evenements: GameEvent[];
   /** Réglages « avancés » du menu, ignorés en mode démo (toujours activés). */

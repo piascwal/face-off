@@ -125,6 +125,7 @@ const TYPES_EVENEMENTS = new Set<GameEvent['type']>([
   'annonce',
   'pouvoir',
   'onde',
+  'verre',
 ]);
 
 /** Prépare les évènements d'un pas pour l'envoi (les références d'objets ne voyagent pas). */
@@ -170,7 +171,7 @@ export function lisEvenement(o: unknown, versLocal: (x: number, y: number) => [n
 
 const TYPE_INSTANTANE = 1;
 const TYPE_ENTREE = 2;
-const PHASES: GamePhase[] = ['engagement', 'jeu', 'but', 'fin'];
+const PHASES: GamePhase[] = ['engagement', 'jeu', 'but', 'fin', 'loupe'];
 const F_PATINEUR = 19;
 const TAILLE_PATINEUR = F_PATINEUR * 4 + 1;
 const TAILLE_GARDIEN = 5 * 4;
@@ -179,6 +180,9 @@ const TAILLE_GARDIEN = 5 * 4;
 const TAILLE_POUVOIRS = 1 + 1 + 1 + 1 + 1 + 4 + 1 + 1 + 1;
 const TAILLE_ENTETE = 1 + 1 + 4 + 4 + 16 + 1 + 4 + 4 + 1 + 8 + 12 + 2 + 2 + 1 + 4 + 4 + 2 + 8 + 2 * TAILLE_POUVOIRS;
 const TAILLE_PALET = 4 * 4 + 1 + 1;
+/** Supporters du bonus envahissement : leur nombre, puis x, y, vx, dessin, drapeaux. */
+const TAILLE_SUPPORTER = 3 * 4 + 1 + 1;
+export const SUPPORTERS_MAX = 12;
 export const PATINEURS_MAX = 12;
 
 export interface EtatPatineur {
@@ -239,6 +243,7 @@ export interface Instantane {
   patineurs: EtatPatineur[];
   gardiens: [EtatGardien, EtatGardien];
   palet: { x: number; y: number; vx: number; vy: number; porteur: number; lueur: number };
+  supporters: { x: number; y: number; vx: number; img: number; eq: TeamId; sortie: boolean }[];
 }
 
 /** Porteur du palet : -1 personne, 0..n-1 un patineur, 100/101 un gardien. */
@@ -252,7 +257,8 @@ function indexPorteur(state: MatchState): number {
 
 export function encodeInstantane(state: MatchState, rink: Rink, seq: number): ArrayBuffer {
   const n = Math.min(PATINEURS_MAX, state.patineurs.length);
-  const buf = new ArrayBuffer(TAILLE_ENTETE + n * TAILLE_PATINEUR + 2 * TAILLE_GARDIEN + TAILLE_PALET);
+  const ns = Math.min(SUPPORTERS_MAX, state.supporters.length);
+  const buf = new ArrayBuffer(TAILLE_ENTETE + n * TAILLE_PATINEUR + 2 * TAILLE_GARDIEN + TAILLE_PALET + 1 + ns * TAILLE_SUPPORTER);
   const d = new DataView(buf);
   let o = 0;
   const u8 = (v: number) => d.setUint8(o++, v);
@@ -335,6 +341,14 @@ export function encodeInstantane(state: MatchState, rink: Rink, seq: number): Ar
   f(p.vy);
   i8(indexPorteur(state));
   u8(p.lueur);
+  u8(ns);
+  for (const s of state.supporters.slice(0, ns)) {
+    f(s.x);
+    f(s.y);
+    f(s.vx);
+    u8(s.img & 0xff);
+    u8((s.eq === 1 ? 1 : 0) | (s.sortie ? 2 : 0));
+  }
   return buf;
 }
 
@@ -400,7 +414,10 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
   const pouvoirs: [EtatPouvoirs, EtatPouvoirs] = [pouvoir(), pouvoir()];
   const n = u8();
   if (!phase || n > PATINEURS_MAX || rink.w < 10 || rink.h < 10) return null;
-  if (buf.byteLength !== TAILLE_ENTETE + n * TAILLE_PATINEUR + 2 * TAILLE_GARDIEN + TAILLE_PALET) return null;
+  const fixe = TAILLE_ENTETE + n * TAILLE_PATINEUR + 2 * TAILLE_GARDIEN + TAILLE_PALET;
+  if (buf.byteLength < fixe + 1) return null;
+  const ns = d.getUint8(fixe);
+  if (ns > SUPPORTERS_MAX || buf.byteLength !== fixe + 1 + ns * TAILLE_SUPPORTER) return null;
   const patineurs: EtatPatineur[] = [];
   for (let i = 0; i < n; i++) {
     const [x, y, vx, vy, face, charge, elanT, elanCd, sonne, anim, ex, ey, esquiveT, prepaEchecT, chuteT, chuteD, flashT, tirT] = Array.from({ length: 18 }, f) as number[];
@@ -436,6 +453,16 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
   const gardien = (): EtatGardien => ({ a: f(), x: f(), y: f(), tient: f(), secoue: f() });
   const gardiens: [EtatGardien, EtatGardien] = [gardien(), gardien()];
   const palet = { x: f(), y: f(), vx: f(), vy: f(), porteur: i8(), lueur: Math.min(3, u8()) };
+  u8();
+  const supporters: Instantane['supporters'] = [];
+  for (let i = 0; i < ns; i++) {
+    const x = f();
+    const y = f();
+    const vx = f();
+    const img = u8();
+    const b = u8();
+    supporters.push({ x, y, vx, img, eq: b & 1 ? 1 : 0, sortie: (b & 2) !== 0 });
+  }
   if (!sain) return null;
   return {
     seq,
@@ -458,6 +485,7 @@ export function decodeInstantane(buf: ArrayBuffer): Instantane | null {
     patineurs,
     gardiens,
     palet,
+    supporters,
   };
 }
 
@@ -557,6 +585,13 @@ export function appliqueInstantane(state: MatchState, a: Instantane, b: Instanta
   p.vy = pb.vy * ky;
   p.lueur = pb.lueur;
   p.porteur = pb.porteur >= 0 && pb.porteur < n ? state.patineurs[pb.porteur]! : pb.porteur === 100 || pb.porteur === 101 ? state.gardiens[pb.porteur - 100]! : null;
+  // supporters : interpolés quand ils sont les mêmes (même nombre) d'un instantané à l'autre
+  const memes = a.supporters.length === b.supporters.length;
+  state.supporters = b.supporters.map((sb, i) => {
+    const sa = memes ? a.supporters[i]! : sb;
+    const [x, y] = pos(sa.x, sb.x, sa.y, sb.y);
+    return { x: X(x), y: Y(y), vx: sb.vx * kx, vy: 0, eq: sb.eq, img: sb.img, sortie: sb.sortie };
+  });
 }
 
 // ---------------------------------------------------------------- entrées --

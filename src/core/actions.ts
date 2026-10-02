@@ -16,7 +16,7 @@ import {
   UNE_TOUCHE_BONUS,
   UNE_TOUCHE_S,
 } from './constants';
-import { cassePasses, comptePasse, demiCage, effetActif, tirPuissant } from './pouvoirs';
+import { cassePasses, comptePasse, demiCage, effetActif, tirLoupe, tirPuissant } from './pouvoirs';
 import { qualiteDuTir } from './shooting';
 import { equipe } from './state-helpers';
 import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types';
@@ -97,6 +97,14 @@ export function surReception(state: MatchState, s: Skater): boolean {
 }
 
 export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puissance: number): void {
+  // bonus « loupé complet » de l'adversaire : ce tir part vers la caméra (raté d'office)
+  const depart = pointCrosse(s);
+  if (tirLoupe(state, s, depart.x, depart.y)) {
+    s.tirT = TIR_ANIM_S;
+    state.combo[s.eq] = 0;
+    state.reception = null;
+    return;
+  }
   const p = state.palet;
   // un tir consomme la combo de passes en cours
   const passes = state.combo[s.eq];

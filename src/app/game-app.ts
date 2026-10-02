@@ -1,6 +1,7 @@
 import { menaceEchec } from '@core/actions';
 import { boutonBonus, DEF_POUVOIRS, TREMBLEMENT_CHUTE } from '@core/pouvoirs';
 import { GivreEcran } from '@render/givre-ecran';
+import { dessineLoupe } from '@render/loupe-ecran';
 import { calculeRink, reprojette } from '@core/rink';
 import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
 import { pas } from '@core/simulation';
@@ -495,6 +496,8 @@ export class GameApp {
       // chaque parcours dessine ses écrans (le Wi-Fi d'abord : il a aussi sa fin de match)
       void (lan.vues.dessine(g, temps, state) || this.coupe.dessine(g, temps) || this.solo.dessine(g, temps, state));
     }
+    // loupé complet : le palet frappe la caméra, l'écran se brise (par-dessus tout le jeu)
+    if (enMatch && !ralenti) dessineLoupe(g, this.W, this.H, state);
     lan.vues.dessineCoupure(g, temps);
     lan.vues.dessineReactions(g, temps);
     if (this.effets.flash > 0) {
