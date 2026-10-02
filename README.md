@@ -788,7 +788,9 @@ retrouver la carrure du joueur qui patine ; leurs visages ont leurs propres
 variantes (`visages-tir.png`). En jeu, l'image « armé » reste affichée tant
 que le tir se charge (bouton TIR) ; au tir, les
 trois autres s'enchaînent en 0,32 s (`TIR_ANIM`, `core/constants.ts`), puis le
-patinage reprend. L'ordinateur joue le même geste. Le joueur doré d'un bonus
+patinage reprend. Pendant que le tir se charge, le joueur se tourne vers la
+direction de la visée (`s.vise`), même s'il patine dans une autre direction
+(celle du joystick) ; il garde cette orientation pendant le geste. L'ordinateur joue le même geste. Le joueur doré d'un bonus
 garde son or pendant le geste.
 
 **Mise en échec.** Une seule image (`echec-<id>.png`, convertie depuis

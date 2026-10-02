@@ -146,9 +146,13 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
     const k = Math.min(1, 3.2 * dt);
     s.vx -= -uy * lat * k;
     s.vy -= ux * lat * k;
-    const cible = Math.atan2(uy, ux);
-    const dA = angDiff(s.face, cible);
-    s.face += clamp(dA, -13 * dt, 13 * dt);
+    // le regard suit le déplacement, sauf pendant qu'on vise un tir (il suit alors la visée)
+    // ou pendant le geste de tir (il garde la direction du tir)
+    if (!(s.arme && s.vise !== null) && s.tirT <= 0) {
+      const cible = Math.atan2(uy, ux);
+      const dA = angDiff(s.face, cible);
+      s.face += clamp(dA, -13 * dt, 13 * dt);
+    }
     // freinage en chasse-neige : jolie gerbe de glace
     const sp = Math.hypot(s.vx, s.vy);
     if (sp > 70 && (s.vx * ux + s.vy * uy) / sp < -0.35) {
@@ -160,6 +164,8 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
       }
     }
   }
+  // tir en charge : le joueur se tourne vers la direction du tir, même s'il patine ailleurs
+  if (s.arme && s.vise !== null && s.chuteT <= 0 && s.sonne <= 0) s.face += clamp(angDiff(s.face, s.vise), -20 * dt, 20 * dt);
   // au sol, on glisse longtemps : la glace freine peu un joueur couché
   const fr = s.chuteT > 0 ? CHUTE_FROTTEMENT : m > 0.08 ? 1.1 : 2.4;
   s.vx *= Math.exp(-fr * dt);

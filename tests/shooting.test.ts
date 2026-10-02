@@ -116,3 +116,34 @@ describe('mise en échec', () => {
     expect(o.sonne).toBeGreaterThan(0);
   });
 });
+
+describe('orientation pendant la visée', () => {
+  it('le joueur se tourne vers son tir tout en patinant dans le sens du joystick', async () => {
+    const { creePartie } = await import('../src/core/rules');
+    const { bougePatineur, segmentsCage } = await import('../src/core/physics');
+    const { tir } = await import('../src/core/actions');
+    const rink = calculeRink(400, 200);
+    const st = creePartie(rink, { mode: 'match', niveauIdx: 1, dureeIdx: 1, effectifIdx: 1 });
+    st.phase = 'jeu';
+    const s = st.controles[0]!;
+    Object.assign(s, { x: rink.cx, y: rink.cy, vx: 0, vy: 0, face: 0, tient: true, arme: true, charge: 0.4, ex: 1, ey: 0, vise: Math.PI });
+    st.palet.porteur = s;
+    const segs = segmentsCage(rink, true);
+    for (let i = 0; i < 60; i++) bougePatineur(rink, st, s, 1 / 120, segs);
+    // il patine vers la droite (joystick), mais regarde à gauche (visée)
+    expect(s.vx).toBeGreaterThan(20);
+    expect(Math.cos(s.face)).toBeLessThan(-0.9);
+    // hors visée, il regarde de nouveau où il va
+    s.arme = false;
+    s.vise = null;
+    for (let i = 0; i < 120; i++) bougePatineur(rink, st, s, 1 / 120, segs);
+    expect(Math.cos(s.face)).toBeGreaterThan(0.9);
+    // au tir, il finit tourné vers la direction du tir, et la garde pendant le geste
+    s.tient = true;
+    st.palet.porteur = s;
+    tir(st, rink, s, Math.PI, 0.5);
+    expect(Math.cos(s.face)).toBeLessThan(-0.99);
+    for (let i = 0; i < 20; i++) bougePatineur(rink, st, s, 1 / 120, segs);
+    expect(Math.cos(s.face)).toBeLessThan(-0.99);
+  });
+});

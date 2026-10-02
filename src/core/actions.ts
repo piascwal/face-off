@@ -120,6 +120,8 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   const v = (150 + 290 * puissance) * (renfort ? 1.15 : 1) * fort.vitesse;
   lachePalet(state, s, 0.3);
   s.tirT = TIR_ANIM_S;
+  // le joueur finit tourné vers son tir : la crosse (d'où part le palet) est de ce côté
+  s.face = ang;
   const sp = pointCrosse(s);
   p.x = sp.x;
   p.y = sp.y;
