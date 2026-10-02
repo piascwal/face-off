@@ -116,7 +116,7 @@ export default async function bonus(env) {
   // tir surpuissant : le bouton TIR passe en or ; un tir normal (ESPACE) part surpuissant
   await enJeu();
   await donnePalet();
-  env.verifie(await donne('puissant'), 'TIR SURPUISSANT en cours');
+  env.verifie(await donne('puissant'), 'SUPER TIR en cours');
   await donnePalet();
   await attends(250);
   await env.capture(p, '8a-bouton-tir-dore');
@@ -162,6 +162,75 @@ export default async function bonus(env) {
   env.verifie(await donne('geante'), 'CAGE GEANTE en cours');
   await attends(300);
   await env.capture(p, '10d-cage-geante');
+  // un but dans la cage géante : elle le reste pendant tout le but (célébration, ralenti), puis reprend sa taille
+  await p.evaluate(() => {
+    const st = window.faceOff.state;
+    const app = window.faceOff;
+    for (const s of st.patineurs) s.y = app.rink.cy + 60;
+    st.gardiens[1].a = 1.3;
+    st.gardiens[1].vit = 0;
+    const pal = st.palet;
+    if (pal.porteur) pal.porteur.tient = false;
+    pal.porteur = null;
+    pal.x = app.rink.butD - 12;
+    pal.y = app.rink.cy - 10;
+    pal.vx = 420;
+    pal.vy = 0;
+  });
+  env.verifie(await env.attendsQue(p, () => window.faceOff.state.phase === 'but', undefined, 3000), 'but marqué dans la cage géante');
+  await attends(1500);
+  const pendantBut = await p.evaluate(() => ({ phase: window.faceOff.state.phase, actif: window.faceOff.state.pouvoirs[0].actif }));
+  env.verifie(pendantBut.phase === 'but' && pendantBut.actif === 'geante', `la cage reste géante pendant le but (${JSON.stringify(pendantBut)})`);
+  await env.capture(p, '10d2-but-cage-geante');
+  await p.evaluate(() => window.faceOff.passeRalenti?.());
+  await enJeu();
+  env.verifie((await p.evaluate(() => window.faceOff.state.pouvoirs[0].actif)) === null, 'après la remise en jeu, la cage a repris sa taille');
+
+  // super passe : une passe arrive toujours au coéquipier, même avec des adversaires pile sur la ligne
+  env.verifie(await donne('superpasse'), 'SUPER PASSE en cours');
+  let recu = 0;
+  for (let essai = 0; essai < 3; essai++) {
+    await enJeu();
+    await p.evaluate(() => {
+      const st = window.faceOff.state;
+      const r = window.faceOff.rink;
+      const s = st.controles[0];
+      const eq = st.patineurs.filter((m) => m.eq === 0 && m !== s);
+      const au = st.patineurs.filter((m) => m.eq === 1);
+      Object.assign(s, { x: r.cx - 80, y: r.cy, vx: 0, vy: 0 });
+      Object.assign(eq[0], { x: r.cx + 80, y: r.cy, vx: 0, vy: 0 });
+      Object.assign(eq[1], { x: r.cx - 120, y: r.y + 20, vx: 0, vy: 0 });
+      Object.assign(au[0], { x: r.cx - 10, y: r.cy, vx: 0, vy: 0 });
+      Object.assign(au[1], { x: r.cx + 40, y: r.cy + 2, vx: 0, vy: 0 });
+      Object.assign(au[2], { x: r.cx + 100, y: r.y + 12, vx: 0, vy: 0 });
+      for (const m of st.patineurs) m.recupCd = 0;
+      // les adversaires restent plantés sur la ligne : seule l'interception de la passe est en jeu
+      for (const m of au) m.vit = 0.01;
+      if (st.palet.porteur) st.palet.porteur.tient = false;
+      st.palet.porteur = s;
+      st.palet.dernier = s;
+      s.tient = true;
+      st.pouvoirs[0].passes = 0;
+      st.pouvoirs[0].reste = 8;
+    });
+    const avant = await p.evaluate(() => window.faceOff.state.stats.passes[0]);
+    await p.keyboard.down('ArrowRight');
+    await attends(50);
+    await p.keyboard.press('KeyL');
+    await attends(60);
+    await p.keyboard.up('ArrowRight');
+    await attends(150);
+    if (essai === 0) await env.capture(p, '10f-super-passe');
+    // la passe arrive (jusqu'à 2,5 s : la machine peut être lente)
+    await env.attendsQue(p, () => !window.faceOff.state.palet.passe && !!window.faceOff.state.palet.porteur, undefined, 2500);
+    // une passe réussie de plus, et un coéquipier tient le palet
+    recu += await p.evaluate((n) => {
+      const st = window.faceOff.state;
+      const po = st.palet.porteur;
+      return st.stats.passes[0] === n + 1 && po && po.eq === 0 ? 1 : 0;
+    }, avant);
+  }
+  env.verifie(recu === 3, `SUPER PASSE : 3 passes sur 3 arrivent au coéquipier (${recu}/3)`);
 
   env.verifie(await donne('minicage'), 'MINI CAGE en cours');
   await attends(300);
@@ -180,8 +249,13 @@ export default async function bonus(env) {
   await env.capture(p, '10g-blackout');
 
   // lot C : envahissement, les supporters aux couleurs de l'équipe filent sur les adversaires
-  env.verifie(await donne('envahissement'), 'ENVAHISSEMENT en cours');
-  env.verifie((await p.evaluate(() => window.faceOff.state.supporters.length)) === 5, 'ENVAHISSEMENT : 5 supporters sur la glace');
+  // (réessai : un but du CPU juste après le départ coupe le bonus et renvoie les supporters)
+  let foule = -1;
+  for (let essai = 0; essai < 4 && foule !== 5; essai++) {
+    env.verifie(await donne('envahissement'), 'FOULE en cours');
+    foule = await p.evaluate(() => window.faceOff.state.supporters.length);
+  }
+  env.verifie(foule === 5, `FOULE : 5 supporters sur la glace (${foule})`);
   await attends(900);
   await env.capture(p, '11a-envahissement');
   await p.evaluate(() => window.faceOff.state.pouvoirs[0].actif && (window.faceOff.state.pouvoirs[0].reste = 0.01));

@@ -28,6 +28,7 @@ export const POUVOIRS: PouvoirId[] = [
   'blackout',
   'envahissement',
   'loupe',
+  'superpasse',
 ];
 
 export interface DefPouvoir {
@@ -42,7 +43,7 @@ export interface DefPouvoir {
 
 export const DEF_POUVOIRS: Record<PouvoirId, DefPouvoir> = {
   vitesse: { nom: 'SUPER VITESSE', duree: 6, dore: true, dispo: true },
-  puissant: { nom: 'TIR SURPUISSANT', duree: 10, dore: true, dispo: true },
+  puissant: { nom: 'SUPER TIR', duree: 10, dore: true, dispo: true },
   freeze: { nom: 'FREEZE', duree: 3, dore: true, dispo: true },
   savon: { nom: 'FULL ESQUIVE', duree: 8, dore: true, dispo: true },
   inversion: { nom: 'INVERSION', duree: 5, dore: true, dispo: true },
@@ -55,8 +56,9 @@ export const DEF_POUVOIRS: Record<PouvoirId, DefPouvoir> = {
   minicage: { nom: 'MINI CAGE', duree: 10, dore: false, dispo: true },
   endormi: { nom: 'GARDIEN ENDORMI', duree: 6, dore: false, dispo: true },
   blackout: { nom: 'BLACKOUT', duree: 8, dore: true, dispo: true },
-  envahissement: { nom: 'ENVAHISSEMENT', duree: 8, dore: false, dispo: true },
+  envahissement: { nom: 'FOULE', duree: 8, dore: false, dispo: true },
   loupe: { nom: 'LOUPE COMPLET', duree: 10, dore: false, dispo: true },
+  superpasse: { nom: 'SUPER PASSE', duree: 8, dore: false, dispo: true },
 };
 
 /**
@@ -82,6 +84,7 @@ export const POIDS_POUVOIRS: Record<PouvoirId, number> = {
   blackout: 1,
   envahissement: 1,
   loupe: 1,
+  superpasse: 1,
 };
 
 /** Passes réussies d'affilée pour obtenir un bonus (toujours le même nombre). */
@@ -99,6 +102,13 @@ export const PUISSANT_CHUTE = 2;
 export const PUISSANT_PORTEE = 4;
 /** En dessous de cette vitesse (px/s), le tir surpuissant est retombé : il ne renverse plus personne. */
 export const PUISSANT_VMIN = 160;
+/**
+ * Super passe : le palet d'une passe de l'équipe se dirige tout seul vers le
+ * receveur (vitesse minimale en px/s), l'adversaire ne peut plus l'intercepter
+ * et le receveur le capte de plus loin (px de portée en plus).
+ */
+export const SUPER_PASSE_VITESSE = 190;
+export const SUPER_PASSE_PORTEE = 4;
 /** Super héros : les adversaires restent gelés pendant ses premières secondes. */
 export const HEROS_FREEZE_S = 3;
 /** Tremblement : temps au sol (s) de tous les joueurs sauf le porteur du palet, et de la secousse de l'écran. */
@@ -164,6 +174,9 @@ export function boutonBonus(state: MatchState, eq: TeamId, pilote?: Skater | nul
 }
 
 export const pouvoirActif = (state: MatchState, eq: TeamId, id: PouvoirId): boolean => state.pouvoirs?.[eq].actif === id;
+
+/** Super passe en cours pour l'équipe `eq` : ses passes arrivent toujours au coéquipier. */
+export const superPasse = (state: MatchState, eq: TeamId): boolean => state.pouvoirs?.[eq].actif === 'superpasse';
 
 /**
  * Un effet joue-t-il pour l'équipe ? Le bonus du même nom, ou le super
@@ -324,7 +337,8 @@ export function majPouvoirs(rink: Rink, state: MatchState, dt: number): void {
     if (pouvoirPret(state, eq) && state.phase === 'jeu') activePouvoir(rink, state, eq, quiDore(state, eq));
   }
   if (pal.puissant && (pal.porteur || pal.tireur === null || Math.hypot(pal.vx, pal.vy) < PUISSANT_VMIN)) pal.puissant = false;
-  pal.lueur = pal.puissant ? 3 : 0;
+  // lueur 3 : tir surpuissant ; 2 : passe guidée de la super passe
+  pal.lueur = pal.puissant ? 3 : pal.passe && !pal.porteur && superPasse(state, pal.passe.vers.eq) ? 2 : 0;
 }
 
 /**

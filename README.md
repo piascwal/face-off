@@ -64,7 +64,7 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 | `multi` | Un vrai match à deux joueurs : les touches de l'invité pilotent son joueur chez l'hôte, positions identiques, tir (charge et geste) vu des deux côtés, but et score synchronisés, reprise, bonus en Wi-Fi (envahissement, cage géante, givre, tremblement et son secousse, loupé complet déclenché par le tir de l'invité), fin de match au même score |
 | `coop` | Mode coop à deux contre le CPU : réglage MODE de l'hôte, choix des équipes et maillots par l'hôte seul (l'invité regarde, son « prêt » ne compte pas), les touches de chacun ne pilotent que son patineur, tir de l'invité, but et score identiques, changement de joueur sans jamais prendre le patineur de l'autre, bonus doré qui suit le porteur du palet, fin de match sans bilan de duel, revanche |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
-| `bonus` | Bonus en solo : jauge, 4e passe (gros « BONUS » doré sans combo), départ automatique, but x2 limité à 10 s, freeze, inversion, full esquive, tir surpuissant (bouton TIR doré), super héros, tremblement, givre, cage géante, mini cage, gardien endormi, blackout, envahissement, loupé complet, surnombre, un but qui coupe tout, option du menu, mode entraînement |
+| `bonus` | Bonus en solo : jauge, 4e passe (gros « BONUS » doré sans combo), départ automatique, but x2 limité à 10 s, freeze, inversion, full esquive, super tir (bouton TIR doré), super héros, tremblement, givre, cage géante (qui le reste pendant le but), mini cage, gardien endormi, blackout, foule, loupé complet, super passe (3 passes sur 3 malgré les adversaires sur la ligne), surnombre, un but qui coupe tout, option du menu, mode entraînement |
 | `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), invité qui ne revient pas, coupure pendant le choix des équipes |
 
 En local, Chromium doit être installé une fois : `npx playwright install chromium`.
@@ -745,20 +745,21 @@ avancés). En Wi-Fi, c'est le réglage de l'hôte qui compte.
 | Bonus | Effet | Durée |
 |---|---|---|
 | Super vitesse | joueur doré ×1,4 (vitesse et accélération), images fantômes | 6 s |
-| Tir surpuissant | le prochain tir part 1,5× plus vite, qualité +0,2 ; il traverse et renverse les adversaires sur sa route (2 s au sol) ; traînée de feu, onde de choc ; bouton TIR doré | prochain tir, 10 s max |
-| Freeze | tout le monde est pris dans la glace, sauf le joueur doré (les gardiens jouent) ; on garde la main sur lui ; onde de givre | 3 s |
+| Super tir | le prochain tir part 1,5× plus vite, qualité +0,2 ; il traverse et renverse les adversaires sur sa route (2 s au sol) ; traînée de feu, onde de choc ; bouton TIR doré | prochain tir, 10 s max |
+| Freeze (icône : glaçon) | tout le monde est pris dans la glace, sauf le joueur doré (les gardiens jouent) ; on garde la main sur lui ; onde de givre | 3 s |
 | Full esquive | toute mise en échec contre l'équipe se transforme en esquive, étincelles bleues ; le coup de crosse, lui, prend toujours le palet | 8 s |
 | Inversion | les déplacements des adversaires partent à l'envers (l'ordinateur aussi), spirales au-dessus de leur tête | 5 s |
 | Surnombre | un coéquipier de plus saute du banc (doré, semi-transparent, piloté par l'ordinateur ou par vous si vous changez de joueur), puis repart | 10 s |
 | But x2 | le prochain but de l'équipe compte double ; « 2X » au-dessus de la cage adverse | 10 s |
 | Super héros | super vitesse + un tir surpuissant + freeze des adversaires pendant les 3 premières secondes (`HEROS_FREEZE_S`) ; le tir ne coupe pas le reste du bonus ; deux fois plus rare au tirage | 8 s |
 | Tremblement | tout le monde tombe (la chute de l'esquive, 1,6 s), coéquipiers compris, sauf le porteur du palet ; l'écran tremble fort, grondement, poussière | 2,5 s |
-| Givre | l'écran de tout le monde gèle : patinoire très floue et bleutée, cristaux de glace sur les bords (`render/givre-ecran.ts`) ; le tableau et les commandes restent nets. Le flou réduit l'image par moitiés successives puis la ré-agrandit par étapes : en une seule réduction (14 fois), un joueur qui glisse apparaissait par paliers de 14 pixels et clignotait | 7 s |
-| Cage géante | la cage adverse s'ouvre deux fois plus large ; le gardien garde sa taille et ne couvre plus les coins ; l'ouverture brille en or | 10 s |
+| Givre (icône : flocon) | l'écran de tout le monde gèle : patinoire très floue et bleutée, cristaux de glace sur les bords (`render/givre-ecran.ts`) ; le tableau et les commandes restent nets. Le flou réduit l'image par moitiés successives puis la ré-agrandit par étapes : en une seule réduction (14 fois), un joueur qui glisse apparaissait par paliers de 14 pixels et clignotait | 7 s |
+| Cage géante | la cage adverse s'ouvre deux fois plus large ; le gardien garde sa taille et ne couvre plus les coins ; l'ouverture brille en or. Un but marqué dans une cage déformée (géante ou mini) la laisse telle quelle pendant toute la célébration et le ralenti, pour qu'on voie où le palet est entré : elle ne reprend sa taille qu'à l'engagement suivant | 10 s |
 | Mini cage | sa propre cage rétrécit (×0,45) ; l'ouverture brille en or | 10 s |
 | Gardien endormi | le gardien adverse ne bouge plus, n'attrape plus rien et ne couvre plus que 60 % de son corps ; des « Z » montent au-dessus de lui | 6 s |
 | Blackout | les lumières s'éteignent (après deux clignotements) : tout est noir, sauf deux projecteurs, sur le joueur doré et sur le gardien adverse ; l'équipe dans le noir garde une petite lueur autour du joueur qu'elle pilote, et intercepte (×0,5) et vole (×0,3) moins bien | 8 s |
-| Envahissement | 5 supporters aux couleurs de l'équipe sautent des tribunes et foncent sur les adversaires (deux sur le porteur) ; au contact, l'adversaire est freiné net et peut lâcher le palet (« OUPS ! ») ; à la fin, ils regagnent les tribunes | 8 s |
+| Foule (icône : mégaphone) | 5 supporters aux couleurs de l'équipe sautent des tribunes et foncent sur les adversaires (deux sur le porteur) ; au contact, l'adversaire est freiné net et peut lâcher le palet (« OUPS ! ») ; à la fin, ils regagnent les tribunes | 8 s |
+| Super passe | pendant le bonus, toutes les passes de l'équipe arrivent au coéquipier : le palet file droit sur lui (jamais sous 190 px/s), l'adversaire ne peut plus l'intercepter, le receveur le capte de plus loin ; la passe part toujours vers un coéquipier, même sans l'assistance de passe ; traînée verte (`palet.lueur` = 2) | 8 s |
 | Loupé complet | si un adversaire tire pendant le bonus, son tir est raté d'office : le palet part en cloche (son ombre sur la glace), claque contre le bord de l'écran, revient vers la caméra en grossissant et brise la vitre (fissures, éclats, « LOUPE ! », bruit de verre), puis engagement au centre ; le bonus est consommé | 10 s max |
 
 **Supporters.** Les dessins viennent de `assets/sprites-src/supporters/`
@@ -784,7 +785,7 @@ Code : `core/pouvoirs.ts` (règles, tirage, départ automatique, effets ; testé
 (jauges, tirage), `render/scene.ts` (le « BONUS » doré), feuille dorée calculée à la volée
 (`BanqueSprites.spriteJoueurDore`). En Wi-Fi, les bonus voyagent dans
 l'instantané (protocole v19 : en plus, le tir déjà fait du super héros, les
-supporters et la phase de loupé ; v20 : le mode coop) ; les
+supporters et la phase de loupé ; v20 : le mode coop ; v21 : la super passe) ; les
 effets d'écran (tremblement, givre, blackout) se calculent sur chaque appareil
 à partir de l'état du bonus.
 

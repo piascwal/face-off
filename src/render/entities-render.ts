@@ -434,6 +434,20 @@ export function dessinePalet(g: CanvasRenderingContext2D, p: Puck, temps = 0): v
       g.fillRect(Math.round(p.x - ux * k - uy * tremble) - ep / 2, Math.round(p.y - uy * k + ux * tremble) - ep / 2, ep, ep);
     }
     g.globalAlpha = 1;
+  } else if (!p.porteur && p.lueur === 2 && v > 40) {
+    // super passe : une traînée verte qui scintille, le palet file droit sur son receveur
+    const ux = p.vx / v;
+    const uy = p.vy / v;
+    const L = Math.min(40, v * 0.12);
+    for (let k = 1; k <= L; k++) {
+      const u = k / L;
+      g.globalAlpha = 0.9 * (1 - u * 0.85);
+      g.fillStyle = u < 0.3 ? '#eaffd0' : u < 0.6 ? '#5ee08a' : '#1fae5a';
+      const ep = u < 0.5 ? 4 : 3;
+      const onde = Math.round(Math.sin(temps * 30 - k * 0.6) * u * 1.5);
+      g.fillRect(Math.round(p.x - ux * k - uy * onde) - ep / 2, Math.round(p.y - uy * k + ux * onde) - ep / 2, ep, ep);
+    }
+    g.globalAlpha = 1;
   } else if (!p.porteur && v > 120) {
     const tir = v > 330 || (p.tireur !== null && v > 200);
     const col = tir ? '#ff7a1a' : '#1fa8e8';

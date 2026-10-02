@@ -1,7 +1,7 @@
 import { controle } from './actions';
 import { ANNONCE_BUT_S, DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from './constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from './entities';
-import { cassePasses, etatPouvoirsInitial } from './pouvoirs';
+import { cassePasses, etatPouvoirsInitial, finPouvoir } from './pouvoirs';
 import { PROFIL_NEUTRE, type TeamProfile } from './teams';
 import { statsVides, type PouvoirId, type BonusEquipe, type GameMode, type LevelConfig, type MatchState, type Rink, type TeamId } from './types';
 import { clamp, decalageRang } from './utils';
@@ -201,6 +201,11 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
     // coop : le second humain démarre avec le coéquipier de rang 1
     const second = state.patineurs.find((s) => s.eq === 0 && s.rang === 1);
     if (state.coop && second) controle(state, second, 1);
+  }
+  // les cages déformées par un bonus (géante, mini) ont duré le temps du but : retour à la normale
+  for (const eq of [0, 1] as TeamId[]) {
+    const actif = state.pouvoirs?.[eq].actif;
+    if (actif === 'geante' || actif === 'minicage') finPouvoir(state, eq);
   }
   state.phase = 'engagement';
   state.phaseT = duree;

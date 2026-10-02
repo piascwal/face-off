@@ -158,7 +158,8 @@ export type PouvoirId =
   | 'endormi'
   | 'blackout'
   | 'envahissement'
-  | 'loupe';
+  | 'loupe'
+  | 'superpasse';
 
 /** Bonus d'une équipe : jauge de passes, bonus en main, effet en cours. */
 export interface EtatPouvoirs {

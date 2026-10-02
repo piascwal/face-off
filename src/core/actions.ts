@@ -16,7 +16,7 @@ import {
   UNE_TOUCHE_BONUS,
   UNE_TOUCHE_S,
 } from './constants';
-import { cassePasses, comptePasse, demiCage, effetActif, tirLoupe, tirPuissant } from './pouvoirs';
+import { cassePasses, comptePasse, demiCage, effetActif, superPasse, tirLoupe, tirPuissant } from './pouvoirs';
 import { qualiteDuTir } from './shooting';
 import { equipe } from './state-helpers';
 import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types';
@@ -170,7 +170,7 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   state.evenements.push({ type: 'frappe', puissance });
   state.evenements.push({ type: 'etincelles', x: p.x, y: p.y, n: 3 + Math.round(puissance * 8) });
   if (puissance > 0.7) state.evenements.push({ type: 'secousse', force: 1.5 });
-  if (p.puissant) state.evenements.push({ type: 'bulle', txt: 'SURPUISSANT !', x: sp.x, y: sp.y - 14, c: '#ff8a2a' });
+  if (p.puissant) state.evenements.push({ type: 'bulle', txt: 'SUPER TIR !', x: sp.x, y: sp.y - 14, c: '#ff8a2a' });
   else if (uneTouche) state.evenements.push({ type: 'bulle', txt: 'UNE-TOUCHE !', x: sp.x, y: sp.y - 14, c: '#8fe3ff' });
 }
 
@@ -241,6 +241,8 @@ export function dansSaMoitie(state: MatchState, eq: TeamId, x: number): boolean 
 
 export function lancePasse(state: MatchState, x: number, y: number, m: Skater, err: number): void {
   const p = state.palet;
+  // super passe : aucune imprécision, le palet file droit sur le receveur
+  if (superPasse(state, m.eq)) err = 0;
   // dans sa moitié, loin de la pression : une passe plus précise et plus sûre
   const facile = dansSaMoitie(state, m.eq, x);
   if (facile) err *= 0.5;
@@ -274,6 +276,8 @@ export function passeVers(state: MatchState, s: Skater, m: Skater, err = 0.03): 
 }
 
 export function passeJoueur(state: MatchState, s: Skater, ix: number, iy: number, assist = true): boolean {
+  // super passe : la passe part toujours vers un coéquipier, même sans l'assistance
+  if (superPasse(state, s.eq)) assist = true;
   const pref = Math.hypot(ix, iy) > 0.3 ? Math.atan2(iy, ix) : null;
   const r =
     meilleurReceveur(state, s, s.eq, s.x, s.y, pref, assist) ?? (pref !== null && assist ? meilleurReceveur(state, s, s.eq, s.x, s.y, null, assist) : null);

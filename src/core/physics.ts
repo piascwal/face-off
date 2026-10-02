@@ -27,6 +27,9 @@ import {
   estDore,
   estGele,
   finPouvoir,
+  superPasse,
+  SUPER_PASSE_PORTEE,
+  SUPER_PASSE_VITESSE,
   gardienEndormi,
   pouvoirActif,
   renversePuissant,
@@ -405,10 +408,13 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
       const dy = sp.y - p.y;
       const d = Math.hypot(dx, dy);
       const v = Math.hypot(p.vx, p.vy);
-      if (d < PASSE_AIMANT && d > 0.5 && v > 20) {
-        const k = Math.min(1, 6 * dt);
-        p.vx += ((dx / d) * v - p.vx) * k;
-        p.vy += ((dy / d) * v - p.vy) * k;
+      // super passe : le palet se dirige vers le receveur sur tout le trajet, sans jamais ralentir sous un seuil
+      const guide = superPasse(state, rec.eq);
+      if ((guide || d < PASSE_AIMANT) && d > 0.5 && v > 20) {
+        const k = Math.min(1, (guide ? 14 : 6) * dt);
+        const cible = guide ? Math.max(v, SUPER_PASSE_VITESSE) : v;
+        p.vx += ((dx / d) * cible - p.vx) * k;
+        p.vy += ((dy / d) * cible - p.vy) * k;
       }
     }
     p.x += p.vx * dt;
@@ -527,7 +533,10 @@ function marque(rink: Rink, state: MatchState, eq: 0 | 1): void {
   if (double) finPouvoir(state, eq);
   // un but met fin à tous les bonus, des deux côtés (même un tirage en cours)
   for (const e of [0, 1] as const) {
-    finPouvoir(state, e);
+    // la cage géante ou mini reste le temps du but (célébration et ralenti : on voit où le palet est entré),
+    // elle est coupée à l'engagement suivant
+    const actif = state.pouvoirs?.[e].actif;
+    if (actif !== 'geante' && actif !== 'minicage') finPouvoir(state, e);
     cassePasses(state, e);
     const pv = state.pouvoirs?.[e];
     if (pv) {
@@ -591,7 +600,17 @@ export function recuperations(state: MatchState, dt: number): void {
       const marge = p.passe?.facile ? PASSE_FACILE_MARGE : 0;
       // blackout adverse : dans le noir, on voit mal le palet qui passe
       const noir = dansLeNoir(state, s.eq) ? BLACKOUT_INTERCEPTION : 1;
-      const portee = !p.passe ? 7 : visee ? RECEPTION_RAYON + marge : s.eq === p.passe.vers.eq ? 7 : (INTERCEPTION_RAYON - marge) * noir;
+      // super passe : le receveur capte de plus loin, l'adversaire ne peut plus intercepter
+      const guide = !!p.passe && superPasse(state, p.passe.vers.eq);
+      const portee = !p.passe
+        ? 7
+        : visee
+          ? RECEPTION_RAYON + marge + (guide ? SUPER_PASSE_PORTEE : 0)
+          : s.eq === p.passe.vers.eq
+            ? 7
+            : guide
+              ? 0
+              : (INTERCEPTION_RAYON - marge) * noir;
       if (d < portee && d < dmin && rel < (visee ? 420 : 320)) {
         dmin = d;
         meilleur = s;

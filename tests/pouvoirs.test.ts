@@ -587,8 +587,13 @@ describe('bonus : lot B', () => {
     p.vy = 0;
     for (let i = 0; i < 30 && st.phase === 'jeu'; i++) pas(rink, st, 1 / 120);
     expect(st.score[0]).toBe(1);
-    // le but met fin au bonus : la cage reprend sa taille
+    // la cage reste géante pendant tout le but (célébration, ralenti), puis reprend sa taille à l'engagement
+    expect(st.phase).toBe('but');
+    expect(demiCage(st, 1)).toBe(BUT_DEMI * CAGE_GEANTE);
+    for (let i = 0; i < 120 * 6 && st.phase === 'but'; i++) pas(rink, st, 1 / 120);
+    expect(st.phase).toBe('engagement');
     expect(demiCage(st, 1)).toBe(BUT_DEMI);
+    expect(st.pouvoirs![0].actif).toBeNull();
   });
 
   it('mini cage : sa propre cage rétrécit, un tir à côté ne rentre plus', () => {

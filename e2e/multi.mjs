@@ -108,7 +108,7 @@ export default async function multi(env) {
     }, [eq, id]);
     return env.attendsQue(I, ([e, i]) => window.faceOff.state.pouvoirs?.[e].actif === i, [eq, id], 4000);
   };
-  env.verifie(await donne(0, 'envahissement'), 'ENVAHISSEMENT : l\'invité voit le bonus');
+  env.verifie(await donne(0, 'envahissement'), 'FOULE : l\'invité voit le bonus');
   env.verifie(await env.attendsQue(I, () => window.faceOff.state.supporters.length === 5, undefined, 2000), 'les 5 supporters sont sur la glace chez l\'invité');
   await attends(700);
   await env.capture(I, '4a-envahissement');
