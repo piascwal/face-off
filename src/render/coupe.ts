@@ -1,5 +1,5 @@
 import { niveauInterpole } from '@core/constants';
-import { champion, coupeTerminee, NB_TOURS, niveauDuTour, NOMS_TOURS, vainqueur, type EtatCoupe, type MatchCoupe } from '@core/coupe';
+import { champion, coupeTerminee, nbTours, niveauDuTour, nomsTours, vainqueur, type EtatCoupe, type MatchCoupe, type TailleCoupe } from '@core/coupe';
 import { obtientLogo } from './logos';
 import { largeurTexte, texte } from './pixel-font';
 import { px } from './primitives';
@@ -35,7 +35,7 @@ export function etapesRevelation(c: EtatCoupe, tours: number[]): Etape[] {
     const j = ms.findIndex((m) => m.a === c.equipe || m.b === c.equipe);
     if (j > 0) ordre.unshift(...ordre.splice(j, 1));
     for (const i of ordre) etapes.push({ k: 'score', t, i });
-    if (t + 1 < NB_TOURS) etapes.push({ k: 'tour', t: t + 1 });
+    if (t + 1 < nbTours(c.taille)) etapes.push({ k: 'tour', t: t + 1 });
   }
   return etapes;
 }
@@ -71,6 +71,8 @@ export function varianteAdverse(joueur: Palette, adv: TeamDef): Variante {
 // ------------------------------------------------------- choix de l'équipe --
 
 export interface EtatChoixCoupe {
+  /** Taille de la coupe (8 ou 16 équipes). */
+  taille: TailleCoupe;
   carte: CarteEquipe;
   maillot: CoteMaillot;
   onPrecedent: () => void;
@@ -85,14 +87,14 @@ export function dessineChoixCoupe(g: CanvasRenderingContext2D, boutons: ZoneBout
   g.fillStyle = 'rgba(7,9,20,0.78)';
   g.fillRect(0, 0, W, H);
   const cx = Math.round(W / 2);
-  texte(g, 'COUPE : VOTRE EQUIPE', cx, 2, C.or, 1, 'c');
+  texte(g, `COUPE ${e.taille} : VOTRE EQUIPE`, cx, 2, C.or, 1, 'c');
   const moitie = Math.floor(W / 2);
   const boutonY = H - 22;
   px(g, moitie - 1, 12, 1, boutonY - 16, '#2a3160');
   dessinePanneauEquipe(g, boutons, 0, moitie, H, 'EQUIPE', e.carte, e.onPrecedent, e.onSuivant);
   dessinePanneauMaillot(g, boutons, sprites, moitie, W - moitie, H, 'MAILLOT', e.maillot, false, e.onMaillot);
   bouton(g, boutons, '< RETOUR', 4, boutonY, 60, 16, e.onRetour, { couleur: '#232a58', e: 1 });
-  bouton(g, boutons, 'LANCER LA COUPE', cx - 60, boutonY, 120, 16, e.onLancer, { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' });
+  bouton(g, boutons, `LANCER LA COUPE ${e.taille}`, cx - 66, boutonY, 132, 16, e.onLancer, { couleur: '#d12f4c', clair: '#ff7a90', fonce: '#8c1b3a' });
 }
 
 // -------------------------------------------------------------- tableau --
@@ -184,14 +186,17 @@ function tourElimination(c: EtatCoupe): number {
   return c.tours.findIndex((l) => l.some((m) => (m.a === c.equipe || m.b === c.equipe) && vainqueur(m) !== null && vainqueur(m) !== c.equipe));
 }
 
-const LIBELLES_JOUER = ['JOUER LE QUART >', 'JOUER LA DEMI >', 'JOUER LA FINALE >'];
-const ELIMINE_EN = ['EN QUARTS', 'EN DEMI-FINALE', 'EN FINALE'];
+/** Libellés indexés depuis la finale : 0 la finale, 1 les demies, 2 les quarts, 3 les huitièmes. */
+const LIBELLES_JOUER = ['JOUER LA FINALE >', 'JOUER LA DEMI >', 'JOUER LE QUART >', 'JOUER LE HUITIEME >'];
+const ELIMINE_EN = ['EN FINALE', 'EN DEMI-FINALE', 'EN QUARTS', 'EN HUITIEMES'];
 
 export function dessineTableauCoupe(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, e: EtatTableauCoupe): void {
   g.fillStyle = 'rgba(7,9,20,0.9)';
   g.fillRect(0, 0, W, H);
   const c = e.coupe;
   const cx = Math.round(W / 2);
+  const R = nbTours(c.taille);
+  const noms = nomsTours(c.taille);
 
   // ce qui est déjà dévoilé : scores masqués et tours pas encore tirés
   const rev = e.revelation;
@@ -212,29 +217,30 @@ export function dessineTableauCoupe(g: CanvasRenderingContext2D, boutons: ZoneBo
   });
 
   // en-tête
-  texte(g, 'COUPE FACE-OFF', cx, 3, C.or, 2, 'c');
+  texte(g, `COUPE ${c.taille} FACE-OFF`, cx, 3, C.or, 2, 'c');
   const ch = champion(c);
   let sous: string;
   let colSous = '#8fe3ff';
   if (enCours) {
     const et = rev!.etapes[Math.min(n, rev!.etapes.length - 1)]!;
-    sous = et.k === 'score' ? `RESULTATS : ${NOMS_TOURS[et.t]}` : `TIRAGE : ${NOMS_TOURS[et.t]}`;
+    sous = et.k === 'score' ? `RESULTATS : ${noms[et.t]}` : `TIRAGE : ${noms[et.t]}`;
   } else if (!coupeTerminee(c)) {
-    sous = `${NOMS_TOURS[c.tour]}  -  NIVEAU ${niveauInterpole(niveauDuTour(c)).nom}`;
+    sous = `${noms[c.tour]}  -  NIVEAU ${niveauInterpole(niveauDuTour(c)).nom}`;
   } else if (ch === c.equipe) {
     sous = 'CHAMPION DE LA COUPE !';
     colSous = Math.sin(temps * 6) > 0 ? C.or : C.blanc;
   } else {
     const t = tourElimination(c);
-    sous = `ELIMINE ${ELIMINE_EN[Math.max(0, t)]}  -  VAINQUEUR : ${ch ? trouveTeamDef(ch).code : '?'}`;
+    sous = `ELIMINE ${ELIMINE_EN[R - 1 - Math.max(0, t)]}  -  VAINQUEUR : ${ch ? trouveTeamDef(ch).code : '?'}`;
     colSous = '#ff8a8a';
   }
   texte(g, sous, cx, 21, colSous, 1, 'c');
 
-  // géométrie : cinq colonnes (quarts, demies, finale, demies, quarts)
-  const cg = Math.max(6, Math.min(14, Math.floor(W * 0.025)));
-  const bw = Math.min(92, Math.floor((W - 8 - 4 * cg) / 5));
-  const x0 = Math.round((W - (5 * bw + 4 * cg)) / 2);
+  // géométrie : 2R-1 colonnes (le premier tour aux deux bords, la finale au centre)
+  const nCol = 2 * R - 1;
+  const cg = c.taille === 16 ? 5 : Math.max(6, Math.min(14, Math.floor(W * 0.025)));
+  const bw = Math.min(92, Math.floor((W - 8 - (nCol - 1) * cg) / nCol));
+  const x0 = Math.round((W - (nCol * bw + (nCol - 1) * cg)) / 2);
   const col = (k: number) => x0 + k * (bw + cg);
   const haut = 32;
   const bas = H - 24;
@@ -260,22 +266,37 @@ export function dessineTableauCoupe(g: CanvasRenderingContext2D, boutons: ZoneBo
     return [y + Math.floor(BH / 2), y + BH + 1 + Math.floor(BH / 2)];
   };
 
-  // quarts : 0 et 1 à gauche, 2 et 3 à droite ; demi 0 à gauche, 1 à droite
-  const yq = [haut + A * 0.25, haut + A * 0.75];
-  const ys = haut + A * 0.5;
+  // position d'un match : le premier tour à gauche (première moitié) et à droite (seconde), la finale au centre
   const yf = haut + Math.max(A * 0.2, 18);
-  const [sa0, sb0] = match(col(1), ys, 1, 0);
-  const [sa1, sb1] = match(col(3), ys, 1, 1);
-  for (let k = 0; k < 2; k++) {
-    match(col(0), yq[k]!, 0, k);
-    liaison(g, col(0) + bw, Math.round(yq[k]!), col(1) - 1, k === 0 ? sa0 : sb0, trait);
-    match(col(4), yq[k]!, 0, 2 + k);
-    liaison(g, col(4) - 1, Math.round(yq[k]!), col(3) + bw, k === 0 ? sa1 : sb1, trait);
+  const place = (t: number, i: number): { x: number; yc: number; gauche: boolean } => {
+    if (t === R - 1) return { x: col(R - 1), yc: yf, gauche: true };
+    const n = c.taille >> (t + 1);
+    const moitie = n / 2;
+    const gauche = i < moitie;
+    const k = gauche ? i : i - moitie;
+    return { x: gauche ? col(t) : col(nCol - 1 - t), yc: haut + (A * (k + 0.5)) / moitie, gauche };
+  };
+  // les cases du tour suivant (pour tracer les liaisons), calculées d'abord, puis tout se dessine
+  const centres = new Map<string, [number, number]>();
+  for (let t = R - 1; t >= 0; t--) {
+    const n = c.taille >> (t + 1);
+    for (let i = 0; i < n; i++) {
+      const p = place(t, i);
+      centres.set(`${t}:${i}`, match(p.x, p.yc, t, i));
+    }
   }
-  const [fa, fb] = match(col(2), yf, 2, 0);
-  liaison(g, col(1) + bw, Math.round(ys), col(2) - 1, fa, trait);
-  liaison(g, col(3) - 1, Math.round(ys), col(2) + bw, fb, trait);
-  texte(g, 'FINALE', col(2) + bw / 2, Math.round(yf - hMatch / 2) - 9, C.or, 1, 'c');
+  for (let t = 0; t < R - 1; t++) {
+    const n = c.taille >> (t + 1);
+    for (let i = 0; i < n; i++) {
+      const p = place(t, i);
+      const suivant = Math.floor(i / 2);
+      const [sa, sb] = centres.get(`${t + 1}:${suivant}`)!;
+      const y2 = i % 2 === 0 ? sa : sb;
+      if (p.gauche) liaison(g, p.x + bw, Math.round(p.yc), place(t + 1, suivant).x - 1, y2, trait);
+      else liaison(g, p.x - 1, Math.round(p.yc), place(t + 1, suivant).x + bw, y2, trait);
+    }
+  }
+  texte(g, 'FINALE', col(R - 1) + bw / 2, Math.round(yf - hMatch / 2) - 9, C.or, 1, 'c');
 
   // le trophée sous la finale, qui scintille pour le champion
   const img = imageTrophee();
@@ -316,7 +337,7 @@ export function dessineTableauCoupe(g: CanvasRenderingContext2D, boutons: ZoneBo
     couleur: e.confirmeAbandon ? '#8c1b3a' : '#232a58',
   });
   const pulse = Math.sin(temps * 5) > 0;
-  bouton(g, boutons, LIBELLES_JOUER[c.tour]!, cx - 60, by, 120, 15, e.onJouer, {
+  bouton(g, boutons, LIBELLES_JOUER[R - 1 - c.tour]!, cx - 60, by, 120, 15, e.onJouer, {
     couleur: pulse ? '#e63a58' : '#d12f4c',
     clair: '#ff7a90',
     fonce: '#8c1b3a',

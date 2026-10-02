@@ -59,7 +59,8 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 | Scénario | Ce qu'il vérifie |
 |---|---|
 | `solo` | Au clavier : menu, choix des équipes et maillots (avec retour), match, pause, fin, rejouer, bilan, écran des commandes |
-| `coupe` | Mode coupe : choix, tableau, dévoilement, élimination, titre |
+| `coupe` | Mode coupe de 8 équipes : ancienne sauvegarde migrée, choix, tableau, dévoilement, élimination, titre |
+| `coupe16` | Coupe de 16 équipes : bouton MODE (classique, coupe 8, coupe 16), huitièmes à la finale, titre, élimination dès les huitièmes (tours suivants simulés) |
 | `multi` | Un vrai match à deux joueurs : les touches de l'invité pilotent son joueur chez l'hôte, positions identiques, tir (charge et geste) vu des deux côtés, but et score synchronisés, reprise, bonus en Wi-Fi (envahissement, cage géante, givre, tremblement et son secousse, loupé complet déclenché par le tir de l'invité), fin de match au même score |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
 | `bonus` | Bonus en solo : jauge, 4e passe (gros « BONUS » doré sans combo), départ automatique, but x2 limité à 10 s, freeze, inversion, full esquive, tir surpuissant (bouton TIR doré), super héros, tremblement, givre, cage géante, mini cage, gardien endormi, blackout, envahissement, loupé complet, surnombre, un but qui coupe tout, option du menu, mode entraînement |
@@ -158,10 +159,14 @@ sprites, HUD, menus, effets).
 
 ### Sélection d'équipe
 
-Onze équipes jouables — six clubs français (Toulouse, Nice, Vaujany, Nîmes,
-Grenoble, Montpellier) et cinq écussons « invités » (Canadiens de Montréal,
-Ducks d'Anaheim, Spartiates de Marseille, Lynx de Valence, Chevaliers du lac
-d'Annecy) — chacune avec un profil de stats (`core/teams.ts` : vitesse, tir,
+Dix-neuf équipes jouables : des clubs français (Toulouse, Nice, Vaujany,
+Nîmes, Grenoble, Montpellier, Marseille, Valence, Annecy, Roanne, Angers,
+Bordeaux, Rouen) et des écussons « invités » (Canadiens de Montréal, Ducks
+d'Anaheim, Avalanche du Colorado, Senators d'Ottawa, Oilers d'Edmonton,
+Blackhawks de Chicago). Pour en ajouter une : l'écusson dans
+`assets/logos-src/<id>.jpg`, sa palette dans `src/render/team-visuals.ts` et
+`scripts/generate-sprites.mjs`, son profil dans `src/core/teams.ts`, puis
+`npm run sprites`. Chacune avec un profil de stats (`core/teams.ts` : vitesse, tir,
 défense, gardien — des multiplicateurs qui modulent réellement la simulation,
 pas juste de la couleur) affiché en notes façon jeu de sport (ATT/DEF/note
 globale, 65 à 99). Le choix se fait en deux écrans pensés « manette »
@@ -616,14 +621,17 @@ joueurs. Protocole réseau v10.
 
 ### 10. Mode coupe
 
-Sur l'accueil, la ligne **MODE** passe de **CLASSIQUE** (un match) à
-**COUPE** : un tableau à élimination directe de 8 équipes (quarts,
-demi-finales, finale).
+Sur l'accueil, la ligne **MODE** fait défiler **CLASSIQUE** (un match),
+**COUPE 8** (quarts, demi-finales, finale : 3 tours) et **COUPE 16**
+(huitièmes de finale en plus : 4 tours), des tableaux à élimination directe.
+Une ancienne sauvegarde « coupe » devient COUPE 8.
 
-- **JOUER** ouvre le choix de votre équipe et de son maillot. Les 7
+- **JOUER** ouvre le choix de votre équipe et de son maillot. Les 7 (ou 15)
   adversaires sont tirés au sort.
-- **Le tableau** est symétrique, avec la finale et le trophée au centre.
-  Votre équipe est encadrée en or.
+- **Le tableau** est symétrique, avec la finale et le trophée au centre
+  (5 colonnes pour 8 équipes, 7 pour 16). Votre équipe est encadrée en or.
+  Il se dessine à partir du nombre de tours (`nbTours`, `place` dans
+  `render/coupe.ts`).
 - **Après chaque match**, les résultats du tour se dévoilent un par un, en
   commençant par le vôtre. Les vainqueurs avancent ensuite dans le tableau.
   Un appui passe l'animation.
@@ -638,8 +646,9 @@ demi-finales, finale).
 - **Les autres matchs** sont simulés d'après les notes des équipes. Les buts
   sont tirés selon une loi de Poisson : l'attaque (tir, vitesse) contre la
   défense (défense, gardien).
-- **Sauvegarde.** La coupe est sauvegardée sur l'appareil et reprend au
-  prochain JOUER.
+- **Sauvegarde.** La coupe est sauvegardée sur l'appareil (avec sa taille) et
+  reprend au prochain JOUER, telle qu'elle est, même si le menu est sur une
+  autre taille ; l'accueil le rappelle (« COUPE 16 EN COURS »).
 - **Fin de la coupe.** Si vous êtes éliminé, le tableau se termine en
   simulation et affiche le vainqueur.
 - **Boutons.**

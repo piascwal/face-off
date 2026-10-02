@@ -138,6 +138,46 @@ const INTERIEURS: Omit<TeamDef, 'exterieur'>[] = [
     logo: 'logos/ottawa.png',
     interieur: { maillot: '#c8102e', fonce: '#141414', clair: '#ffffff', casque: '#141414' },
   },
+  {
+    id: 'angers',
+    nom: 'Ducs',
+    ville: 'Angers',
+    code: 'ANGERS',
+    logo: 'logos/angers.png',
+    interieur: { maillot: '#1b3a7a', fonce: '#a3141f', clair: '#ffffff', casque: '#1b3a7a' },
+  },
+  {
+    id: 'bordeaux',
+    nom: 'Boxers',
+    ville: 'Bordeaux',
+    code: 'BORDEAUX',
+    logo: 'logos/bordeaux.png',
+    interieur: { maillot: '#c1121f', fonce: '#2b2d33', clair: '#b9bec6', casque: '#2b2d33' },
+  },
+  {
+    id: 'rouen',
+    nom: 'Dragons',
+    ville: 'Rouen',
+    code: 'ROUEN',
+    logo: 'logos/rouen.png',
+    interieur: { maillot: '#16161a', fonce: '#6b6f78', clair: '#e3a21a', casque: '#16161a' },
+  },
+  {
+    id: 'edmonton',
+    nom: 'Oilers',
+    ville: 'Edmonton',
+    code: 'EDMONTON',
+    logo: 'logos/edmonton.png',
+    interieur: { maillot: '#0a2a66', fonce: '#06183a', clair: '#f26a1b', casque: '#0a2a66' },
+  },
+  {
+    id: 'chicago',
+    nom: 'Blackhawks',
+    ville: 'Chicago',
+    code: 'CHICAGO',
+    logo: 'logos/chicago.png',
+    interieur: { maillot: '#cf1126', fonce: '#111111', clair: '#ffffff', casque: '#111111' },
+  },
 ];
 
 export const EQUIPES_JOUABLES: TeamDef[] = INTERIEURS.map((def) => ({

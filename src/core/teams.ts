@@ -32,6 +32,16 @@ export const EQUIPES_JOUABLES: TeamProfile[] = [
   { id: 'roanne', vit: 1.08, tir: 0.97, defense: 0.98, gardien: 1.05 },
   // Senators d'Ottawa : physiques, solides en défense
   { id: 'ottawa', vit: 0.95, tir: 1.02, defense: 1.1, gardien: 1.0 },
+  // Ducs d'Angers : équilibrés, un cran de plus en défense
+  { id: 'angers', vit: 1.02, tir: 1.0, defense: 1.05, gardien: 1.0 },
+  // Boxers de Bordeaux : durs au mal, solides derrière, lents à relancer
+  { id: 'bordeaux', vit: 0.94, tir: 1.02, defense: 1.13, gardien: 1.02 },
+  // Dragons de Rouen : un tir de feu, une défense plus fragile
+  { id: 'rouen', vit: 0.98, tir: 1.12, defense: 0.95, gardien: 1.0 },
+  // Oilers d'Edmonton : l'attaque avant tout, rapides, un gardien moyen
+  { id: 'edmonton', vit: 1.15, tir: 1.15, defense: 0.85, gardien: 0.92 },
+  // Blackhawks de Chicago : complets, un bon gardien
+  { id: 'chicago', vit: 1.07, tir: 1.0, defense: 1.05, gardien: 1.08 },
 ];
 
 export function trouveEquipe(id: string): TeamProfile {

@@ -1,4 +1,4 @@
-import { coupeTerminee, creeCoupe, enregistreResultat, matchDuJoueur, niveauDuTour, NOMS_TOURS } from '@core/coupe';
+import { coupeTerminee, creeCoupe, enregistreResultat, matchDuJoueur, niveauDuTour, nomsTours, type TailleCoupe } from '@core/coupe';
 import { niveauInterpole } from '@core/constants';
 import type { MatchState } from '@core/types';
 import {
@@ -19,10 +19,10 @@ import {
 import type { EcranUI } from './ecrans';
 import type { GameApp } from './game-app';
 import { carteEquipe } from './parcours-solo';
-import { sauvePreferences } from './preferences';
+import { sauvePreferences, tailleDuMode } from './preferences';
 
 /**
- * Mode coupe : choix de l'équipe, tableau à 8 équipes (voir core/coupe.ts),
+ * Mode coupe : choix de l'équipe, tableau à 8 ou 16 équipes (voir core/coupe.ts),
  * matchs du joueur tour après tour, et dévoilement des résultats du tour sur
  * le tableau après chaque match. La coupe en cours est sauvegardée dans les
  * préférences (`pref.coupe`).
@@ -38,6 +38,8 @@ export class ParcoursCoupe {
   /** Choix de l'équipe (écran `coupeChoix`). */
   private indexEquipe = 0;
   private variante: Variante = 'interieur';
+  /** Taille de la coupe en cours de choix (celle du mode choisi à l'accueil). */
+  private taille: TailleCoupe = 8;
 
   constructor(private readonly app: GameApp) {}
 
@@ -51,6 +53,7 @@ export class ParcoursCoupe {
   private ouvreChoix(): void {
     this.indexEquipe = Math.max(0, EQUIPES_JOUABLES.findIndex((e) => e.id === this.app.pref.equipeJoueur));
     this.variante = 'interieur';
+    this.taille = tailleDuMode(this.app.pref.mode) ?? 8;
     this.app.ecranUI = 'coupeChoix';
   }
 
@@ -70,7 +73,7 @@ export class ParcoursCoupe {
     app.audio.clic();
     const def = EQUIPES_JOUABLES[this.indexEquipe]!;
     app.pref.equipeJoueur = def.id;
-    app.pref.coupe = creeCoupe(def.id, this.variante, app.pref.niveau);
+    app.pref.coupe = creeCoupe(def.id, this.variante, app.pref.niveau, this.taille);
     sauvePreferences(app.pref);
     this.revelation = null;
     this.ouvreTableau();
@@ -101,7 +104,7 @@ export class ParcoursCoupe {
     const eqA = resoutEquipe(defA, varianteAdverse(palette(defJ, c.variante), defA));
     const niveau = niveauDuTour(c);
     this.revelation = null;
-    this.app.solo.lanceMatch(eqJ, eqA, niveau, `${NOMS_TOURS[c.tour]} - ${niveauInterpole(niveau).nom}`);
+    this.app.solo.lanceMatch(eqJ, eqA, niveau, `${nomsTours(c.taille)[c.tour]} - ${niveauInterpole(niveau).nom}`);
     this.matchCoupe = true;
   }
 
@@ -195,6 +198,7 @@ export class ParcoursCoupe {
   private choixProps(): EtatChoixCoupe {
     const def = EQUIPES_JOUABLES[this.indexEquipe]!;
     return {
+      taille: this.taille,
       carte: carteEquipe(this.indexEquipe),
       maillot: { def, variante: this.variante },
       onPrecedent: () => this.tourneEquipe(-1),

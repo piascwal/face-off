@@ -8,7 +8,8 @@ import {
   lisCoupe,
   matchDuJoueur,
   MONTEE_PAR_TOUR,
-  NB_TOURS,
+  nbTours,
+  nomsTours,
   niveauDuTour,
   simuleMatch,
   vainqueur,
@@ -26,7 +27,7 @@ function graine(n: number): () => number {
 
 describe('mode coupe', () => {
   it('tire 8 équipes différentes, le joueur ouvre le tableau', () => {
-    const c = creeCoupe('roanne', 'interieur', 0, graine(1));
+    const c = creeCoupe('roanne', 'interieur', 0, 8, graine(1));
     const equipes = c.tours[0]!.flatMap((m) => [m.a, m.b]);
     expect(equipes).toHaveLength(8);
     expect(new Set(equipes).size).toBe(8);
@@ -36,7 +37,7 @@ describe('mode coupe', () => {
   });
 
   it('la difficulté monte doucement à chaque tour, plafonnée', () => {
-    const c = creeCoupe('nice', 'interieur', 0, graine(2));
+    const c = creeCoupe('nice', 'interieur', 0, 8, graine(2));
     expect(niveauDuTour(c)).toBe(0);
     c.tour = 1;
     expect(niveauDuTour(c)).toBeCloseTo(MONTEE_PAR_TOUR);
@@ -62,14 +63,14 @@ describe('mode coupe', () => {
 
   it('trois victoires font un champion', () => {
     const alea = graine(3);
-    const c = creeCoupe('ottawa', 'exterieur', 1, alea);
-    for (let t = 0; t < NB_TOURS; t++) {
+    const c = creeCoupe('ottawa', 'exterieur', 1, 8, alea);
+    for (let t = 0; t < nbTours(c.taille); t++) {
       expect(c.tour).toBe(t);
       const reveles = enregistreResultat(c, 3, 1, false, alea);
       expect(reveles).toEqual([t]);
       // tous les matchs du tour ont un vainqueur
       for (const m of c.tours[t]!) expect(vainqueur(m)).not.toBeNull();
-      if (t + 1 < NB_TOURS) expect(c.tours[t + 1]).toHaveLength(4 >> (t + 1));
+      if (t + 1 < nbTours(c.taille)) expect(c.tours[t + 1]).toHaveLength(4 >> (t + 1));
     }
     expect(coupeTerminee(c)).toBe(true);
     expect(c.elimine).toBe(false);
@@ -79,7 +80,7 @@ describe('mode coupe', () => {
 
   it('les vainqueurs avancent dans l’ordre du tableau', () => {
     const alea = graine(4);
-    const c = creeCoupe('grenoble', 'interieur', 0, alea);
+    const c = creeCoupe('grenoble', 'interieur', 0, 8, alea);
     enregistreResultat(c, 2, 0, false, alea);
     const q = c.tours[0]!;
     expect(c.tours[1]!.map((m) => [m.a, m.b])).toEqual([
@@ -90,7 +91,7 @@ describe('mode coupe', () => {
 
   it('éliminé, la coupe se termine en simulation', () => {
     const alea = graine(5);
-    const c = creeCoupe('nimes', 'interieur', 0, alea);
+    const c = creeCoupe('nimes', 'interieur', 0, 8, alea);
     enregistreResultat(c, 2, 1, false, alea);
     const reveles = enregistreResultat(c, 0, 2, false, alea);
     expect(reveles).toEqual([1, 2]);
@@ -104,7 +105,7 @@ describe('mode coupe', () => {
 
   it('le joueur côté b est bien noté, une égalité n’est jamais un match nul', () => {
     const alea = graine(6);
-    const c = creeCoupe('annecy', 'interieur', 0, alea);
+    const c = creeCoupe('annecy', 'interieur', 0, 8, alea);
     enregistreResultat(c, 4, 0, false, alea);
     const m = matchDuJoueur(c)!.m;
     // force le joueur côté b
@@ -139,7 +140,7 @@ describe('mode coupe', () => {
 
   it('relit une sauvegarde et rejette une coupe abîmée', () => {
     const alea = graine(8);
-    const c = creeCoupe('montreal', 'interieur', 2, alea);
+    const c = creeCoupe('montreal', 'interieur', 2, 8, alea);
     enregistreResultat(c, 3, 2, true, alea);
     const relue = lisCoupe(JSON.parse(JSON.stringify(c)));
     expect(relue).toEqual(c);
@@ -147,8 +148,71 @@ describe('mode coupe', () => {
     expect(lisCoupe({ ...c, niveau: 9 })).toBeNull();
     expect(lisCoupe({ ...c, tour: 4 })).toBeNull();
     expect(lisCoupe({ ...c, variante: 'autre' })).toBeNull();
-    expect(lisCoupe({ ...c, tours: [c.tours[0], [], []].map((l, i) => (i === 0 ? l!.slice(0, 3) : l)) })).toBeNull();
+    expect(
+      lisCoupe({ ...c, tours: [c.tours[0], [], []].map((l, i) => (i === 0 ? l!.slice(0, 3) : l)) }),
+    ).toBeNull();
     expect(lisCoupe({ ...c, equipe: '<img>' })).toBeNull();
-    expect(lisCoupe({ ...c, tours: [[{ a: 'nice', b: 'nimes', sa: -1, sb: 0, prol: false }], [], []] })).toBeNull();
+    expect(
+      lisCoupe({ ...c, tours: [[{ a: 'nice', b: 'nimes', sa: -1, sb: 0, prol: false }], [], []] }),
+    ).toBeNull();
+  });
+
+  it('coupe 16 : 16 équipes, 4 tours (huitièmes, quarts, demies, finale), un champion', () => {
+    const alea = graine(11);
+    const c = creeCoupe('chicago', 'interieur', 1, 16, alea);
+    const equipes = c.tours[0]!.flatMap((m) => [m.a, m.b]);
+    expect(c.taille).toBe(16);
+    expect(c.tours).toHaveLength(4);
+    expect(equipes).toHaveLength(16);
+    expect(new Set(equipes).size).toBe(16);
+    expect(c.tours[0]![0]!.a).toBe('chicago');
+    expect(nomsTours(16)).toEqual(['HUITIEMES DE FINALE', 'QUARTS DE FINALE', 'DEMI-FINALES', 'FINALE']);
+    expect(nomsTours(8)).toEqual(['QUARTS DE FINALE', 'DEMI-FINALES', 'FINALE']);
+    // 4 victoires : le joueur est champion, le nombre de matchs diminue de moitié à chaque tour
+    for (let t = 0; t < 4; t++) {
+      expect(c.tour).toBe(t);
+      expect(enregistreResultat(c, 3, 1, false, alea)).toEqual([t]);
+      expect(c.tours[t]).toHaveLength(8 >> t);
+    }
+    expect(coupeTerminee(c)).toBe(true);
+    expect(champion(c)).toBe('chicago');
+    // la difficulté monte à chaque tour, plafonnée
+    const d = creeCoupe('nice', 'interieur', 0, 16, alea);
+    expect(niveauDuTour(d)).toBe(0);
+    d.tour = 3;
+    expect(niveauDuTour(d)).toBeCloseTo(0.75, 5);
+  });
+
+  it('coupe 16 : éliminé en huitièmes, tous les tours restants se simulent', () => {
+    const alea = graine(12);
+    const c = creeCoupe('edmonton', 'interieur', 0, 16, alea);
+    const reveles = enregistreResultat(c, 0, 4, false, alea);
+    expect(reveles).toEqual([0, 1, 2, 3]);
+    expect(c.elimine).toBe(true);
+    expect(coupeTerminee(c)).toBe(true);
+    expect(champion(c)).not.toBeNull();
+    expect(c.tours.map((l) => l.length)).toEqual([8, 4, 2, 1]);
+  });
+
+  it('une sauvegarde sans taille (ancienne coupe) est une coupe de 8 ; une coupe 16 se relit', () => {
+    const alea = graine(13);
+    const c8 = creeCoupe('nice', 'interieur', 0, 8, alea);
+    const ancienne: Record<string, unknown> = JSON.parse(JSON.stringify(c8));
+    delete ancienne.taille;
+    expect(lisCoupe(ancienne)).toEqual(c8);
+    const c16 = creeCoupe('nice', 'interieur', 0, 16, alea);
+    enregistreResultat(c16, 2, 1, false, alea);
+    expect(lisCoupe(JSON.parse(JSON.stringify(c16)))).toEqual(c16);
+    // incohérences : une taille inconnue, ou un tableau qui n'a pas la bonne forme
+    expect(lisCoupe({ ...c16, taille: 12 })).toBeNull();
+    expect(lisCoupe({ ...c16, taille: 8 })).toBeNull();
+    expect(lisCoupe({ ...c8, taille: 16 })).toBeNull();
+  });
+
+  it('les cinq nouvelles équipes sont jouables (Angers, Bordeaux, Rouen, Edmonton, Chicago)', () => {
+    for (const id of ['angers', 'bordeaux', 'rouen', 'edmonton', 'chicago']) {
+      expect(EQUIPES_JOUABLES.some((e) => e.id === id)).toBe(true);
+    }
+    expect(EQUIPES_JOUABLES.length).toBeGreaterThanOrEqual(16);
   });
 });

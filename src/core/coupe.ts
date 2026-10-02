@@ -1,6 +1,6 @@
 /**
  * Mode coupe : un tableau à élimination directe de 8 équipes (quarts,
- * demi-finales, finale). Le joueur joue ses matchs ; les autres se jouent en
+ * demi-finales, finale) ou de 16 (avec des huitièmes de finale). Le joueur joue ses matchs ; les autres se jouent en
  * simulation rapide, selon le profil des équipes (voir teams.ts). La
  * difficulté monte un peu à chaque tour (MONTEE_PAR_TOUR). Module pur (aucun DOM) : l'état
  * se sauvegarde tel quel (JSON) pour reprendre la coupe plus tard.
@@ -26,20 +26,29 @@ export interface MatchCoupe {
 }
 
 export interface EtatCoupe {
+  /** Nombre d'équipes du tableau : 8 (3 tours) ou 16 (4 tours). */
+  taille: TailleCoupe;
   /** Équipe du joueur et son maillot. */
   equipe: string;
   variante: 'interieur' | 'exterieur';
   /** Niveau de difficulté choisi au lancement (celui des quarts). */
   niveau: number;
-  /** Quarts (4 matchs), demi-finales (2), finale (1) ; un tour pas encore tiré est vide. */
+  /** Les tours, du premier à la finale (taille/2 matchs, puis la moitié...) ; un tour pas encore tiré est vide. */
   tours: MatchCoupe[][];
-  /** Tour que le joueur doit jouer (0 quarts, 1 demies, 2 finale) ; 3 = coupe terminée. */
+  /** Tour que le joueur doit jouer (0 le premier, jusqu'à la finale) ; nbTours(c) = coupe terminée. */
   tour: number;
   elimine: boolean;
 }
 
-export const NOMS_TOURS = ['QUARTS DE FINALE', 'DEMI-FINALES', 'FINALE'];
-export const NB_TOURS = 3;
+export type TailleCoupe = 8 | 16;
+export const TAILLES_COUPE: TailleCoupe[] = [8, 16];
+
+/** Nombre de tours d'une coupe de `taille` équipes (3 pour 8, 4 pour 16). */
+export const nbTours = (taille: TailleCoupe): number => Math.log2(taille);
+
+const NOMS_TOURS_TOUS = ['HUITIEMES DE FINALE', 'QUARTS DE FINALE', 'DEMI-FINALES', 'FINALE'];
+/** Noms des tours d'une coupe de `taille` équipes, du premier à la finale. */
+export const nomsTours = (taille: TailleCoupe): string[] => NOMS_TOURS_TOUS.slice(NOMS_TOURS_TOUS.length - nbTours(taille));
 
 type Alea = () => number;
 
@@ -52,16 +61,18 @@ function melange<T>(t: T[], alea: Alea): T[] {
   return r;
 }
 
-/** Nouvelle coupe : le joueur et 7 adversaires tirés au sort ; il ouvre le tableau (premier quart). */
-export function creeCoupe(equipe: string, variante: 'interieur' | 'exterieur', niveau: number, alea: Alea = Math.random): EtatCoupe {
+/** Nouvelle coupe : le joueur et `taille - 1` adversaires tirés au sort ; il ouvre le tableau (premier match). */
+export function creeCoupe(equipe: string, variante: 'interieur' | 'exterieur', niveau: number, taille: TailleCoupe = 8, alea: Alea = Math.random): EtatCoupe {
   const autres = melange(
     EQUIPES_JOUABLES.map((e) => e.id).filter((id) => id !== equipe),
     alea,
-  ).slice(0, 7);
+  ).slice(0, taille - 1);
   const ordre = [equipe, ...autres];
-  const quarts: MatchCoupe[] = [];
-  for (let i = 0; i < 8; i += 2) quarts.push({ a: ordre[i]!, b: ordre[i + 1]!, sa: null, sb: null, prol: false });
-  return { equipe, variante, niveau, tours: [quarts, [], []], tour: 0, elimine: false };
+  const premier: MatchCoupe[] = [];
+  for (let i = 0; i < taille; i += 2) premier.push({ a: ordre[i]!, b: ordre[i + 1]!, sa: null, sb: null, prol: false });
+  const tours: MatchCoupe[][] = [premier];
+  for (let t = 1; t < nbTours(taille); t++) tours.push([]);
+  return { taille, equipe, variante, niveau, tours, tour: 0, elimine: false };
 }
 
 export function vainqueur(m: MatchCoupe): string | null {
@@ -70,12 +81,12 @@ export function vainqueur(m: MatchCoupe): string | null {
 }
 
 export function coupeTerminee(c: EtatCoupe): boolean {
-  return c.elimine || c.tour >= NB_TOURS;
+  return c.elimine || c.tour >= nbTours(c.taille);
 }
 
 /** Vainqueur de la coupe (une fois la finale jouée ou simulée). */
 export function champion(c: EtatCoupe): string | null {
-  const f = c.tours[NB_TOURS - 1]?.[0];
+  const f = c.tours[nbTours(c.taille) - 1]?.[0];
   return f ? vainqueur(f) : null;
 }
 
@@ -92,7 +103,7 @@ export function matchDuJoueur(c: EtatCoupe): { m: MatchCoupe; adversaire: string
  * peu plus à chaque tour, plafonnée au niveau le plus dur.
  */
 export function niveauDuTour(c: EtatCoupe): number {
-  return Math.min(NIVEAUX.length - 1, c.niveau + MONTEE_PAR_TOUR * Math.min(c.tour, NB_TOURS - 1));
+  return Math.min(NIVEAUX.length - 1, c.niveau + MONTEE_PAR_TOUR * Math.min(c.tour, nbTours(c.taille) - 1));
 }
 
 /** Tirage de Poisson (nombre de buts d'une équipe en un match). */
@@ -133,7 +144,7 @@ export function simuleMatch(a: string, b: string, alea: Alea = Math.random): Pic
 /** Joue (en simulation) les matchs restants d'un tour, puis tire le tour suivant avec les vainqueurs. */
 function completeTour(c: EtatCoupe, t: number, alea: Alea): void {
   for (const m of c.tours[t]!) if (m.sa === null) Object.assign(m, simuleMatch(m.a, m.b, alea));
-  if (t + 1 >= NB_TOURS) return;
+  if (t + 1 >= nbTours(c.taille)) return;
   const gagnants = c.tours[t]!.map((m) => vainqueur(m)!);
   const suivant: MatchCoupe[] = [];
   for (let i = 0; i < gagnants.length; i += 2) suivant.push({ a: gagnants[i]!, b: gagnants[i + 1]!, sa: null, sb: null, prol: false });
@@ -159,12 +170,12 @@ export function enregistreResultat(c: EtatCoupe, butsJoueur: number, butsAdversa
   const reveles = [t0];
   if (vainqueur(m) !== c.equipe) {
     c.elimine = true;
-    for (let t = t0 + 1; t < NB_TOURS; t++) {
+    for (let t = t0 + 1; t < nbTours(c.taille); t++) {
       completeTour(c, t, alea);
       reveles.push(t);
     }
   }
-  c.tour = c.elimine ? NB_TOURS : t0 + 1;
+  c.tour = c.elimine ? nbTours(c.taille) : t0 + 1;
   return reveles;
 }
 
@@ -181,23 +192,26 @@ function lisMatch(o: unknown): MatchCoupe | null {
   return { a: m.a, b: m.b, sa: m.sa, sb: m.sb, prol: m.prol };
 }
 
-/** Valide une coupe sauvegardée (stockage local) ; null si elle est abîmée. */
+/** Valide une coupe sauvegardée (stockage local) ; null si elle est abîmée. Sans taille (ancienne sauvegarde) : 8 équipes. */
 export function lisCoupe(o: unknown): EtatCoupe | null {
   if (!o || typeof o !== 'object') return null;
   const c = o as Record<string, unknown>;
+  const taille = c.taille === undefined ? 8 : c.taille;
+  if (taille !== 8 && taille !== 16) return null;
+  const R = nbTours(taille);
   if (typeof c.equipe !== 'string' || !EQUIPE_SURE.test(c.equipe)) return null;
   if (c.variante !== 'interieur' && c.variante !== 'exterieur') return null;
   if (typeof c.niveau !== 'number' || !Number.isInteger(c.niveau) || c.niveau < 0 || c.niveau >= NIVEAUX.length) return null;
-  if (typeof c.tour !== 'number' || !Number.isInteger(c.tour) || c.tour < 0 || c.tour > NB_TOURS) return null;
-  if (typeof c.elimine !== 'boolean' || !Array.isArray(c.tours) || c.tours.length !== NB_TOURS) return null;
+  if (typeof c.tour !== 'number' || !Number.isInteger(c.tour) || c.tour < 0 || c.tour > R) return null;
+  if (typeof c.elimine !== 'boolean' || !Array.isArray(c.tours) || c.tours.length !== R) return null;
   const tours: MatchCoupe[][] = [];
-  for (let t = 0; t < NB_TOURS; t++) {
+  for (let t = 0; t < R; t++) {
     const l = c.tours[t];
-    if (!Array.isArray(l) || (l.length !== 0 && l.length !== 4 >> t)) return null;
+    if (!Array.isArray(l) || (l.length !== 0 && l.length !== taille >> (t + 1))) return null;
     const ms = l.map(lisMatch);
     if (ms.some((m) => !m)) return null;
     tours.push(ms as MatchCoupe[]);
   }
-  if (tours[0]!.length !== 4) return null;
-  return { equipe: c.equipe, variante: c.variante, niveau: c.niveau, tours, tour: c.tour, elimine: c.elimine };
+  if (tours[0]!.length !== taille / 2) return null;
+  return { taille, equipe: c.equipe, variante: c.variante, niveau: c.niveau, tours, tour: c.tour, elimine: c.elimine };
 }

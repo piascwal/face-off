@@ -10,8 +10,10 @@ import type { EquipeVisuelle } from './team-visuals';
 export interface EtatMenu {
   /** Mode solo : match simple ou coupe (tableau à élimination directe). */
   coupe: boolean;
-  /** Tour de la coupe en cours (null : pas de coupe en cours). */
-  tourCoupe: string | null;
+  /** Taille de la coupe choisie (8 ou 16), null en mode classique. */
+  tailleCoupe: 8 | 16 | null;
+  /** Coupe en cours (sa taille et son tour), null s'il n'y en a pas. */
+  coupeEnCours: { taille: 8 | 16; tour: string } | null;
   niveauIdx: number;
   dureeIdx: number;
   effectifIdx: number;
@@ -50,7 +52,7 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
   const py = ty + 7 * e + 16;
   panneau(g, cx - pw / 2, py, pw, ph);
   const lignes: [string, string, () => void][] = [
-    ['MODE', menu.coupe ? 'COUPE' : 'CLASSIQUE', menu.onMode],
+    ['MODE', menu.tailleCoupe ? `COUPE ${menu.tailleCoupe}` : 'CLASSIQUE', menu.onMode],
     ['NIVEAU', NIVEAUX[menu.niveauIdx]!.nom, menu.onNiveau],
     ['DUREE', `${DUREES[menu.dureeIdx]! / 60} MIN`, menu.onDuree],
     ['EQUIPES', `${EFFECTIFS[menu.effectifIdx]} CONTRE ${EFFECTIFS[menu.effectifIdx]}`, menu.onEffectif],
@@ -73,7 +75,12 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
   bouton(g, boutons, 'REGLAGES AVANCES', cx - 60, jy + 28, 120, 13, menu.onAvance, { couleur: '#232a58' });
   texte(g, menu.version, W - 3, H - 9, '#4a5380', 1, 'd');
   const bas = py + ph + 6;
-  if (menu.coupe && bas + 8 < H) texte(g, menu.tourCoupe ? `COUPE EN COURS : ${menu.tourCoupe}` : 'NOUVELLE COUPE : 8 EQUIPES, 3 TOURS', cx, bas, C.or, 1, 'c');
+  if (menu.coupe && bas + 8 < H) {
+    const e = menu.coupeEnCours;
+    // une coupe en cours se reprend telle qu'elle est, quelle que soit la taille choisie
+    const texteCoupe = e ? `COUPE ${e.taille} EN COURS : ${e.tour}` : `NOUVELLE COUPE : ${menu.tailleCoupe} EQUIPES, ${Math.log2(menu.tailleCoupe ?? 8)} TOURS`;
+    texte(g, texteCoupe, cx, bas, C.or, 1, 'c');
+  }
 }
 
 export interface EtatAvance {

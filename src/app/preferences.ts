@@ -1,4 +1,4 @@
-import { lisCoupe, type EtatCoupe } from '../core/coupe';
+import { lisCoupe, type EtatCoupe, type TailleCoupe } from '../core/coupe';
 import { POUVOIRS } from '../core/pouvoirs';
 import type { PouvoirId } from '../core/types';
 
@@ -26,8 +26,8 @@ export interface Preferences {
   ralentiButs: boolean;
   /** Bilan des duels Wi-Fi, par appareil adverse. */
   duels: Record<string, BilanDuel>;
-  /** Mode de jeu solo choisi à l'accueil. */
-  mode: 'classique' | 'coupe';
+  /** Mode de jeu solo choisi à l'accueil : un match, ou une coupe de 8 ou de 16 équipes. */
+  mode: ModeJeu;
   /** Coupe en cours (reprise au prochain lancement), ou null. */
   coupe: EtatCoupe | null;
   /** Bonus (power-ups) activés en match. */
@@ -35,6 +35,12 @@ export interface Preferences {
   /** Bonus choisi pour le mode entraînement (gardé d'une fois sur l'autre). */
   bonusEntrainement: PouvoirId;
 }
+
+export type ModeJeu = 'classique' | 'coupe8' | 'coupe16';
+export const MODES: ModeJeu[] = ['classique', 'coupe8', 'coupe16'];
+
+/** Taille de la coupe d'un mode (null : un match simple). */
+export const tailleDuMode = (mode: ModeJeu): TailleCoupe | null => (mode === 'coupe8' ? 8 : mode === 'coupe16' ? 16 : null);
 
 export interface BilanDuel {
   nom: string;
@@ -91,7 +97,9 @@ export function chargePreferences(): Preferences {
     modifie = true;
   }
   if (!pref.duels || typeof pref.duels !== 'object') pref.duels = {};
-  if (pref.mode !== 'coupe') pref.mode = 'classique';
+  // l'ancien mode « coupe » (8 équipes) devient « coupe8 »
+  if ((pref.mode as string) === 'coupe') pref.mode = 'coupe8';
+  if (!MODES.includes(pref.mode)) pref.mode = 'classique';
   pref.coupe = lisCoupe(pref.coupe);
   if (!POUVOIRS.includes(pref.bonusEntrainement)) pref.bonusEntrainement = 'puissant';
   if (modifie) sauvePreferences(pref);

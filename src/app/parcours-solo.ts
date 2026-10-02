@@ -1,4 +1,4 @@
-import { coupeTerminee, NOMS_TOURS } from '@core/coupe';
+import { coupeTerminee, nomsTours } from '@core/coupe';
 import { DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from '@core/constants';
 import { creePartie, type OptionsPartie } from '@core/rules';
 import { POUVOIRS } from '@core/pouvoirs';
@@ -32,7 +32,7 @@ import {
 } from '@render/index';
 import type { EcranUI } from './ecrans';
 import type { GameApp } from './game-app';
-import { sauvePreferences } from './preferences';
+import { MODES, sauvePreferences, tailleDuMode } from './preferences';
 import { dureeBut } from './ralenti';
 import { demandePleinEcranPaysage } from './pwa';
 
@@ -61,7 +61,7 @@ export class ParcoursSolo {
 
   /** JOUER : un match simple, ou la coupe selon le mode choisi à l'accueil. */
   jouer(): void {
-    if (this.app.pref.mode === 'coupe') this.app.coupe.ouvre();
+    if (this.app.pref.mode !== 'classique') this.app.coupe.ouvre();
     else this.ouvreSelectionEquipe();
   }
 
@@ -303,10 +303,11 @@ export class ParcoursSolo {
       sauvePreferences(pref);
     };
     return {
-      coupe: pref.mode === 'coupe',
-      tourCoupe: c && !coupeTerminee(c) ? NOMS_TOURS[c.tour]! : null,
+      coupe: pref.mode !== 'classique',
+      tailleCoupe: tailleDuMode(pref.mode),
+      coupeEnCours: c && !coupeTerminee(c) ? { taille: c.taille, tour: nomsTours(c.taille)[c.tour]! } : null,
       onMode: () => {
-        pref.mode = pref.mode === 'coupe' ? 'classique' : 'coupe';
+        pref.mode = MODES[(MODES.indexOf(pref.mode) + 1) % MODES.length]!;
         sauvePreferences(pref);
       },
       niveauIdx: pref.niveau,

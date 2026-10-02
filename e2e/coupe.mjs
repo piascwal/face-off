@@ -10,12 +10,14 @@ export default async function coupe(env) {
   const p = a.page;
   const app = (f, arg) => p.evaluate(f, arg);
   await env.capture(p, '1-menu');
+  // l'ancien mode « coupe » enregistré devient « coupe8 »
+  env.verifie((await app(() => window.faceOff.pref.mode)) === 'coupe8', 'ancien mode coupe : devient COUPE 8');
   await app(() => window.faceOff.solo.jouer());
   env.verifie((await app(() => window.faceOff.ecranUI)) === 'coupeChoix', 'JOUER en mode coupe ouvre le choix de l\'équipe');
   await app(() => window.faceOff.coupe.lance());
   await attends(500);
   const c0 = await app(() => window.faceOff.pref.coupe);
-  env.verifie(c0 && c0.equipe === 'roanne' && c0.tours[0].length === 4, 'coupe créée : 8 équipes, le joueur dans le premier quart');
+  env.verifie(c0 && c0.equipe === 'roanne' && c0.taille === 8 && c0.tours[0].length === 4, 'coupe créée : 8 équipes, le joueur dans le premier quart');
   await env.capture(p, '2-tableau');
 
   const joueEtFinis = async (sj, sa) => {

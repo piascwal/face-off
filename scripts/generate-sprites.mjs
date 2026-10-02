@@ -54,6 +54,11 @@ const INTERIEURS = [
   { id: 'colorado', maillot: '#6f263d', fonce: '#236192', clair: '#ffffff', casque: '#6f263d' },
   { id: 'roanne', maillot: '#141414', fonce: '#f2c200', clair: '#ffffff', casque: '#141414' },
   { id: 'ottawa', maillot: '#c8102e', fonce: '#141414', clair: '#ffffff', casque: '#141414' },
+  { id: 'angers', maillot: '#1b3a7a', fonce: '#a3141f', clair: '#ffffff', casque: '#1b3a7a' },
+  { id: 'bordeaux', maillot: '#c1121f', fonce: '#2b2d33', clair: '#b9bec6', casque: '#2b2d33' },
+  { id: 'rouen', maillot: '#16161a', fonce: '#6b6f78', clair: '#e3a21a', casque: '#16161a' },
+  { id: 'edmonton', maillot: '#0a2a66', fonce: '#06183a', clair: '#f26a1b', casque: '#0a2a66' },
+  { id: 'chicago', maillot: '#cf1126', fonce: '#111111', clair: '#ffffff', casque: '#111111' },
 ];
 const VARIANTES = ['interieur', 'exterieur'];
 function palette(base, variante) {
