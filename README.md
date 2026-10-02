@@ -302,8 +302,8 @@ Format des feuilles (`public/sprites/meta.json` : cases, ancrages, échelle) :
   gauche).
 
 Le jeu dessine directement à la résolution de l'écran : un pixel de sprite
-fait 0,28 px logique pour un patineur (≈ 28 px de haut) et 0,2 pour le
-gardien (≈ 23 px). Plus grands, les joueurs se chevauchaient dans les
+fait 0,28 px logique pour un patineur (≈ 28 px de haut) et 0,25 pour le
+gardien (≈ 27 px : accroupi, il reste un peu plus bas que les patineurs ; à 0,2 il paraissait trop petit). Plus grands, les joueurs se chevauchaient dans les
 mêlées et le gardien cachait sa cage. Le dessin est aussi décalé
 (`decalage` dans meta.json) : le patineur un peu en arrière, pour que la
 palette de sa crosse tombe sur le palet qu'il porte, et le gardien en avant,

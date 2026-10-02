@@ -131,10 +131,10 @@ await traiteLogos();
 /**
  * Taille d'un pixel de sprite, en pixels logiques du jeu : le patineur fait
  * environ 28 px de haut en jeu (plus grand, les mêlées devenaient illisibles),
- * le gardien environ 23, pour laisser voir la cage derrière lui.
+ * le gardien environ 27 (accroupi, il reste un peu plus bas que les patineurs), pour laisser voir la cage derrière lui.
  */
 const ECHELLE_JOUEUR = 0.28;
-const ECHELLE_GARDIEN = 0.2;
+const ECHELLE_GARDIEN = 0.25;
 /** Le joueur au sol (dessin deux fois moins fin que la planche) : casque de la même taille qu'en patinant. */
 const ECHELLE_CHUTE = 0.22;
 /**
