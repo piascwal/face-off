@@ -24,7 +24,20 @@
  * celles reçues des clients, puis diffuse l'état obtenu.
  */
 
-import { campDe, RECONNEXION_S, REPRISE_S, SIEGES, siegeExiste, SPECTATEURS_MAX, type ActionLan, type Camp, type ConfigLan, type EtatPartieLan, type FormatLan, type Siege } from './partie-modele';
+import {
+  campDe,
+  RECONNEXION_S,
+  REPRISE_S,
+  SIEGES,
+  siegeExiste,
+  SPECTATEURS_MAX,
+  type ActionLan,
+  type Camp,
+  type ConfigLan,
+  type EtatPartieLan,
+  type FormatLan,
+  type Siege,
+} from './partie-modele';
 import { hoteChoisit, joueursAssis, peutLancer, roleDe, siegeDeAppareil, siegesLibres } from './sieges';
 
 export function nouvellePartie(config: ConfigLan, nom: string, equipe: string, appareil: string): EtatPartieLan {

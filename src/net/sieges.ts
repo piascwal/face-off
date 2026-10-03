@@ -1,7 +1,18 @@
 /** Partie Wi-Fi : rôles, sièges et composition des équipes humaines (fonctions pures sur l'état). */
 
 import { type MatchState, type Skater } from '@core/types';
-import { campDe, rangDe, siegeDeCamp, SIEGES, siegeExiste, type Camp, type ConfigLan, type EtatPartieLan, type JoueurLan, type Siege } from './partie-modele';
+import {
+  campDe,
+  rangDe,
+  siegeDeCamp,
+  SIEGES,
+  siegeExiste,
+  type Camp,
+  type ConfigLan,
+  type EtatPartieLan,
+  type JoueurLan,
+  type Siege,
+} from './partie-modele';
 
 // ----------------------------------------------------------------- rôles --
 

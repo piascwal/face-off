@@ -5,32 +5,43 @@ import { Liaison } from './liaison';
 import { Limiteur } from './limiteur';
 import { INTENT_VIDE, type InputIntent } from '@core/types';
 import {
-appliqueAction,
-arrive,
-avanceAbsence,
-avanceReprise,
-campDe,
-debutRalenti,
-joueurAbsent,
-joueurPart,
-joueurRevenu,
-joueursAssis,
-nbRegardeurs,
-nouvellePartie, regardeurPart,
-roleDe,
-siegeDeAppareil,
-SPECTATEURS_MAX,
-versAttente,
-versFin,
-type ActionLan,
-type ConfigLan,
-type EtatPartieLan,
-type Reaction, type Siege
+  appliqueAction,
+  arrive,
+  avanceAbsence,
+  avanceReprise,
+  campDe,
+  debutRalenti,
+  joueurAbsent,
+  joueurPart,
+  joueurRevenu,
+  joueursAssis,
+  nbRegardeurs,
+  nouvellePartie,
+  regardeurPart,
+  roleDe,
+  siegeDeAppareil,
+  SPECTATEURS_MAX,
+  versAttente,
+  versFin,
+  type ActionLan,
+  type ConfigLan,
+  type EtatPartieLan,
+  type Reaction,
+  type Siege,
 } from './partie';
 import { EntreeDistante } from './entrees';
 import { lisCtrl, type MsgCtrl } from './protocole';
 import { VERSION_PROTOCOLE } from './reseau-local';
-import { courtiers, delaiReconnexion, ipsDuReseau, plageStricte, REACTION_MIN_MS, salonsDuReseau, Veille, type RaisonFin } from './session-commun';
+import {
+  courtiers,
+  delaiReconnexion,
+  ipsDuReseau,
+  plageStricte,
+  REACTION_MIN_MS,
+  salonsDuReseau,
+  Veille,
+  type RaisonFin,
+} from './session-commun';
 
 // ==================================================================== hôte ==
 

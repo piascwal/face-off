@@ -1,18 +1,11 @@
-import { DUREES, EFFECTIFS } from '@core/constants';
-import { creePartie, type OptionsPartie } from '@core/rules';
-import { trouveEquipe } from '@core/teams';
-import { INTENT_VIDE, type MatchState, type Rink, type Skater, type TeamId } from '@core/types';
+import { type MatchState, type Skater, type TeamId } from '@core/types';
 import type { AnnoncePartie } from '@net/annuaire';
 import {
   campDe,
-  compositionHumaine,
   estReaction,
   hoteChoisit,
-  joueursAssis,
   patineurPilote,
   SPECTATEURS_MAX,
-  siegeReel,
-  tousOntPasse,
   type ActionLan,
   type Camp,
   type ConfigLan,
@@ -20,42 +13,24 @@ import {
   type PhaseLan,
   type Siege,
 } from '@net/partie';
-import { angleVersHote, directionVersHote } from '@net/entrees';
-import { decodeInstantane, encodeInstantane } from '@net/instantane';
-import { evenementsPourEnvoi, type MsgCtrl } from '@net/protocole';
+import { decodeInstantane } from '@net/instantane';
+import { type MsgCtrl } from '@net/protocole';
 import { SessionClient } from '@net/session-client';
 import type { RaisonFin } from '@net/session-commun';
 import { SessionHote } from '@net/session-hote';
-import { SynchroClient } from '@net/synchro';
-import { joueEvenements } from '@audio/sound';
 import {
-  C,
   CODES_REACTIONS,
   EQUIPES_JOUABLES,
-  LIBELLES_FORMAT,
   REACTION_VIE_S,
   REACTIONS_MAX,
-  resoutEquipe,
-  trouveTeamDef,
-  type EquipeVisuelle,
   type ReactionAffichee,
   type StatutLan,
 } from '@render/index';
 import type { EcranUI } from './ecrans';
 import type { GameApp } from './game-app';
-import { noteDuel, sauvePreferences } from './preferences';
+import { sauvePreferences } from './preferences';
+import { MatchLan, type JeuReseau } from './match-lan';
 import { VuesLan } from './vues-lan';
-import { dureeBut } from './ralenti';
-import { demandePleinEcranPaysage } from './pwa';
-
-/**
- * Match en réseau local : l'hôte simule, chaque joueur affiche et envoie ses
- * entrées (le patineur de son siège) ; un spectateur affiche comme les
- * joueurs, sans rien piloter.
- */
-export type JeuReseau =
-  | { role: 'hote'; eqLocal: TeamId; dernierEnvoi: number }
-  | { role: 'client'; eqLocal: TeamId; synchro: SynchroClient; spectateur: boolean };
 
 function messageErreurReseau(e: unknown): string {
   const m = e instanceof Error ? e.message : '';
@@ -93,25 +68,23 @@ export class ParcoursLan {
   salonMessage: { txt: string; jusqua: number } | null = null;
   /** Invalide les réponses asynchrones d'un écran réseau qu'on a déjà quitté. */
   private generation = 0;
-  private seqInstantane = 0;
   /** Client : il a touché JOUER à l'arrivée (il choisit maintenant son siège dans la salle). */
   choixPrise = false;
-  /** Hôte, pendant un match : le siège de chaque humain du simulateur (indice `équipe * 2 + rang`). */
-  private siegesCore: (Siege | null)[] = [null, null, null, null];
   /** Dernière phase de partie Wi-Fi appliquée à l'écran. */
-  private phaseVue: PhaseLan | null = null;
+  phaseVue: PhaseLan | null = null;
   /** Client : instant (s) de fin du compte à rebours de reprise en cours. */
-  private finReprise: number | null = null;
+  finReprise: number | null = null;
   /** Réactions (spectateurs, joueurs à la fin) qui montent le long du bord droit. */
   reactions: ReactionAffichee[] = [];
-  /** Hôte : phase de jeu vue à l'image précédente (détection des buts pour le ralenti). */
-  private phaseHote: string | null = null;
 
   /** Dessin des écrans Wi-Fi (vues-lan.ts). */
   readonly vues: VuesLan;
+  /** Le match en réseau lui-même (match-lan.ts). */
+  readonly match: MatchLan;
 
   constructor(private readonly app: GameApp) {
     this.vues = new VuesLan(app, this);
+    this.match = new MatchLan(app, this);
   }
 
   // ------------------------------------------------------------- état
@@ -137,11 +110,6 @@ export class ParcoursLan {
   pilote(state: MatchState): Skater | null {
     // hors match Wi-Fi (solo, coupe), pas de partie réseau : le joueur pilote l'équipe 0
     return patineurPilote(state, this.jeu ? this.partie : null, this.siege);
-  }
-
-  /** Hôte : le siège réel de l'humain `rang` de l'équipe `eq` du simulateur. */
-  siegeCore(eq: TeamId, partenaire: boolean): Siege | null {
-    return this.siegesCore[eq * 2 + (partenaire ? 1 : 0)] ?? null;
   }
 
   /** Cet appareil regarde la partie sans y jouer. */
@@ -211,7 +179,7 @@ export class ParcoursLan {
         if (gen !== this.generation) return c.ferme();
         this.client = c;
         this.statut = 'pret';
-        c.onCtrl = (m) => this.surCtrlClient(m);
+        c.onCtrl = (m) => this.match.surCtrlClient(m);
         c.onJeu = (buf) => {
           const j = this.jeu;
           const inst = j?.role === 'client' ? decodeInstantane(buf) : null;
@@ -282,11 +250,11 @@ export class ParcoursLan {
         if (gen !== this.generation) return h.ferme();
         this.hote = h;
         h.onChange = () => this.suitPhase();
-        h.onDebut = () => this.lanceMatchHote();
+        h.onDebut = () => this.match.lanceMatchHote();
         h.onReaction = (r, de) => this.ajouteReaction(r, de);
         // un appareil arrive en plein match, ou un joueur revient après une coupure : il le prend en route
         const enRoute = (envoie: (m: MsgCtrl) => void) => {
-          if (this.jeu?.role === 'hote' && h.partie.phase === 'match') envoie({ t: 'debut', s0: this.seqInstantane + 1 });
+          if (this.jeu?.role === 'hote' && h.partie.phase === 'match') envoie({ t: 'debut', s0: this.match.prochainInstantane });
         };
         h.onArrivee = enRoute;
         h.onJoueurRevenu = enRoute;
@@ -421,161 +389,10 @@ export class ParcoursLan {
     if (moi) this.agit({ a: 'pret', pret: !moi.pret });
   }
 
-  // ------------------------------------------------------ match en réseau
-
-  /** Hôte : tous les joueurs ont validé, le match commence. */
-  private lanceMatchHote(): void {
-    const h = this.hote;
-    if (!h) return;
-    h.envoieCtrl({ t: 'debut', s0: this.seqInstantane + 1 });
-    this.demarreMatch(h.partie, { role: 'hote', eqLocal: 0, dernierEnvoi: 0 });
-  }
-
-  private demarreMatch(e: EtatPartieLan, jeu: JeuReseau): void {
-    const app = this.app;
-    app.audio.init();
-    void demandePleinEcranPaysage();
-    const [c0, c1] = e.camps;
-    const eqs: [EquipeVisuelle, EquipeVisuelle] = [resoutEquipe(trouveTeamDef(c0.equipe), c0.variante), resoutEquipe(trouveTeamDef(c1.equipe), c1.variante)];
-    const comp = compositionHumaine(e);
-    this.siegesCore = [siegeReel(e, 0, 0), siegeReel(e, 0, 1), siegeReel(e, 1, 0), siegeReel(e, 1, 1)];
-    app.equipesActuelles = eqs;
-    app.effets.definitEquipes(eqs);
-    app.construitDecor();
-    const c = e.config;
-    const options: OptionsPartie = {
-      mode: 'match',
-      // versus : coéquipiers CPU au même niveau des deux côtés, seul le talent des humains départage ;
-      // coop : le niveau du CPU est celui que l'hôte a réglé
-      niveauIdx: c.format === 'coop' ? c.niveau : 1,
-      dureeIdx: Math.min(c.duree, DUREES.length - 1),
-      effectifIdx: Math.min(c.effectif, EFFECTIFS.length - 1),
-      equipeJoueur: trouveEquipe(eqs[0].teamId),
-      equipeAdverse: trouveEquipe(eqs[1].teamId),
-      assistTir: c.assistTir,
-      assistPasse: c.assistPasse,
-      changementAuto: c.changementAuto,
-      humains: comp.humains,
-      duo: comp.duo,
-      bonus: c.format === 'coop' ? ['aucun', 'aucun'] : [...e.bonus],
-      dureeBut: dureeBut(c.ralenti),
-      pouvoirs: c.pouvoirs,
-    };
-    this.phaseHote = null;
-    app.demarreRalenti(options);
-    app.state = creePartie(app.rink!, options);
-    this.jeu = jeu;
-    this.phaseVue = 'match';
-    // repris en route (retour après une coupure) : le compte à rebours de reprise est peut-être en cours
-    this.finReprise = e.reprise > 0 ? performance.now() / 1000 + e.reprise : null;
-    app.cumul = 0;
-    app.effets.reinitialise();
-    app.entrees.reinitialise();
-    app.ecranUI = 'jeu';
-    app.enPause = false;
-    // repris en route : le compte à rebours de reprise suffit
-    if (this.finReprise === null) app.effets.annonce('PRETS ?', c.format === '1v1' ? 'MATCH EN RESEAU' : LIBELLES_FORMAT[c.format], C.blanc, 1.5);
-  }
-
-  private surCtrlClient(m: MsgCtrl): void {
-    if (m.t === 'debut') {
-      const c = this.client;
-      const e = c?.partie;
-      if (c && e) {
-        const s = c.siege;
-        this.demarreMatch(e, { role: 'client', eqLocal: s === null ? 0 : campDe(s), synchro: new SynchroClient(m.s0), spectateur: s === null });
-      }
-    } else if (m.t === 'reaction') {
-      this.ajouteReaction(m.r, m.de);
-    } else if (m.t === 'ev') {
-      if (this.jeu?.role === 'client') this.jeu.synchro.recoitEvenements(m.k, m.l);
-    }
-  }
-
-  /**
-   * Hôte, à chaque image et sur tous les écrans : compte à rebours de
-   * reprise, attente d'un invité absent (qui peut tomber hors match aussi),
-   * et score du match en cours repris dans l'annonce.
-   */
-  avanceHote(dt: number, state: MatchState | null): void {
-    const h = this.hote;
-    if (!h) return;
-    h.avance(dt);
-    if (this.jeu && state) h.majScore(state.score);
-  }
-
-  /** Hôte : évènements du pas (sons, particules...) pour l'invité et les spectateurs. */
-  diffuseEvenements(state: MatchState): void {
-    if (this.jeu) this.hote?.envoieCtrl({ t: 'ev', k: state.temps, l: evenementsPourEnvoi(state.evenements) });
-  }
-
-  /** Hôte : ~60 instantanés/s en jeu ; 4/s suffisent pendant une pause (rien ne bouge). */
-  diffuseInstantane(state: MatchState, rink: Rink, t: number): void {
-    const j = this.jeu;
-    if (!this.hote || j?.role !== 'hote' || t - j.dernierEnvoi < (this.pause ? 250 : 12)) return;
-    this.hote.envoieJeu(encodeInstantane(state, rink, ++this.seqInstantane));
-    j.dernierEnvoi = t;
-  }
-
-  /** Hôte : nouveau but → votes « passer » remis à zéro ; tous ont passé → remise en jeu. */
-  arbitreRalenti(state: MatchState): void {
-    const h = this.hote;
-    if (this.jeu?.role !== 'hote' || !h) return;
-    if (state.phase === 'but' && this.phaseHote !== 'but') h.debutRalenti();
-    this.phaseHote = state.phase;
-    if (state.phase === 'but' && tousOntPasse(h.partie)) state.phaseT = Math.min(state.phaseT, 0.4);
-  }
-
-  /** Client : envoie ses entrées, puis affiche l'état interpolé reçu de l'hôte. */
-  boucleClient(dt: number): void {
-    const app = this.app;
-    const j = this.jeu;
-    const state = app.state;
-    const rink = app.rink;
-    const c = this.client;
-    if (j?.role !== 'client' || !state || !rink || !c) return;
-    const synchro = j.synchro;
-    const maintenant = performance.now() / 1000;
-    let intent = app.ecranUI === 'jeu' && !this.pause && !this.spectateur ? app.entrees.consomme() : INTENT_VIDE;
-    const r = synchro.rinkHote;
-    if (r) {
-      const kx = r.w / rink.w;
-      const ky = r.h / rink.h;
-      const [ix, iy] = directionVersHote(intent.ix, intent.iy, kx, ky);
-      const visee = intent.viseeManuelle === null ? null : angleVersHote(intent.viseeManuelle, kx, ky);
-      intent = { ...intent, ix, iy, viseeManuelle: visee };
-    }
-    c.envoieEntree(intent);
-    const evs = synchro.avance(state, rink, dt, maintenant);
-    if (evs.length) {
-      joueEvenements(app.audio, evs);
-      app.effets.traite(evs);
-    }
-    app.effets.maj(dt);
-    app.majRalenti(state, dt, false);
-    if (state.phase === 'fin' && app.ecranUI === 'jeu') app.surFinMatch();
-  }
-
-  /** Fin d'un match réseau : place au vote côté hôte, et bilan des duels gardé sur chaque appareil. */
-  finMatch(state: MatchState): void {
-    if (!this.jeu) return;
-    if (this.jeu.role === 'hote') this.hote?.finMatch();
-    this.phaseVue = 'fin';
-    // le bilan des duels ne compte que le 1 contre 1
-    const e = this.partie;
-    const adversaire = e && e.config.format === '1v1' ? joueursAssis(e).find((j) => j.appareil !== this.app.pref.appareil) : null;
-    if (adversaire && !this.spectateur) {
-      const moi = this.eqLocal;
-      const eux = moi === 0 ? 1 : 0;
-      const sc = state.score;
-      noteDuel(this.app.pref, adversaire.appareil, adversaire.nom, sc[moi] > sc[eux] ? 'v' : sc[moi] < sc[eux] ? 'd' : 'n');
-    }
-  }
-
   // ----------------------------------------------------------- réactions
 
   /** Une réaction reçue (ou émise ici, côté hôte) : elle monte le long du bord droit. */
-  private ajouteReaction(r: string, de: string): void {
+  ajouteReaction(r: string, de: string): void {
     const t = performance.now() / 1000;
     this.reactions = this.reactions.filter((a) => t - a.t0 < REACTION_VIE_S);
     const couloir = this.reactions.length ? (this.reactions[this.reactions.length - 1]!.couloir + 1) % 3 : 0;

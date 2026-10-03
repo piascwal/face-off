@@ -242,7 +242,7 @@ export class GameApp {
       const moi = this.lan.eqLocal;
       this.imageFin.montre(sc[moi] > sc[moi === 0 ? 1 : 0]);
     }
-    if (this.lan.jeu) this.lan.finMatch(s);
+    if (this.lan.jeu) this.lan.match.finMatch(s);
     else this.coupe.noteMatch(s);
   }
 
@@ -405,16 +405,16 @@ export class GameApp {
     const state = this.state;
     const lan = this.lan;
     const reseau = lan.jeu;
-    lan.avanceHote(dt, state);
+    lan.match.avanceHote(dt, state);
     if (reseau?.role === 'client') {
-      lan.boucleClient(dt);
+      lan.match.boucleClient(dt);
     } else if ((!this.portrait || reseau) && (!this.enPause || reseau) && state && this.rink) {
       // en réseau, l'hôte ne met jamais la simulation en pause : l'autre joueur continue
       const hote = reseau ? lan.hote : null;
       const maintenant = performance.now() / 1000;
       // l'hôte pilote son patineur (siège 0) ; chaque autre joueur, celui de son siège
       const entree = (eq: TeamId, partenaire?: boolean): InputIntent => {
-        const siege = hote ? lan.siegeCore(eq, !!partenaire) : eq === 0 && !partenaire ? 0 : null;
+        const siege = hote ? lan.match.siegeCore(eq, !!partenaire) : eq === 0 && !partenaire ? 0 : null;
         if (siege === 0) return this.entrees.consomme();
         return hote && siege !== null ? hote.entreeSiege(siege, maintenant) : INTENT_VIDE;
       };
@@ -425,14 +425,14 @@ export class GameApp {
         this.cumul -= PAS_FIXE;
       }
       if (state.evenements.length) {
-        lan.diffuseEvenements(state);
+        lan.match.diffuseEvenements(state);
         joueEvenements(this.audio, state.evenements);
         this.effets.traite(state.evenements);
         state.evenements.length = 0;
       }
-      lan.diffuseInstantane(state, this.rink, t);
+      lan.match.diffuseInstantane(state, this.rink, t);
       this.effets.maj(dt);
-      lan.arbitreRalenti(state);
+      lan.match.arbitreRalenti(state);
       this.majRalenti(state, dt, state.dureeBut > DUREE_BUT);
       if (state.phase === 'fin' && state.mode === 'match' && this.ecranUI !== 'fin') {
         this.surFinMatch();

@@ -2,7 +2,21 @@
 
 import { NIVEAUX } from '@core/constants';
 import { BONUS_EQUIPE, type BonusEquipe } from '@core/types';
-import { estFormat, REPRISE_S, SPECTATEURS_MAX, type ActionLan, type CampLan, type ConfigLan, type EtatPartieLan, type JoueurLan, type MembreLan, type PhaseLan, type Siege, type VarianteMaillot, type VoteFin } from './partie-modele';
+import {
+  estFormat,
+  REPRISE_S,
+  SPECTATEURS_MAX,
+  type ActionLan,
+  type CampLan,
+  type ConfigLan,
+  type EtatPartieLan,
+  type JoueurLan,
+  type MembreLan,
+  type PhaseLan,
+  type Siege,
+  type VarianteMaillot,
+  type VoteFin,
+} from './partie-modele';
 
 // ------------------------------------------------------------- validation --
 

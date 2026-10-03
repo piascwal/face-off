@@ -1,5 +1,13 @@
 import type { GameEvent } from '@core/types';
-import { APPAREIL_SUR, estReaction, lisAction, lisEtatPartie, type ActionLan, type EtatPartieLan, type Reaction } from './partie';
+import {
+  APPAREIL_SUR,
+  estReaction,
+  lisAction,
+  lisEtatPartie,
+  type ActionLan,
+  type EtatPartieLan,
+  type Reaction,
+} from './partie';
 import { idAleatoire, VERSION_PROTOCOLE } from './reseau-local';
 
 /**
