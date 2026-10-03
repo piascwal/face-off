@@ -854,7 +854,7 @@ de la culotte et de la crosse (et la grille du dessin si la source n'a pas la
 même taille), puis relancer la conversion et `npm run sprites`. Sept
 dessins pour l'instant : jambe levée, à genou poing levé, crosse brandie
 au-dessus de la tête, bras écartés, crosse jouée comme une guitare, main sur
-le cœur, barbu qui pointe le gant vers la foule (sans crosse ; réduit pour que sa taille de joueur égale celle des autres). Tous gardent la même échelle (calée sur
+le cœur, barbu qui pointe le gant vers la foule (sans crosse ; calé pour que sa hauteur de joueur égale celle des autres). Tous gardent la même échelle (calée sur
 le premier dessin) : un joueur à genou reste plus petit qu'un joueur debout.
 
 **Joueur au sol.** Le défenseur esquivé a ses propres dessins
