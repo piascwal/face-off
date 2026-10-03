@@ -4,6 +4,8 @@ export * from './aide-commandes';
 export * from './effects';
 export * from './entrainement';
 export * from './entities-render';
+export * from './gardien-palet-render';
+export * from './particules-render';
 export * from './fins';
 export * from './hud';
 export * from './hud-bonus';
