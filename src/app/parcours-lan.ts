@@ -21,7 +21,9 @@ import {
   type Siege,
 } from '@net/partie';
 import { angleVersHote, decodeInstantane, directionVersHote, encodeInstantane, evenementsPourEnvoi, type MsgCtrl } from '@net/protocole';
-import { SessionClient, SessionHote, type RaisonFin } from '@net/session';
+import { SessionClient } from '@net/session-client';
+import type { RaisonFin } from '@net/session-commun';
+import { SessionHote } from '@net/session-hote';
 import { SynchroClient } from '@net/synchro';
 import { joueEvenements } from '@audio/sound';
 import {
