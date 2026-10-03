@@ -1,7 +1,4 @@
-import { menaceEchec } from '@core/actions';
-import { boutonBonus, DEF_POUVOIRS, TREMBLEMENT_CHUTE } from '@core/pouvoirs';
 import { GivreEcran } from '@render/givre-ecran';
-import { dessineLoupe } from '@render/loupe-ecran';
 import { calculeRink, reprojette } from '@core/rink';
 import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
 import { pas } from '@core/simulation';
@@ -11,24 +8,12 @@ import { joueEvenements, MoteurAudio } from '@audio/sound';
 import { GestionnaireEntreesJeu, type PointLogique } from '@input/game-input';
 import {
   BanqueSprites,
-  C,
   clicSurBouton,
   construitFoule,
   construitGlace,
-  dessineBanniere,
-  dessineCelebration,
-  dessineCommandes,
-  dessineJaugesBonus,
-  dessineJaugeTir,
-  dessineLogoBut,
-  dessinePortrait,
-  dessineRalenti,
-  dessineScene,
-  dessineTableau,
   EQUIPES_JOUABLES,
   resoutEquipe,
   SystemeEffets,
-  texte,
   TracesGlace,
   trouveTeamDef,
   type DecorPatinoire,
@@ -36,10 +21,11 @@ import {
   type TeamDef,
   type ZoneBouton,
 } from '@render/index';
-import { ECRANS_MENU, type EcranUI } from './ecrans';
+import { type EcranUI } from './ecrans';
 import { ImageFinMatch } from './image-fin';
 import { ParcoursCoupe } from './parcours-coupe';
 import { ParcoursLan } from './parcours-lan';
+import { rendu } from './rendu-app';
 import { ParcoursSolo } from './parcours-solo';
 import { chargePreferences, type Preferences } from './preferences';
 import { Ralenti } from './ralenti';
@@ -62,21 +48,21 @@ function equipeAdverseParDefaut(idJoueur: string): TeamDef {
  * Les champs publics ci-dessous sont l'état partagé avec ces parcours.
  */
 export class GameApp {
-  private readonly ecran: HTMLCanvasElement;
+  readonly ecran: HTMLCanvasElement;
   /**
    * On dessine directement à la résolution de l'écran, avec une échelle de
    * base ECHELLE : décor, texte et HUD gardent leurs gros pixels logiques,
    * tandis que les sprites des joueurs (pixels de 36/56 px logique) gardent
    * tout leur détail.
    */
-  private readonly g: CanvasRenderingContext2D;
-  private ECHELLE = 1;
-  private portrait = false;
-  private decor: DecorPatinoire | null = null;
+  readonly g: CanvasRenderingContext2D;
+  ECHELLE = 1;
+  portrait = false;
+  decor: DecorPatinoire | null = null;
   private dernier = 0;
   /** Options du match en cours, pour recréer un état d'affichage dédié au ralenti. */
   private optionsMatch: OptionsPartie | null = null;
-  private etatRalenti: MatchState | null = null;
+  etatRalenti: MatchState | null = null;
   private readonly pleinEcran = new PleinEcranAuPremierGeste();
   /**
    * Tant que c'est vrai (et qu'on est sur le menu), le tout premier geste de
@@ -86,7 +72,7 @@ export class GameApp {
    * affichée au-dessus du tout début du match. Ici, elle apparaît et
    * disparaît avant même que le joueur ait choisi son équipe.
    */
-  private attenteDemarrage = !estAutonome();
+  attenteDemarrage = !estAutonome();
 
   // ------------------------------------------ état partagé avec les parcours
   /** Taille logique de l'écran (px). */
@@ -106,7 +92,7 @@ export class GameApp {
   readonly sprites = new BanqueSprites();
   readonly audio = new MoteurAudio();
   readonly effets = new SystemeEffets();
-  private readonly givre = new GivreEcran();
+  readonly givre = new GivreEcran();
   readonly entrees = new GestionnaireEntreesJeu();
   readonly ralenti = new Ralenti();
   readonly imageFin = new ImageFinMatch();
@@ -269,7 +255,7 @@ export class GameApp {
   }
 
   /** PASSER : en solo tout de suite ; en Wi-Fi, le jeu reprend quand les deux ont passé. */
-  private passeRalenti(): void {
+  passeRalenti(): void {
     if (!this.ralenti.actif) return;
     if (this.lan.jeu) {
       this.lan.agit({ a: 'passer' });
@@ -444,140 +430,6 @@ export class GameApp {
   }
 
   private rendu(): void {
-    this.boutons = [];
-    const g = this.g;
-    const E = this.ECHELLE;
-    g.setTransform(E, 0, 0, E, 0, 0);
-    g.imageSmoothingEnabled = false;
-    g.globalAlpha = 1;
-    g.globalCompositeOperation = 'source-over';
-    const temps = performance.now() / 1000;
-
-    if (this.portrait || !this.state || !this.rink || !this.decor) {
-      dessinePortrait(g, this.W, this.H, temps);
-      return;
-    }
-    const state = this.state;
-    const lan = this.lan;
-    g.fillStyle = C.nuit;
-    g.fillRect(0, 0, this.W, this.H);
-    this.secousseTremblement(state);
-    const s = this.effets.secousse;
-    const sx = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
-    const sy = s > 0.2 ? Math.round((Math.random() * 2 - 1) * s) : 0;
-    g.setTransform(E, 0, 0, E, sx * E, sy * E);
-    const ralenti = this.ralenti.actif && !!this.etatRalenti && this.ecranUI === 'jeu';
-    const vue = ralenti ? this.etatRalenti! : state;
-    dessineScene(
-      g,
-      this.rink,
-      vue,
-      this.decor,
-      this.sprites,
-      this.effets,
-      this.ecranUI,
-      this.equipesActuelles,
-      lan.spectateur ? null : lan.eqLocal,
-      lan.pilote(vue),
-    );
-    g.setTransform(E, 0, 0, E, 0, 0);
-    // bonus « givre » : l'écran de tout le monde gèle (la patinoire seulement, pas le tableau ni les commandes)
-    if (!ralenti) this.givre.dessine(g, this.ecran, this.W, this.H, E, forceBonus(state, 'givre', 0.5, 1), temps);
-    const enMatch = !ECRANS_MENU.includes(this.ecranUI);
-    // empilement lors d'un but : patinoire, écusson géant, puis tableau et bandeau
-    if (enMatch) {
-      if (!ralenti) dessineLogoBut(g, this.W, this.H, this.rink, this.effets.banniere, this.ecranUI, temps);
-      if (!ralenti) dessineJaugesBonus(g, this.W, state, lan.spectateur ? null : lan.eqLocal, temps);
-      dessineTableau(g, this.W, state, this.ecranUI, this.equipesActuelles);
-    }
-    if (!ralenti && (this.ecranUI === 'menu' || enMatch)) dessineBanniere(g, this.W, this.rink, this.effets.banniere, this.ecranUI);
-    // le buteur qui fête son but passe au premier plan, devant l'écusson et le bandeau
-    if (!ralenti && enMatch) dessineCelebration(g, this.W, this.H, this.sprites, this.effets.banniere, this.ecranUI);
-    if (enMatch) lan.vues.dessineEtatReseau(g, temps);
-
-    if (this.ecranUI === 'jeu') this.dessineSurMatch(g, temps, state, ralenti);
-    else if (this.ecranUI === 'fin' && this.imageFin.dessine(g, this.W, this.H, this.equipesActuelles[lan.eqLocal]) && this.imageFin.seule()) {
-      // image de victoire / défaite seule, avant que les statistiques s'y superposent
-    } else {
-      // chaque parcours dessine ses écrans (le Wi-Fi d'abord : il a aussi sa fin de match)
-      void (lan.vues.dessine(g, temps, state) || this.coupe.dessine(g, temps) || this.solo.dessine(g, temps, state));
-    }
-    // loupé complet : le palet frappe la caméra, l'écran se brise (par-dessus tout le jeu)
-    if (enMatch && !ralenti) dessineLoupe(g, this.W, this.H, state);
-    lan.vues.dessineCoupure(g, temps);
-    lan.vues.dessineReactions(g, temps);
-    if (this.effets.flash > 0) {
-      g.fillStyle = `rgba(255,255,255,${this.effets.flash * 0.5})`;
-      g.fillRect(0, 0, this.W, this.H);
-    }
-    if (this.attenteDemarrage && this.ecranUI === 'menu') this.dessineEcranDemarrage(g, temps);
+    rendu(this);
   }
-
-  /** Bonus « tremblement » : l'écran tremble fort tant que les joueurs sont au sol. */
-  private secousseTremblement(state: MatchState): void {
-    for (const pv of state.pouvoirs ?? []) {
-      if (pv.actif !== 'tremblement') continue;
-      const age = DEF_POUVOIRS.tremblement.duree - pv.reste;
-      if (age < TREMBLEMENT_CHUTE) this.effets.secousse = Math.max(this.effets.secousse, 4.5 * (1 - age / TREMBLEMENT_CHUTE) * this.effets.intensiteEcran + 1);
-    }
-  }
-
-  /**
-   * Premier écran, par-dessus le menu : un seul geste (clic, appui, touche)
-   * suffit à passer en plein écran, avant que le joueur touche un vrai
-   * bouton. Voir `attenteDemarrage`.
-   */
-  private dessineEcranDemarrage(g: CanvasRenderingContext2D, temps: number): void {
-    const cx = Math.round(this.W / 2);
-    const cy = Math.round(this.H / 2);
-    g.fillStyle = 'rgba(5,6,13,0.82)';
-    g.fillRect(0, 0, this.W, this.H);
-    const pulse = Math.sin(temps * 5) > 0;
-    texte(g, 'APPUYEZ POUR COMMENCER', cx, cy - 5, pulse ? C.or : C.blanc, 2, 'c');
-    texte(g, 'LE JEU PASSE EN PLEIN ECRAN', cx, cy + 15, '#6f7aa6', 1, 'c');
-  }
-
-  /** Par-dessus le match : pause Wi-Fi, ralenti du but, ou commandes tactiles. */
-  private dessineSurMatch(g: CanvasRenderingContext2D, temps: number, state: MatchState, ralenti: boolean): void {
-    const lan = this.lan;
-    if (lan.vues.dessinePauseMatch(g)) return;
-    if (ralenti) {
-      const partie = lan.partie;
-      const enLan = !!partie && !!lan.jeu;
-      const siege = lan.siege;
-      const passe = enLan && siege !== null && partie!.ralentiPasse[siege];
-      // les joueurs qui n'ont pas encore passé le ralenti
-      const attendus = partie ? partie.sieges.flatMap((j, i) => (j && !partie.ralentiPasse[i] ? [j.nom] : [])).join(' ET ') : '';
-      dessineRalenti(g, this.boutons, this.W, this.H, temps, {
-        progression: this.ralenti.progression,
-        // le spectateur ne passe pas le ralenti : les joueurs décident
-        attente: lan.spectateur ? 'RALENTI DU BUT' : passe ? `EN ATTENTE DE ${attendus}` : null,
-        onPasser: () => this.passeRalenti(),
-      });
-      return;
-    }
-    // le spectateur n'a pas de commandes : sa barre de réactions est dessinée à part
-    if (lan.spectateur) return;
-    const pilote = lan.pilote(state);
-    const ui = this.entrees.instantaneUI();
-    // bonus qui se joue avec un bouton (tir surpuissant) : ce bouton passe en or
-    const boutonDore = boutonBonus(state, lan.eqLocal, pilote);
-    dessineCommandes(g, this.W, this.H, state.temps, pilote, ui, !!pilote && menaceEchec(state, pilote) !== null, boutonDore);
-    if (pilote?.arme) dessineJaugeTir(g, this.H, pilote.charge, state.temps);
-  }
-}
-
-/**
- * Force (0..1) d'un effet d'écran lié à un bonus en cours, de l'une ou
- * l'autre équipe : il monte en `entree` s, et retombe dans les `sortie`
- * dernières secondes.
- */
-function forceBonus(state: MatchState, id: 'givre', entree: number, sortie: number): number {
-  let f = 0;
-  for (const pv of state.pouvoirs ?? []) {
-    if (pv.actif !== id) continue;
-    const age = DEF_POUVOIRS[id].duree - pv.reste;
-    f = Math.max(f, Math.min(1, age / entree, pv.reste / sortie));
-  }
-  return f;
 }
