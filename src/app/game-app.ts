@@ -6,7 +6,7 @@ import { calculeRink, reprojette } from '@core/rink';
 import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
 import { pas } from '@core/simulation';
 import { INTENT_VIDE, type InputIntent, type MatchState, type Rink, type TeamId } from '@core/types';
-import { decodeInstantane, encodeInstantane } from '@net/protocole';
+import { decodeInstantane, encodeInstantane } from '@net/instantane';
 import { joueEvenements, MoteurAudio } from '@audio/sound';
 import { GestionnaireEntreesJeu, type PointLogique } from '@input/game-input';
 import {

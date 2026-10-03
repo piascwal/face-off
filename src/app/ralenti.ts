@@ -1,7 +1,7 @@
 import { DUREE_BUT } from '@core/rules';
 import { CELEBRATION } from '@render/celebration';
 import type { GamePhase, MatchState, Rink } from '@core/types';
-import { appliqueInstantane, type Instantane } from '@net/protocole';
+import { appliqueInstantane, type Instantane } from '@net/instantane';
 
 /**
  * Célébration en direct (bandeau, écusson, buteur qui traverse l'écran) avant

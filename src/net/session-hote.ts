@@ -27,7 +27,8 @@ type ConfigLan,
 type EtatPartieLan,
 type Reaction, type Siege
 } from './partie';
-import { EntreeDistante, lisCtrl, type MsgCtrl } from './protocole';
+import { EntreeDistante } from './entrees';
+import { lisCtrl, type MsgCtrl } from './protocole';
 import { VERSION_PROTOCOLE } from './reseau-local';
 import { courtiers, delaiReconnexion, ipsDuReseau, plageStricte, REACTION_MIN_MS, salonsDuReseau, Veille, type RaisonFin } from './session-commun';
 

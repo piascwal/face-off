@@ -6,7 +6,7 @@ import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
 import { pas } from '../src/core/simulation';
 import { INTENT_VIDE, type MatchState, type Skater } from '../src/core/types';
-import { appliqueInstantane, decodeInstantane, encodeInstantane } from '../src/net/protocole';
+import { appliqueInstantane, decodeInstantane, encodeInstantane } from '../src/net/instantane';
 import { appliqueAction, arrive, lisAction, lisConfig, nouvellePartie, type ConfigLan } from '../src/net/partie';
 
 const rink = calculeRink(400, 200);

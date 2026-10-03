@@ -5,7 +5,7 @@ import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
 import { pas } from '../src/core/simulation';
 import type { MatchState, Skater, TeamId } from '../src/core/types';
-import { appliqueInstantane, decodeInstantane, encodeInstantane } from '../src/net/protocole';
+import { appliqueInstantane, decodeInstantane, encodeInstantane } from '../src/net/instantane';
 
 const rink = calculeRink(400, 200);
 

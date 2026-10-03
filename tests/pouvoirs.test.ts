@@ -40,13 +40,8 @@ import { calculeRink } from '../src/core/rink';
 import { creePartie, engagement } from '../src/core/rules';
 import { pas } from '../src/core/simulation';
 import type { MatchState, PouvoirId, Skater, TeamId } from '../src/core/types';
-import {
-  appliqueInstantane,
-  decodeInstantane,
-  EmetteurEntrees,
-  encodeInstantane,
-  EntreeDistante,
-} from '../src/net/protocole';
+import { appliqueInstantane, decodeInstantane, encodeInstantane } from '../src/net/instantane';
+import { EmetteurEntrees, EntreeDistante } from '../src/net/entrees';
 import { INTENT_VIDE } from '../src/core/types';
 
 const rink = calculeRink(400, 200);

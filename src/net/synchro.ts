@@ -1,5 +1,6 @@
 import type { GameEvent, MatchState, Rink } from '@core/types';
-import { appliqueInstantane, lisEvenement, type Instantane } from './protocole';
+import { appliqueInstantane, type Instantane } from './instantane';
+import { lisEvenement } from './protocole';
 
 const DELAI_MIN = 0.025;
 const DELAI_MAX = 0.2;

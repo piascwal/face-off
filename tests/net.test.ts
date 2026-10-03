@@ -5,17 +5,9 @@ import { pas } from '../src/core/simulation';
 import { INTENT_VIDE, type InputIntent } from '../src/core/types';
 import { valideAnnonce, valideSignal } from '../src/net/annuaire';
 import { correspond, encodeLongueur, LecteurMqtt, lisPublish, MQTT_PUBLISH, paquetPublish } from '../src/net/mqtt';
-import {
-  appliqueInstantane,
-  bonjour,
-  decodeInstantane,
-  EmetteurEntrees,
-  encodeInstantane,
-  EntreeDistante,
-  lisCtrl,
-  lisEvenement,
-  SILENCE_ENTREE_S,
-} from '../src/net/protocole';
+import { appliqueInstantane, decodeInstantane, encodeInstantane } from '../src/net/instantane';
+import { bonjour, lisCtrl, lisEvenement } from '../src/net/protocole';
+import { EmetteurEntrees, EntreeDistante, SILENCE_ENTREE_S } from '../src/net/entrees';
 import { adresseSrflx, chiffre, cleReseau, dechiffre, salonPour } from '../src/net/reseau-local';
 
 describe('MQTT minimal', () => {

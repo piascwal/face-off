@@ -20,7 +20,9 @@ import {
   type PhaseLan,
   type Siege,
 } from '@net/partie';
-import { angleVersHote, decodeInstantane, directionVersHote, encodeInstantane, evenementsPourEnvoi, type MsgCtrl } from '@net/protocole';
+import { angleVersHote, directionVersHote } from '@net/entrees';
+import { decodeInstantane, encodeInstantane } from '@net/instantane';
+import { evenementsPourEnvoi, type MsgCtrl } from '@net/protocole';
 import { SessionClient } from '@net/session-client';
 import type { RaisonFin } from '@net/session-commun';
 import { SessionHote } from '@net/session-hote';

@@ -6,7 +6,7 @@ import { creePartie } from '../src/core/rules';
 import { pas } from '../src/core/simulation';
 import { INTENT_VIDE } from '../src/core/types';
 import { appliqueAction, arrive, lisAction, lisEtatPartie, nouvellePartie } from '../src/net/partie';
-import { decodeInstantane, encodeInstantane } from '../src/net/protocole';
+import { decodeInstantane, encodeInstantane } from '../src/net/instantane';
 
 const rink = calculeRink(400, 200);
 const match = (extra = {}) => creePartie(rink, { mode: 'match', niveauIdx: 1, dureeIdx: 1, effectifIdx: 1, ...extra });

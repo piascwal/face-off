@@ -10,7 +10,8 @@ type Reaction,
 type Role,
 type Siege
 } from './partie';
-import { bonjour, EmetteurEntrees, lisCtrl, type MsgCtrl } from './protocole';
+import { bonjour, lisCtrl, type MsgCtrl } from './protocole';
+import { EmetteurEntrees } from './entrees';
 import { idAleatoire, VERSION_PROTOCOLE } from './reseau-local';
 import { attente, courtiers, delaiReconnexion, ipsDuReseau, plageStricte, salonsDuReseau, Veille, type RaisonFin } from './session-commun';
 
