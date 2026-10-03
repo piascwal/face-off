@@ -412,9 +412,12 @@ export class GameApp {
       // en réseau, l'hôte ne met jamais la simulation en pause : l'autre joueur continue
       const hote = reseau ? lan.hote : null;
       const maintenant = performance.now() / 1000;
-      // l'hôte pilote le patineur de l'équipe 0 ; l'invité, l'équipe 1 (versus) ou le partenaire (coop)
-      const entree = (eq: TeamId, partenaire?: boolean): InputIntent =>
-        eq === 0 && !partenaire ? this.entrees.consomme() : hote ? hote.entreeInvite(maintenant) : INTENT_VIDE;
+      // l'hôte pilote son patineur (siège 0) ; chaque autre joueur, celui de son siège
+      const entree = (eq: TeamId, partenaire?: boolean): InputIntent => {
+        const siege = hote ? lan.siegeCore(eq, !!partenaire) : eq === 0 && !partenaire ? 0 : null;
+        if (siege === 0) return this.entrees.consomme();
+        return hote && siege !== null ? hote.entreeSiege(siege, maintenant) : INTENT_VIDE;
+      };
       // pause partagée : la simulation est figée pour les deux joueurs
       this.cumul = lan.pause ? 0 : this.cumul + dt;
       while (this.cumul >= PAS_FIXE) {
@@ -541,12 +544,14 @@ export class GameApp {
     if (ralenti) {
       const partie = lan.partie;
       const enLan = !!partie && !!lan.jeu;
-      const passe = enLan && partie!.ralentiPasse[lan.place];
-      const autre = partie?.joueurs[lan.place === 0 ? 1 : 0];
+      const siege = lan.siege;
+      const passe = enLan && siege !== null && partie!.ralentiPasse[siege];
+      // les joueurs qui n'ont pas encore passé le ralenti
+      const attendus = partie ? partie.sieges.flatMap((j, i) => (j && !partie.ralentiPasse[i] ? [j.nom] : [])).join(' ET ') : '';
       dessineRalenti(g, this.boutons, this.W, this.H, temps, {
         progression: this.ralenti.progression,
         // le spectateur ne passe pas le ralenti : les joueurs décident
-        attente: lan.spectateur ? 'RALENTI DU BUT' : passe ? `EN ATTENTE DE ${autre?.nom ?? ''}` : null,
+        attente: lan.spectateur ? 'RALENTI DU BUT' : passe ? `EN ATTENTE DE ${attendus}` : null,
         onPasser: () => this.passeRalenti(),
       });
       return;

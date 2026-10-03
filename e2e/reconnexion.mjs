@@ -20,8 +20,8 @@ export default async function reconnexion(env) {
   await lan.lanceMatch(env, hote, invite);
   const spect = await env.appareil('SPECT', { pseudo: 'OURS 22', parametres: PARAMS });
   await spect.page.evaluate(() => window.faceOff.lan.ouvre());
-  await env.attendsQue(spect.page, () => window.faceOff.lan.client?.parties.some((p) => p.plein));
-  await spect.page.evaluate(() => window.faceOff.lan.rejoins(window.faceOff.lan.client.parties.find((p) => p.plein), true));
+  await env.attendsQue(spect.page, () => window.faceOff.lan.client?.parties.some((p) => p.enCours));
+  await spect.page.evaluate(() => window.faceOff.lan.rejoins(window.faceOff.lan.client.parties.find((p) => p.enCours), true));
   env.verifie(await env.attendsQue(spect.page, () => window.faceOff.ecranUI === 'jeu' && window.faceOff.lan.spectateur), 'un spectateur regarde le match');
 
   // on attend la fin du « PRÊTS ? », puis le score passe à 2-1
@@ -35,7 +35,7 @@ export default async function reconnexion(env) {
   env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.absence > 0, null, 8000), 'l\'hôte garde la place de l\'invité');
   const fige = await hote.page.evaluate(() => {
     const e = window.faceOff.lan.hote.partie;
-    return e.pause === 1 && !!e.joueurs[1];
+    return e.pause === 2 && !!e.sieges[2];
   });
   env.verifie(fige, 'le match est figé, l\'invité reste inscrit');
   env.verifie(await env.attendsQue(spect.page, () => window.faceOff.lan.client.partie.absent > 0), 'le spectateur voit l\'attente');
@@ -43,7 +43,7 @@ export default async function reconnexion(env) {
   await env.capture(hote.page, '1-hote-attente');
   await env.capture(spect.page, '2-spectateur-attente');
   if (await env.attendsQue(invite.page, () => !!window.faceOff.lan.client?.reconnexion, null, 3000)) await env.capture(invite.page, '3-invite-reconnexion');
-  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.absence === 0 && !!window.faceOff.lan.hote.partie.joueurs[1], null, 14000), 'l\'invité revient tout seul');
+  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.absence === 0 && !!window.faceOff.lan.hote.partie.sieges[2], null, 14000), 'l\'invité revient tout seul');
   env.verifie(await env.attendsQue(invite.page, () => window.faceOff.ecranUI === 'jeu' && !window.faceOff.lan.client.reconnexion), 'l\'invité retrouve le match');
   const t1 = await hote.page.evaluate(() => window.faceOff.state.temps);
   env.verifie(Math.abs(t1 - t0) < 0.05, `le temps de jeu n'a pas avancé pendant la coupure (${t0.toFixed(2)} / ${t1.toFixed(2)})`);
@@ -58,7 +58,7 @@ export default async function reconnexion(env) {
   // les commandes de l'invité arrivent de nouveau à l'hôte
   await invite.page.keyboard.down('ArrowRight');
   await attends(600);
-  const entree = await hote.page.evaluate(() => window.faceOff.lan.hote.entreeInvite(performance.now() / 1000).ix);
+  const entree = await hote.page.evaluate(() => window.faceOff.lan.hote.entreeSiege(2, performance.now() / 1000).ix);
   await invite.page.keyboard.up('ArrowRight');
   env.verifie(entree !== 0, 'les commandes de l\'invité reviennent à l\'hôte');
 
@@ -72,7 +72,7 @@ export default async function reconnexion(env) {
     l.onJeu = () => {};
   });
   env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.absence > 0, null, 12000), 'l\'hôte détecte le silence et garde la place');
-  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.absence === 0 && !!window.faceOff.lan.hote.partie.joueurs[1], null, 16000), 'l\'invité revient après la coupure silencieuse');
+  env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.absence === 0 && !!window.faceOff.lan.hote.partie.sieges[2], null, 16000), 'l\'invité revient après la coupure silencieuse');
   env.verifie(await env.attendsQue(invite.page, () => window.faceOff.ecranUI === 'jeu' && !window.faceOff.lan.client.reconnexion), 'l\'invité est de nouveau dans le match');
 
   // ------------------------------------------------ 3. l'invité ne revient pas
@@ -80,27 +80,25 @@ export default async function reconnexion(env) {
   await invite.contexte.close();
   env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.absence > 0, null, 12000), 'appareil de l\'invité fermé : place gardée');
   env.verifie(
-    await env.attendsQue(hote.page, () => window.faceOff.ecranUI === 'salon' && !window.faceOff.lan.hote.partie.joueurs[1], null, 20000),
+    await env.attendsQue(hote.page, () => window.faceOff.ecranUI === 'salon' && !window.faceOff.lan.hote.partie.sieges[2], null, 20000),
     'délai écoulé : l\'hôte revient en salle d\'attente',
   );
   const msg = await hote.page.evaluate(() => window.faceOff.lan.salonMessage?.txt ?? '');
   env.verifie(msg.includes('BISON 15'), `message à l'hôte (« ${msg} »)`);
-  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.ecranUI === 'lanSpect'), 'le spectateur attend la prochaine partie');
+  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.ecranUI === 'salon'), 'le spectateur retrouve la salle d\'attente (il peut y prendre un siège)');
   await env.capture(hote.page, '5-hote-salon');
 
   // ------------------------------------------------ 4. coupure pendant le choix des équipes
   console.log('  — coupure pendant le choix des équipes');
   const invite2 = await env.appareil('INVITE2', { pseudo: 'PUMA 33', parametres: PARAMS });
-  await invite2.page.evaluate(() => window.faceOff.lan.ouvre());
-  await env.attendsQue(invite2.page, () => (window.faceOff.lan.client?.parties.length ?? 0) > 0);
-  await invite2.page.evaluate(() => window.faceOff.lan.rejoins(window.faceOff.lan.client.parties[0]));
-  await env.attendsQue(hote.page, () => !!window.faceOff.lan.hote?.partie.joueurs[1]);
+  await lan.rejoint(env, invite2);
+  await lan.prendSiege(env, invite2, 2);
   await hote.page.evaluate(() => window.faceOff.lan.agit({ a: 'lancer' }));
   env.verifie(await env.attendsQue(invite2.page, () => window.faceOff.ecranUI === 'lanChoix'), 'nouvel invité : choix des équipes');
   await invite2.contexte.close();
   env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.absence > 0, null, 12000), 'hors match aussi, la place est gardée');
   env.verifie(
-    await env.attendsQue(hote.page, () => window.faceOff.ecranUI === 'salon' && !window.faceOff.lan.hote.partie.joueurs[1], null, 20000),
+    await env.attendsQue(hote.page, () => window.faceOff.ecranUI === 'salon' && !window.faceOff.lan.hote.partie.sieges[2], null, 20000),
     'hors match, le délai s\'écoule aussi : retour en salle d\'attente',
   );
 }

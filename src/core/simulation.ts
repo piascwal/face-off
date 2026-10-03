@@ -19,7 +19,7 @@ import { alea } from './utils';
  * Avance la simulation d'un pas fixe. `entreeJoueur(eq)` n'est appelé qu'une
  * fois par pas et par équipe humaine, pour le patineur qu'elle contrôle —
  * c'est exactement l'`InputIntent` qu'un client réseau envoie à l'hôte. En
- * coop, `partenaire` vaut true pour le second humain de l'équipe 0 (l'invité).
+ * équipe à deux humains, `partenaire` vaut true pour le second.
  */
 export function pas(
   rink: Rink,
@@ -39,7 +39,7 @@ export function pas(
 
   for (const s of state.patineurs) {
     if (s.humain) {
-      const intent = entreeJoueur(s.eq, s === state.partenaire);
+      const intent = entreeJoueur(s.eq, s === state.partenaires[s.eq]);
       // bonus « freeze » : le joueur pris dans la glace ne fait rien (l'entrée est quand même lue)
       if (estGele(state, s)) s.ex = s.ey = 0;
       else appliqueEntreeJoueur(rink, state, s, intent, dt);

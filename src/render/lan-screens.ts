@@ -1,5 +1,6 @@
 import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
 import type { BonusEquipe, StatsMatch } from '@core/types';
+import type { FormatLan } from '@net/partie';
 import { largeurTexte, texte } from './pixel-font';
 import { px } from './primitives';
 import type { BanqueSprites } from './sprites';
@@ -16,16 +17,28 @@ export interface LignePartie {
   equipe: TeamDef;
   effectifIdx: number;
   dureeIdx: number;
-  /** Les deux joueurs sont là : on ne peut plus que regarder le match. */
-  plein: boolean;
+  /** La partie est lancée : les sièges sont pris, on ne peut plus que regarder le match. */
+  enCours: boolean;
+  format: FormatLan;
+  /** Joueurs déjà assis, et sièges du format. */
+  joueurs: number;
+  places: number;
   adverse: TeamDef | null;
   score: [number, number];
   spect: number;
-  /** Partie coop : on y joue avec l'hôte contre le CPU. */
-  coop: boolean;
   onRejoindre: () => void;
   onRegarder: () => void;
 }
+
+/** Libellés des formats de partie (voir net/partie). */
+export const LIBELLES_FORMAT: Record<FormatLan, string> = {
+  '1v1': '1 CONTRE 1',
+  '2v1': '2 CONTRE 1',
+  '1v2': '1 CONTRE 2',
+  '2v2': '2 CONTRE 2',
+  coop: 'COOP CONTRE CPU',
+};
+const COURT_FORMAT: Record<FormatLan, string> = { '1v1': '1V1', '2v1': '2V1', '1v2': '1V2', '2v2': '2V2', coop: 'COOP' };
 
 export type StatutLan = 'recherche' | 'pret' | 'erreur' | 'connexion' | 'creation';
 
@@ -52,7 +65,7 @@ export function dessineLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
   g.fillRect(0, 0, W, H);
   const cx = Math.round(W / 2);
   texte(g, 'MULTIJOUEUR WIFI', cx, 4, C.blanc, 2, 'c');
-  texte(g, "A DEUX SUR LE MEME WIFI - L'HOTE SERT DE SERVEUR", cx, 22, '#6f7aa6', 1, 'c');
+  texte(g, "JUSQU'A 4 JOUEURS ET DES SPECTATEURS SUR LE MEME WIFI", cx, 22, '#6f7aa6', 1, 'c');
 
   const pw = Math.min(W - 16, 330);
   const x0 = cx - pw / 2;
@@ -72,10 +85,10 @@ export function dessineLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
     px(g, x - 1, y - 1, w + 2, 18, C.contour);
     px(g, x, y, w, 16, '#1c2350');
     px(g, x, y, w, 1, '#3a4590');
-    px(g, x, y, 3, 16, p.plein ? '#3fb4e8' : p.equipe.interieur.maillot);
+    px(g, x, y, 3, 16, p.enCours ? '#3fb4e8' : p.equipe.interieur.maillot);
     texte(g, p.nom, x + 8, y + 4, C.blanc, 1, 'g');
-    if (p.plein) {
-      // partie complète : le match en cours, à regarder en spectateur ; les
+    if (p.enCours) {
+      // partie lancée : le match en cours, à regarder en spectateur ; les
       // textes sont placés selon leur largeur (les noms d'équipe sont longs)
       const regarder = 'REGARDER >';
       const fin = x + w - 6 - largeurTexte(regarder) - 8;
@@ -86,13 +99,23 @@ export function dessineLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
       if (debut + largeurTexte(match) + 8 + largeurTexte(nb) <= fin) texte(g, nb, fin, y + 4, C.gris, 1, 'd');
       texte(g, regarder, x + w - 6, y + 4, '#3fb4e8', 1, 'd');
     } else {
-      texte(g, p.equipe.code, x + 96, y + 4, couleurNom(p.equipe.interieur), 1, 'g');
+      // salle d'attente : l'équipe de l'hôte, le format et les sièges pris (ce qui ne tient pas est omis)
+      const rejoindre = 'REJOINDRE >';
+      const fin = x + w - 6 - largeurTexte(rejoindre) - 8;
+      let cur = x + 8 + largeurTexte(p.nom) + 8;
+      const pose = (t: string, couleur: string) => {
+        if (cur + largeurTexte(t) > fin) return;
+        texte(g, t, cur, y + 4, couleur, 1, 'g');
+        cur += largeurTexte(t) + 8;
+      };
+      pose(COURT_FORMAT[p.format], p.format === 'coop' ? VERT : C.or);
+      pose(`${p.joueurs}/${p.places}`, C.blanc);
+      pose(p.equipe.code, couleurNom(p.equipe.interieur));
       const n = EFFECTIFS[p.effectifIdx] ?? 3;
-      texte(g, `${n} C ${n}  ${(DUREES[p.dureeIdx] ?? 180) / 60} MIN`, x + 150, y + 4, C.gris, 1, 'g');
-      if (p.coop) texte(g, 'COOP', x + 224, y + 4, VERT, 1, 'g');
-      texte(g, 'REJOINDRE >', x + w - 6, y + 4, C.or, 1, 'd');
+      pose(`${n}C${n} ${(DUREES[p.dureeIdx] ?? 180) / 60}MIN`, C.gris);
+      texte(g, rejoindre, x + w - 6, y + 4, C.or, 1, 'd');
     }
-    if (!occupe) boutons.push({ x, y, w, h: 16, act: p.plein ? p.onRegarder : p.onRejoindre });
+    if (!occupe) boutons.push({ x, y, w, h: 16, act: p.enCours ? p.onRegarder : p.onRejoindre });
   });
 
   const my = y0 + ph / 2 - 8;
@@ -124,11 +147,11 @@ export function dessineLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W
 // ======================================================= réglages de l'hôte ==
 
 export interface EtatConfigLan {
-  /** Coop : l'hôte et l'invité jouent ensemble contre le CPU. */
-  coop: boolean;
+  /** Combien d'humains de chaque côté (le CPU tient les places vides). */
+  format: FormatLan;
   /** Niveau du CPU en coop (index dans NIVEAUX). */
   niveauIdx: number;
-  onCoop: () => void;
+  onFormat: () => void;
   onNiveau: () => void;
   effectifIdx: number;
   dureeIdx: number;
@@ -162,8 +185,8 @@ export function dessineConfigLan(g: CanvasRenderingContext2D, boutons: ZoneBouto
   const pw = 230;
   const n = EFFECTIFS[etat.effectifIdx] ?? 3;
   const lignes: [string, string, () => void][] = [
-    ['MODE', etat.coop ? 'COOP' : 'VERSUS', etat.onCoop],
-    ...(etat.coop ? ([['NIVEAU DU CPU', NIVEAUX[etat.niveauIdx]?.nom ?? 'NORMAL', etat.onNiveau]] as [string, string, () => void][]) : []),
+    ['FORMAT', LIBELLES_FORMAT[etat.format], etat.onFormat],
+    ...(etat.format === 'coop' ? ([['NIVEAU DU CPU', NIVEAUX[etat.niveauIdx]?.nom ?? 'NORMAL', etat.onNiveau]] as [string, string, () => void][]) : []),
     ['EQUIPES', `${n} CONTRE ${n}`, etat.onEffectif],
     ['DUREE', `${(DUREES[etat.dureeIdx] ?? 180) / 60} MIN`, etat.onDuree],
     ['ASSISTANCE TIR', oui(etat.assistTir), etat.onAssistTir],
@@ -179,30 +202,17 @@ export function dessineConfigLan(g: CanvasRenderingContext2D, boutons: ZoneBouto
   lignes.forEach(([k, v, act], i) => {
     const y = py + 5 + i * pas;
     texte(g, k, cx - pw / 2 + 10, y + 3, C.gris, 1, 'g');
-    bouton(g, boutons, `< ${v} >`, cx + pw / 2 - 110, y, 100, 12, act, { couleur: '#232a58', texte: i === 0 && etat.coop ? VERT : undefined });
+    bouton(g, boutons, `< ${v} >`, cx + pw / 2 - 110, y, 100, 12, act, { couleur: '#232a58', texte: i === 0 && etat.format === 'coop' ? VERT : undefined });
   });
-  texte(
-    g,
-    etat.coop ? 'VOUS JOUEZ ENSEMBLE CONTRE LE CPU' : 'CES REGLAGES VALENT POUR LES DEUX JOUEURS',
-    cx,
-    py + ph + 6,
-    etat.coop ? VERT : '#6f7aa6',
-    1,
-    'c',
-  );
+  const note = etat.format === 'coop' ? 'VOUS JOUEZ ENSEMBLE CONTRE LE CPU' : etat.format === '1v1' ? 'CES REGLAGES VALENT POUR TOUS LES JOUEURS' : "L'HOTE REGLE EQUIPES ET MAILLOTS POUR TOUS";
+  texte(g, note, cx, py + ph + 6, etat.format === 'coop' ? VERT : '#6f7aa6', 1, 'c');
   const by = H - 22;
   bouton(g, boutons, '< RETOUR', cx - pw / 2, by, 70, 16, etat.onRetour, { couleur: '#232a58' });
   bouton(g, boutons, 'CREER LA PARTIE', cx + pw / 2 - 112, by, 112, 16, etat.onCreer, ROUGE);
 }
 
-function resumeConfig(g: CanvasRenderingContext2D, cx: number, y: number, c: ResumeConfig): void {
-  const n = EFFECTIFS[c.effectifIdx] ?? 3;
-  texte(g, `${n} CONTRE ${n}   ${(DUREES[c.dureeIdx] ?? 180) / 60} MIN   BONUS ${oui(c.pouvoirs)}   RALENTI ${oui(c.ralenti)}`, cx, y, C.blanc, 1, 'c');
-  texte(g, `ASSIST. TIR ${oui(c.assistTir)}   PASSE ${oui(c.assistPasse)}   CHGT AUTO ${oui(c.changementAuto)}`, cx, y + 11, C.gris, 1, 'c');
-}
-
 export interface ResumeConfig {
-  coop: boolean;
+  format: FormatLan;
   niveauIdx: number;
   effectifIdx: number;
   dureeIdx: number;
@@ -224,97 +234,306 @@ export const LIBELLES_BONUS: Record<BonusEquipe, string> = {
 
 // =========================================================== salle d'attente ==
 
+/** Un siège de la salle d'attente (A1, A2, B1, B2) ; `null` dans `EtatSalon.places` s'il n'existe pas dans ce format. */
+export interface PlaceSalon {
+  joueur: { nom: string; moi: boolean; hote: boolean } | null;
+  /** Prendre ce siège libre (jamais pour l'hôte, assis d'office). */
+  onPrendre: (() => void) | null;
+  /** Hôte : exclure ce joueur. */
+  onExclure: (() => void) | null;
+}
+
+export interface RegardeurSalon {
+  nom: string;
+  moi: boolean;
+  /** Pas encore choisi entre jouer et regarder. */
+  indecis: boolean;
+}
+
 export interface EtatSalon {
-  role: 'hote' | 'client';
-  hote: string;
-  invite: string | null;
-  /** Un appareil est en train de rejoindre (liaison pas encore ouverte). */
-  connexionEnCours: boolean;
+  hote: boolean;
+  nomHote: string;
+  format: FormatLan;
+  /** Hôte : change le format. */
+  onFormat: (() => void) | null;
+  /** Portrait de chaque camp (« toulouse-interieur »). */
+  maillots: [string, string];
+  places: [PlaceSalon | null, PlaceSalon | null, PlaceSalon | null, PlaceSalon | null];
+  spectateurs: RegardeurSalon[];
+  spectateursMax: number;
   config: ResumeConfig;
-  /** Code de vérification identique sur les deux écrans (voir net/liaison). */
+  /** Un appareil est en train de se connecter (liaison pas encore ouverte). */
+  connexionEnCours: boolean;
+  /** Code de vérification de ma liaison avec l'hôte (ou de la dernière arrivée côté hôte). */
   code: string | null;
   latenceMs: number | null;
   message: string | null;
-  /** Handicap de chaque camp (l'hôte le règle, l'invité le voit). */
+  /** Handicap de chaque camp (l'hôte le règle, les autres le voient). */
   bonus: [BonusEquipe, BonusEquipe];
-  /** Bilan des duels précédents contre cet adversaire, ou null si c'est le premier. */
+  onBonus: ((camp: 0 | 1) => void) | null;
+  /** Bilan des duels précédents contre cet adversaire (1 contre 1), ou null. */
   bilan: string | null;
-  onBonus: (place: 0 | 1) => void;
-  onLancer: () => void;
-  onExclure: () => void;
+  /** Mon rôle : assis, spectateur, ou pas encore choisi. */
+  moi: 'siege' | 'spect' | 'indecis';
+  /** Hôte : lancer la partie (null pour les autres) ; `peutLancer` : il y a de quoi jouer. */
+  onLancer: (() => void) | null;
+  peutLancer: boolean;
+  /** Quitter mon siège pour regarder. */
+  onRegarder: (() => void) | null;
   onQuitter: () => void;
 }
 
-function carteJoueur(g: CanvasRenderingContext2D, x: number, y: number, w: number, role: string, nom: string | null, temps: number, attente: string): void {
-  panneau(g, x, y, w, 50);
-  texte(g, role, x + w / 2, y + 6, C.gris, 1, 'c');
-  if (nom) {
-    texte(g, nom, x + w / 2, y + 20, C.blanc, 2, 'c');
+const TAG_HOTE = '#ffd35c';
+const TAG_JOUEUR = '#5cf08a';
+
+/** Une carte de siège : le joueur de face, son nom, son rôle ; ou un siège libre. */
+function carteSiege(
+  g: CanvasRenderingContext2D,
+  boutons: ZoneBouton[],
+  sprites: BanqueSprites,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  p: PlaceSalon,
+  maillot: string,
+  miroir: boolean,
+  temps: number,
+): void {
+  panneau(g, x, y, w, h);
+  const j = p.joueur;
+  if (j) {
+    px(g, x, y, w, 2, j.moi ? C.blanc : j.hote ? TAG_HOTE : TAG_JOUEUR);
+    const M = sprites.meta.portrait;
+    const sp = sprites.spritePortrait(maillot, miroir);
+    const sh = Math.min(44, h - 28);
+    const sw = Math.round((M.tileW * sh) / M.tileH);
+    if (sp) g.drawImage(sp.img, sp.rect.sx, sp.rect.sy, sp.rect.sw, sp.rect.sh, Math.round(x + w / 2 - sw / 2), y + 5, sw, sh);
+    texte(g, j.nom, x + w / 2, y + 6 + sh, C.blanc, 1, 'c');
+    const ty = y + h - 11;
+    px(g, x + 8, ty, w - 16, 9, j.hote ? TAG_HOTE : TAG_JOUEUR);
+    texte(g, j.moi ? (j.hote ? 'HOTE - VOUS' : 'VOUS') : j.hote ? 'HOTE' : 'JOUEUR', x + w / 2, ty + 1, '#06101a', 1, 'c', null);
+    if (p.onExclure) bouton(g, boutons, 'X', x + w - 12, y + 4, 9, 9, p.onExclure, { couleur: '#6a1f33', clair: '#a8374f', fonce: '#44111f', texte: C.blanc });
     return;
   }
+  // siège libre : points qui pulsent, et un bouton pour le prendre
   for (let i = 0; i < 3; i++) {
     g.globalAlpha = 0.3 + 0.7 * Math.max(0, Math.sin(temps * 4 - i * 0.8));
-    px(g, x + w / 2 - 10 + i * 8, y + 20, 4, 4, C.or);
+    px(g, x + w / 2 - 10 + i * 8, y + 12, 4, 4, p.onPrendre ? C.or : '#4a548c');
   }
   g.globalAlpha = 1;
-  texte(g, attente, x + w / 2, y + 32, C.blanc, 1, 'c');
+  texte(g, 'LIBRE', x + w / 2, y + 24, p.onPrendre ? C.blanc : '#6f7aa6', 1, 'c');
+  if (p.onPrendre) {
+    bouton(g, boutons, 'PRENDRE', x + 8, y + h - 24, w - 16, 14, p.onPrendre, { couleur: '#1f7a46', clair: '#5cf08a', fonce: '#0f4a29' });
+  } else {
+    texte(g, 'CPU SI VIDE', x + w / 2, y + 36, '#4a548c', 1, 'c');
+    px(g, x + 8, y + h - 11, w - 16, 9, '#2a3160');
+    texte(g, 'EN ATTENTE', x + w / 2, y + h - 10, '#8a93b0', 1, 'c', null);
+  }
 }
 
-export function dessineSalon(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, temps: number, etat: EtatSalon): void {
+/**
+ * Salle d'attente, façon salon de jeu : les quatre sièges au centre (équipe A
+ * à gauche, équipe B à droite), les spectateurs en bas. L'hôte règle le format
+ * et lance ; chaque arrivant prend un siège libre ou regarde.
+ */
+export function dessineSalon(g: CanvasRenderingContext2D, boutons: ZoneBouton[], sprites: BanqueSprites, W: number, H: number, temps: number, etat: EtatSalon): void {
   g.fillStyle = 'rgba(7,9,20,0.84)';
   g.fillRect(0, 0, W, H);
   const cx = Math.round(W / 2);
-  const hote = etat.role === 'hote';
-  texte(g, "SALLE D'ATTENTE", cx, 4, C.blanc, 2, 'c');
+  const coop = etat.format === 'coop';
+  texte(g, "SALLE D'ATTENTE", cx, 2, C.blanc, 2, 'c');
+  texte(g, `PARTIE DE ${etat.nomHote}`, 6, 4, C.gris, 1, 'g');
 
-  const cw = Math.min(150, Math.floor((W - 60) / 2));
-  const coop = etat.config.coop;
-  carteJoueur(g, cx - 18 - cw, 26, cw, coop ? 'JOUEUR 1 - HOTE' : 'HOTE', etat.hote, temps, '');
-  carteJoueur(g, cx + 18, 26, cw, coop ? 'JOUEUR 2' : 'INVITE', etat.invite, temps, etat.connexionEnCours ? 'UN JOUEUR ARRIVE' : "EN ATTENTE D'UN JOUEUR");
-  texte(g, coop ? '+' : 'VS', cx, 44, coop ? VERT : C.or, 2, 'c');
-  if (!etat.invite) texte(g, 'SUR L\'AUTRE APPAREIL : MULTI WIFI', cx + 18 + cw / 2, 80, '#6f7aa6', 1, 'c');
+  // format : l'hôte le change, les autres le voient
+  const fy = 21;
+  if (etat.onFormat) {
+    texte(g, 'FORMAT', cx - 60, fy + 3, C.gris, 1, 'd');
+    bouton(g, boutons, `< ${LIBELLES_FORMAT[etat.format]} >`, cx - 54, fy, 120, 12, etat.onFormat, { couleur: '#232a58', texte: coop ? VERT : C.or });
+  } else {
+    texte(g, LIBELLES_FORMAT[etat.format], cx, fy + 3, coop ? VERT : C.or, 1, 'c');
+  }
 
-  // handicap sous chaque carte : réglable par l'hôte, affiché chez l'invité
-  const places: [0 | 1, number, boolean][] = [
-    [0, cx - 18 - cw, true],
-    [1, cx + 18, !!etat.invite],
+  const bas = H - 18;
+  // de bas en haut : spectateurs, état, résumé, handicap, puis les cartes
+  const yFigures = H - 40;
+  const yLabel = H - 50;
+  const yEtat = yLabel - 11;
+  const yResume = yEtat - 11;
+  const yHandicap = yResume - 15;
+  const yCartes = fy + 24;
+  const hCartes = Math.max(54, yHandicap - 4 - yCartes);
+
+  const cw = Math.min(88, Math.floor((W - 16 - 40) / 4));
+  const gap = 5;
+  const places = etat.places;
+  const camps: { camp: 0 | 1; sieges: (0 | 1 | 2 | 3)[] }[] = [
+    { camp: 0, sieges: ([0, 1] as const).filter((s) => places[s]) },
+    { camp: 1, sieges: ([2, 3] as const).filter((s) => places[s]) },
   ];
-  for (const [place, x, visible] of places) {
-    // coop : pas de handicap, c'est le niveau du CPU qui règle la difficulté
-    if (!visible || coop) continue;
-    const b = etat.bonus[place];
-    const couleur = b === 'aucun' ? C.gris : C.or;
-    if (hote) bouton(g, boutons, `< ${LIBELLES_BONUS[b]} >`, x + 10, 79, cw - 20, 12, () => etat.onBonus(place), { couleur: '#232a58', texte: couleur });
-    else texte(g, LIBELLES_BONUS[b], x + cw / 2, 82, couleur, 1, 'c');
+  for (const { camp, sieges } of camps) {
+    const n = Math.max(1, sieges.length);
+    const largeur = n * cw + (n - 1) * gap;
+    const x0 = camp === 0 ? cx - 20 - largeur : cx + 20;
+    texte(g, camp === 0 ? 'EQUIPE A' : 'EQUIPE B', x0 + largeur / 2, fy + 14, camp === 0 ? '#ff9a5c' : '#6fb4ff', 1, 'c');
+    if (!sieges.length) {
+      // coop : en face, le CPU
+      panneau(g, x0, yCartes, cw, hCartes);
+      px(g, x0, yCartes, cw, 2, '#8a93b0');
+      texte(g, 'ADVERSAIRE', x0 + cw / 2, yCartes + hCartes / 2 - 10, C.blanc, 1, 'c');
+      texte(g, 'CPU', x0 + cw / 2, yCartes + hCartes / 2 + 2, C.or, 2, 'c');
+      continue;
+    }
+    sieges.forEach((s, i) => carteSiege(g, boutons, sprites, x0 + i * (cw + gap), yCartes, cw, hCartes, places[s]!, etat.maillots[camp], camp === 0, temps));
   }
-  if (coop) {
-    texte(g, 'COOP : A DEUX CONTRE LE CPU', cx, 80, VERT, 1, 'c');
-    texte(g, `NIVEAU DU CPU : ${NIVEAUX[etat.config.niveauIdx]?.nom ?? 'NORMAL'}`, cx, 94, C.or, 1, 'c');
-  } else if (etat.invite) {
-    texte(g, etat.bilan ?? 'PREMIER DUEL ENTRE VOUS', cx, 97, etat.bilan ? C.blanc : '#6f7aa6', 1, 'c');
-  }
+  texte(g, coop ? '+' : 'VS', cx, yCartes + hCartes / 2 - 6, coop ? VERT : C.or, 2, 'c');
 
-  resumeConfig(g, cx, 110, etat.config);
-  if (etat.code) {
-    const ms = etat.latenceMs !== null ? `   WIFI ${Math.max(1, Math.round(etat.latenceMs))} MS` : '';
-    texte(g, `CODE DE VERIFICATION ${etat.code}${ms}`, cx, 136, C.or, 1, 'c');
-  }
-  if (etat.message) texte(g, etat.message, cx, 152, '#ff9a5c', 1, 'c');
-
-  const bas = H - 22;
-  bouton(g, boutons, '< QUITTER', 4, bas, 66, 16, etat.onQuitter, { couleur: '#232a58' });
-  if (hote) {
-    if (etat.invite) {
-      bouton(g, boutons, 'LANCER', cx - 45, bas, 90, 16, etat.onLancer, { e: 2, ...ROUGE });
-      bouton(g, boutons, 'EXCLURE', W - 70, bas, 66, 16, etat.onExclure, { couleur: '#232a58' });
-    } else {
-      texte(g, `EN ATTENTE${points(temps)}`, cx, bas + 5, '#6f7aa6', 1, 'c');
+  // handicap sous chaque camp : réglable par l'hôte, affiché chez les autres (pas de handicap en coop)
+  if (!coop) {
+    for (const { camp, sieges } of camps) {
+      const n = Math.max(1, sieges.length);
+      const largeur = n * cw + (n - 1) * gap;
+      const x0 = camp === 0 ? cx - 20 - largeur : cx + 20;
+      const b = etat.bonus[camp];
+      const couleur = b === 'aucun' ? C.gris : C.or;
+      if (etat.onBonus) bouton(g, boutons, `< ${LIBELLES_BONUS[b]} >`, x0, yHandicap, largeur, 12, () => etat.onBonus!(camp), { couleur: '#232a58', texte: couleur });
+      else texte(g, LIBELLES_BONUS[b], x0 + largeur / 2, yHandicap + 3, couleur, 1, 'c');
     }
   } else {
-    g.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(temps * 2.5));
-    texte(g, "EN ATTENTE DE L'HOTE", cx, bas + 5, C.or, 1, 'c');
-    g.globalAlpha = 1;
+    texte(g, `NIVEAU DU CPU : ${NIVEAUX[etat.config.niveauIdx]?.nom ?? 'NORMAL'}`, cx, yHandicap + 3, C.or, 1, 'c');
   }
+  resumeConfigCourt(g, cx, yResume, etat.config);
+
+  // ligne d'état : message, sinon bilan, sinon aide ; le code de vérification et la latence à droite
+  const aide = etat.message ?? etat.bilan ?? aideSalon(etat);
+  texte(g, aide, cx, yEtat, etat.message ? '#ff9a5c' : etat.bilan ? C.blanc : '#6f7aa6', 1, 'c');
+  if (etat.code) {
+    const ms = etat.latenceMs !== null ? `  WIFI ${Math.max(1, Math.round(etat.latenceMs))} MS` : '';
+    texte(g, `CODE ${etat.code}${ms}`, W - 6, 4, '#6f7aa6', 1, 'd');
+  }
+
+  // spectateurs : figurines en bas, les indécis grisés
+  texte(g, `SPECTATEURS ${etat.spectateurs.length}/${etat.spectateursMax}`, cx, yLabel, C.gris, 1, 'c');
+  const n = etat.spectateursMax;
+  const pas = Math.min(34, Math.floor((W - 150) / n));
+  const xs = cx - (n * pas) / 2 + pas / 2;
+  const sup = sprites.meta.supporters;
+  for (let i = 0; i < n; i++) {
+    const x = Math.round(xs + i * pas);
+    const r = etat.spectateurs[i];
+    if (!r) {
+      px(g, x - 7, yFigures + 8, 14, 12, '#1a2150');
+      texte(g, '?', x, yFigures + 10, '#3a4590', 1, 'c');
+      continue;
+    }
+    const sp = sprites.spriteSupporter(etat.maillots[i % 2]!, i, false);
+    const sh = 26;
+    const sw = Math.round((sup.tileW * sh) / sup.tileH);
+    if (sp) {
+      g.globalAlpha = r.indecis ? 0.45 : 1;
+      g.drawImage(sp.img, sp.rect.sx, sp.rect.sy, sp.rect.sw, sp.rect.sh, x - Math.round(sw / 2), yFigures - 2, sw, sh);
+      g.globalAlpha = 1;
+    }
+    texte(g, r.indecis ? `${r.nom.slice(0, 5)}?` : r.nom.slice(0, Math.max(3, Math.floor((pas - 2) / 6))), x, yFigures + 26, r.moi ? C.or : r.indecis ? C.gris : C.blanc, 1, 'c');
+  }
+
+  bouton(g, boutons, '< QUITTER', 4, bas, 62, 14, etat.onQuitter, { couleur: '#232a58' });
+  if (etat.onLancer) {
+    if (etat.peutLancer) bouton(g, boutons, 'LANCER', W - 78, bas, 74, 14, etat.onLancer, { e: 1, ...ROUGE });
+    else {
+      g.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(temps * 2.5));
+      texte(g, `EN ATTENTE${points(temps)}`, W - 41, bas + 3, '#6f7aa6', 1, 'c');
+      g.globalAlpha = 1;
+    }
+  } else if (etat.onRegarder) {
+    bouton(g, boutons, 'REGARDER', W - 78, bas, 74, 14, etat.onRegarder, { couleur: '#232a58', texte: '#8fe3ff' });
+  }
+}
+
+function aideSalon(etat: EtatSalon): string {
+  if (etat.hote) return etat.connexionEnCours ? 'UN JOUEUR ARRIVE...' : etat.peutLancer ? 'LANCEZ QUAND TOUT LE MONDE EST LA' : "ATTENDEZ QUE D'AUTRES REJOIGNENT";
+  if (etat.moi === 'siege') return "EN ATTENTE DE L'HOTE";
+  if (etat.moi === 'spect') return "VOUS REGARDEZ - TOUCHEZ UN SIEGE POUR JOUER";
+  return 'PRENEZ UN SIEGE, OU REGARDEZ';
+}
+
+function resumeConfigCourt(g: CanvasRenderingContext2D, cx: number, y: number, c: ResumeConfig): void {
+  const n = EFFECTIFS[c.effectifIdx] ?? 3;
+  texte(g, `${n} CONTRE ${n}  ${(DUREES[c.dureeIdx] ?? 180) / 60} MIN  BONUS ${oui(c.pouvoirs)}  RALENTI ${oui(c.ralenti)}`, cx, y, C.blanc, 1, 'c');
+}
+
+// ====================================================== choix du rôle à l'arrivée ==
+
+export interface EtatChoixRole {
+  nomHote: string;
+  /** Joueurs assis / places du format ; spectateurs présents. */
+  joueurs: number;
+  places: number;
+  spectateurs: number;
+  spectateursMax: number;
+  /** Au moins un siège libre. */
+  siegeLibre: boolean;
+  /** Portrait montré sur la carte JOUER, et figurine sur la carte REGARDER. */
+  maillot: string;
+  onJouer: () => void;
+  onRegarder: () => void;
+  onQuitter: () => void;
+}
+
+/** À l'arrivée dans la salle d'attente : jouer (puis prendre un siège) ou regarder. */
+export function dessineChoixRole(g: CanvasRenderingContext2D, boutons: ZoneBouton[], sprites: BanqueSprites, W: number, H: number, temps: number, etat: EtatChoixRole): void {
+  g.fillStyle = 'rgba(7,9,20,0.84)';
+  g.fillRect(0, 0, W, H);
+  const cx = Math.round(W / 2);
+  texte(g, `PARTIE DE ${etat.nomHote}`, cx, 4, C.blanc, 2, 'c');
+  texte(g, 'TU VEUX ...', cx, 28, C.gris, 1, 'c');
+  const cw = 120;
+  const y = 44;
+  const h = Math.min(100, H - y - 50);
+  const carte = (x: number, titre: string, sous: string, ligne: string, col: string, act: (() => void) | null, figure: () => void) => {
+    panneau(g, x, y, cw, h);
+    px(g, x, y, cw, 2, act ? col : '#4a548c');
+    figure();
+    texte(g, titre, x + cw / 2, y + h - 38, act ? col : '#6f7aa6', 2, 'c');
+    texte(g, sous, x + cw / 2, y + h - 22, C.gris, 1, 'c');
+    texte(g, ligne, x + cw / 2, y + h - 12, act ? C.blanc : '#ff9a5c', 1, 'c');
+    if (act) boutons.push({ x, y, w: cw, h, act });
+  };
+  carte(
+    cx - 14 - cw,
+    'JOUER',
+    'PRENDRE UN SIEGE',
+    etat.siegeLibre ? `${etat.joueurs}/${etat.places} JOUEURS` : 'AUCUN SIEGE LIBRE',
+    TAG_JOUEUR,
+    etat.siegeLibre ? etat.onJouer : null,
+    () => {
+      const M = sprites.meta.portrait;
+      const sp = sprites.spritePortrait(etat.maillot, false);
+      const sh = Math.min(46, h - 54);
+      const sw = Math.round((M.tileW * sh) / M.tileH);
+      if (sp) g.drawImage(sp.img, sp.rect.sx, sp.rect.sy, sp.rect.sw, sp.rect.sh, cx - 14 - cw + cw / 2 - sw / 2, y + 6, sw, sh);
+    },
+  );
+  const plein = etat.spectateurs >= etat.spectateursMax;
+  carte(
+    cx + 14,
+    'REGARDER',
+    'SPECTATEUR',
+    `${etat.spectateurs}/${etat.spectateursMax} SPECTATEURS`,
+    '#6fb4ff',
+    plein ? null : etat.onRegarder,
+    () => {
+      const S = sprites.meta.supporters;
+      const sp = sprites.spriteSupporter(etat.maillot, 1, false);
+      const sh = Math.min(44, h - 54);
+      const sw = Math.round((S.tileW * sh) / S.tileH);
+      if (sp) g.drawImage(sp.img, sp.rect.sx, sp.rect.sy, sp.rect.sw, sp.rect.sh, cx + 14 + cw / 2 - sw / 2, y + 7, sw, sh);
+    },
+  );
+  g.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(temps * 2.5));
+  texte(g, 'VOUS POUVEZ CHANGER TANT QUE LA PARTIE N A PAS COMMENCE', cx, y + h + 8, '#6f7aa6', 1, 'c');
+  g.globalAlpha = 1;
+  bouton(g, boutons, '< RETOUR', 4, H - 18, 62, 14, etat.onQuitter, { couleur: '#232a58' });
 }
 
 // ============================================= équipes puis maillots, à deux ==
@@ -328,11 +547,16 @@ export interface CoteChoixLan {
 
 export interface EtatChoixLan {
   etape: 'equipes' | 'maillots';
-  /** Place de ce joueur : 0 = gauche (hôte), 1 = droite (invité). */
+  /** Mon camp : 0 = gauche (celui de l'hôte), 1 = droite. */
   moi: 0 | 1;
+  /** `pret` : tous les joueurs du camp sont prêts (l'hôte seul décide quand `hoteChoisit`). */
   cotes: [CoteChoixLan, CoteChoixLan];
-  /** Coop : l'hôte choisit à la fois l'équipe commune et celle du CPU ; l'invité regarde. */
+  /** Coop : l'hôte et son équipier jouent ensemble contre le CPU (libellés des deux côtés). */
   coop: boolean;
+  /** L'hôte règle les deux camps et valide seul (tous les formats sauf 1 contre 1) ; les autres regardent. */
+  hoteChoisit: boolean;
+  hote: boolean;
+  nomHote: string;
   /** Mon maillot est identique à celui de l'adversaire déjà prêt : impossible de valider. */
   maillotPris: boolean;
   /** `cote` : le panneau touché (en coop, l'hôte règle les deux). */
@@ -367,14 +591,14 @@ export function dessineChoixLan(
   px(g, moitie - 1, 12, 1, bas - 16, '#2a3160');
 
   const autre = etat.cotes[etat.moi === 0 ? 1 : 0];
-  // coop : seul l'hôte règle (les deux côtés) et valide ; l'invité regarde
-  const invite = etat.coop && etat.moi === 1;
+  // seul l'hôte règle (les deux camps) et valide ; les autres regardent
+  const suiveur = etat.hoteChoisit && !etat.hote;
   for (const place of [0, 1] as const) {
     const c = etat.cotes[place];
     const x = place === 0 ? 0 : moitie;
     const w = place === 0 ? moitie : W - moitie;
-    const moiAgit = etat.coop ? etat.moi === 0 : place === etat.moi;
-    const actif = moiAgit && !etat.cotes[etat.coop ? 0 : place].pret;
+    const moiAgit = etat.hoteChoisit ? etat.hote : place === etat.moi;
+    const actif = moiAgit && !c.pret;
     // coop : à gauche l'équipe des deux joueurs, à droite le CPU
     const nom = etat.coop ? (place === 0 ? 'NOTRE EQUIPE' : 'ADVERSAIRE CPU') : c.nom;
     if (etat.etape === 'equipes') {
@@ -387,13 +611,13 @@ export function dessineChoixLan(
     }
     const sx = x + w / 2;
     const sy = bas - 12;
-    if (etat.cotes[etat.coop ? 0 : place].pret) {
+    if (c.pret) {
       texte(g, 'PRET !', sx, sy, VERT, 1, 'c');
     } else if (moiAgit && etat.maillotPris) {
       texte(g, 'MAILLOT DEJA PRIS', sx, sy, '#ff9a5c', 1, 'c');
     } else {
       g.globalAlpha = moiAgit ? 1 : 0.5 + 0.5 * Math.abs(Math.sin(temps * 2.5));
-      const qui = invite ? `${etat.cotes[0].nom} ` : '';
+      const qui = suiveur ? `${etat.nomHote} ` : '';
       texte(g, moiAgit ? 'A VOUS DE CHOISIR' : `${qui}CHOISIT${points(temps)}`, sx, sy, C.gris, 1, 'c');
       g.globalAlpha = 1;
     }
@@ -401,17 +625,17 @@ export function dessineChoixLan(
 
   const moi = etat.cotes[etat.moi];
   bouton(g, boutons, '< QUITTER', 4, bas, 66, 16, etat.onQuitter, { couleur: '#232a58' });
-  if (invite) {
-    // l'invité n'a rien à valider : il suit les choix de l'hôte
+  if (suiveur) {
+    // les autres n'ont rien à valider : ils suivent les choix de l'hôte
     g.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(temps * 2.5));
-    texte(g, `${etat.cotes[0].nom} CHOISIT LES EQUIPES${points(temps)}`, cx, bas + 5, C.or, 1, 'c');
+    texte(g, `${etat.nomHote} CHOISIT LES EQUIPES${points(temps)}`, cx, bas + 5, C.or, 1, 'c');
     g.globalAlpha = 1;
   } else if (!moi.pret) {
     if (etat.maillotPris) texte(g, 'CHANGEZ DE MAILLOT', cx, bas + 5, '#ff9a5c', 1, 'c');
     else bouton(g, boutons, 'PRET', cx - 45, bas, 90, 16, () => etat.onPret(true), { e: 2, ...ROUGE });
   } else {
     bouton(g, boutons, 'MODIFIER', cx - 40, bas, 80, 16, () => etat.onPret(false), { couleur: '#232a58' });
-    if (!etat.coop && !autre.pret) texte(g, `EN ATTENTE DE ${autre.nom}`, W - 6, bas + 5, C.or, 1, 'd');
+    if (!etat.hoteChoisit && !autre.pret) texte(g, `EN ATTENTE DE ${autre.nom}`, W - 6, bas + 5, C.or, 1, 'd');
   }
 }
 
@@ -487,8 +711,8 @@ export interface EtatFinLan {
   prolong: boolean;
   moi: 0 | 1;
   monVote: 'rejouer' | 'equipes' | null;
-  voteAdverse: 'rejouer' | 'equipes' | null;
-  nomAdverse: string;
+  /** Les autres joueurs et leur vote. */
+  autres: { nom: string; vote: 'rejouer' | 'equipes' | null }[];
   onVote: (v: 'rejouer' | 'equipes' | null) => void;
   onQuitter: () => void;
 }
@@ -521,11 +745,14 @@ export function dessineFinLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[]
   choix('equipes', "CHANGER D'EQUIPES", cx + 4, 120, BLEU);
 
   const lib = (v: 'rejouer' | 'equipes' | null) => (v === 'rejouer' ? 'VEUT REJOUER' : v === 'equipes' ? "VEUT CHANGER D'EQUIPES" : `REFLECHIT${points(temps)}`);
-  texte(g, `${fin.nomAdverse} ${lib(fin.voteAdverse)}`, cx, cy + 40, fin.voteAdverse ? C.or : C.gris, 1, 'c');
-  if (fin.monVote && fin.voteAdverse && fin.monVote !== fin.voteAdverse) {
-    texte(g, 'VOUS N\'ETES PAS D\'ACCORD : CHOISISSEZ LA MEME OPTION', cx, cy + 50, '#ff9a5c', 1, 'c');
-  } else if (fin.monVote && !fin.voteAdverse) {
-    texte(g, 'ON RELANCE DES QUE VOUS ETES D\'ACCORD', cx, cy + 50, '#6f7aa6', 1, 'c');
+  // un joueur par ligne (trois autres au plus) ; avec plus d'un, on les resserre
+  const pasLigne = fin.autres.length > 1 ? 9 : 10;
+  fin.autres.forEach((a, i) => texte(g, `${a.nom} ${lib(a.vote)}`, cx, cy + 40 + i * pasLigne, a.vote ? C.or : C.gris, 1, 'c'));
+  const yBilan = cy + 40 + Math.max(1, fin.autres.length) * pasLigne;
+  if (fin.monVote && fin.autres.some((a) => a.vote && a.vote !== fin.monVote)) {
+    texte(g, 'VOUS N\'ETES PAS D\'ACCORD : CHOISISSEZ LA MEME OPTION', cx, yBilan, '#ff9a5c', 1, 'c');
+  } else if (fin.monVote && fin.autres.some((a) => !a.vote)) {
+    texte(g, 'ON RELANCE DES QUE VOUS ETES D\'ACCORD', cx, yBilan, '#6f7aa6', 1, 'c');
   }
   bouton(g, boutons, 'QUITTER', 4, H - 22, 66, 16, fin.onQuitter, { couleur: '#232a58' });
   if (fin.bilan) texte(g, fin.bilan, W - 6, H - 17, '#6f7aa6', 1, 'd');
@@ -534,8 +761,8 @@ export function dessineFinLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[]
 // ============================================================ spectateur ==
 
 export interface EtatAttenteSpectateur {
-  /** Noms des deux joueurs (le second peut manquer si l'invité est parti). */
-  joueurs: [string, string | null];
+  /** Noms des joueurs de chaque camp. */
+  camps: [string[], string[]];
   /** Ce que font les joueurs en ce moment. */
   sous: string;
   spect: number;
@@ -549,7 +776,7 @@ export function dessineAttenteSpectateur(g: CanvasRenderingContext2D, boutons: Z
   const cx = Math.round(W / 2);
   const cy = Math.round(H / 2);
   texte(g, 'MODE SPECTATEUR', cx, cy - 58, '#8fe3ff', 2, 'c');
-  texte(g, `${etat.joueurs[0]}  VS  ${etat.joueurs[1] ?? '...'}`, cx, cy - 26, C.blanc, 1, 'c');
+  texte(g, `${etat.camps[0].join(' + ') || '...'}  VS  ${etat.camps[1].join(' + ') || 'CPU'}`, cx, cy - 26, C.blanc, 1, 'c');
   g.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(temps * 2.5));
   texte(g, `${etat.sous}${points(temps)}`, cx, cy - 8, C.or, 1, 'c');
   g.globalAlpha = 1;

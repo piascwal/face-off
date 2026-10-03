@@ -29,15 +29,15 @@ export const pointCrosse = (s: Skater): { x: number; y: number } => ({
 });
 
 /**
- * Chaque humain ne pilote qu'un seul patineur de son équipe à la fois. En coop,
- * l'équipe 0 a deux humains (`siege` 0 : l'hôte, 1 : l'invité) qui ne peuvent
- * pas se prendre le même patineur.
+ * Chaque humain ne pilote qu'un seul patineur de son équipe à la fois. Quand
+ * une équipe a deux humains (`duo`), leurs sièges (0 : le premier, 1 : le
+ * second) ne peuvent pas se prendre le même patineur.
  */
 export function controle(state: MatchState, s: Skater, siege: 0 | 1 = 0): void {
   if (state.mode !== 'match' || !state.humains[s.eq]) return;
-  const second = siege === 1 && state.coop && s.eq === 0;
-  const actuel = second ? state.partenaire : state.controles[s.eq];
-  const autre = state.coop && s.eq === 0 ? (second ? state.controles[0] : state.partenaire) : null;
+  const second = siege === 1 && state.duo[s.eq];
+  const actuel = second ? state.partenaires[s.eq] : state.controles[s.eq];
+  const autre = state.duo[s.eq] ? (second ? state.controles[s.eq] : state.partenaires[s.eq]) : null;
   if (actuel === s || autre === s) return;
   // freeze de son équipe : on garde la main sur le seul joueur qui bouge
   if (actuel && effetActif(state, s.eq, 'freeze')) return;
@@ -51,20 +51,20 @@ export function controle(state: MatchState, s: Skater, siege: 0 | 1 = 0): void {
   s.humain = true;
   s.arme = false;
   s.charge = 0;
-  if (second) state.partenaire = s;
+  if (second) state.partenaires[s.eq] = s;
   else state.controles[s.eq] = s;
 }
 
 /**
- * Coop : quel humain prend la main sur le patineur `qui` de l'équipe 0 qui
+ * Équipe à deux humains : quel humain prend la main sur le patineur `qui` qui
  * vient de recevoir le palet. Sur une passe d'un humain, c'est lui (il suit
  * son palet, comme en solo) ; sur un palet ramassé par un coéquipier CPU,
- * c'est l'humain le plus proche. Hors coop, toujours le siège 0.
+ * c'est l'humain le plus proche. Avec un seul humain, toujours le siège 0.
  */
 function siegeQuiPrend(state: MatchState, qui: Skater, passeur: Porteur | null, passe: boolean): 0 | 1 {
-  const h = state.controles[0];
-  const i = state.partenaire;
-  if (!state.coop || qui.eq !== 0 || !i) return 0;
+  const h = state.controles[qui.eq];
+  const i = state.partenaires[qui.eq];
+  if (!state.duo[qui.eq] || !i) return 0;
   if (qui === i) return 1;
   if (qui === h) return 0;
   if (passe && passeur === i) return 1;
@@ -292,7 +292,7 @@ export function changeJoueur(state: MatchState, eq: TeamId, siege: 0 | 1 = 0): v
   let best: Skater | null = null;
   let dmin = 1e9;
   for (const m of equipe(state, eq)) {
-    if (m === state.controles[eq] || m === state.partenaire) continue;
+    if (m === state.controles[eq] || m === state.partenaires[eq]) continue;
     const d = Math.hypot(m.x - p.x, m.y - p.y);
     if (d < dmin) {
       dmin = d;
@@ -318,7 +318,7 @@ export function changeAutoSiLoin(state: MatchState): void {
   const p = state.palet;
   if (p.porteur || p.passe) return;
   for (const c of state.controles) if (c) changeAutoEquipe(state, c, 0);
-  if (state.partenaire) changeAutoEquipe(state, state.partenaire, 1);
+  for (const c of state.partenaires) if (c) changeAutoEquipe(state, c, 1);
 }
 
 function changeAutoEquipe(state: MatchState, c: Skater, siege: 0 | 1): void {

@@ -62,15 +62,16 @@ chaque push (job `e2e`) et joint les captures en cas d'échec.
 | `coupe` | Mode coupe de 8 équipes : ancienne sauvegarde migrée, choix, tableau, dévoilement, élimination, titre |
 | `coupe16` | Coupe de 16 équipes : bouton MODE (classique, coupe 8, coupe 16), huitièmes à la finale, titre, élimination dès les huitièmes (tours suivants simulés) |
 | `multi` | Un vrai match à deux joueurs : les touches de l'invité pilotent son joueur chez l'hôte, positions identiques, tir (charge et geste) vu des deux côtés, but et score synchronisés, reprise, bonus en Wi-Fi (envahissement, cage géante, givre, tremblement et son secousse, loupé complet déclenché par le tir de l'invité), fin de match au même score |
-| `coop` | Mode coop à deux contre le CPU : réglage MODE de l'hôte, choix des équipes et maillots par l'hôte seul (l'invité regarde, son « prêt » ne compte pas), les touches de chacun ne pilotent que son patineur, tir de l'invité, but et score identiques, changement de joueur sans jamais prendre le patineur de l'autre, bonus doré qui suit le porteur du palet, fin de match sans bilan de duel, revanche |
+| `coop` | Mode coop à deux contre le CPU : format COOP choisi par l'hôte, l'invité prend le second siège de l'équipe, choix des équipes et maillots par l'hôte seul (l'invité regarde, son « prêt » ne compte pas), les touches de chacun ne pilotent que son patineur, tir de l'invité, but et score identiques, changement de joueur sans jamais prendre le patineur de l'autre, bonus doré qui suit le porteur du palet, fin de match sans bilan de duel, revanche |
 | `spectateur` | 3 appareils : hôte, invité et spectateur arrivé en cours de match, réactions, revanche |
+| `quatre` | 7 appareils en 2 contre 2 : écran JOUER / REGARDER à l'arrivée (aucun siège par défaut), siège pris ou refusé, 3 spectateurs, équipes et maillots réglés par l'hôte seul, quatre patineurs humains distincts, entrées routées par siège, revanche à l'unanimité, départ d'un joueur (retour en salle d'attente, un spectateur prend le siège libéré) |
 | `bonus` | Bonus en solo : jauge, 4e passe (gros « BONUS » doré sans combo), départ automatique, but x2 limité à 10 s, freeze, inversion, full esquive, super tir (bouton TIR doré), super héros, tremblement, givre, cage géante (qui le reste pendant le but), mini cage, gardien endormi, blackout, foule, loupé complet, super passe (3 passes sur 3 malgré les adversaires sur la ligne), surnombre, un but qui coupe tout, option du menu, mode entraînement |
 | `reconnexion` | Coupure franche puis coupure silencieuse en plein match (retour de l'invité, même score, spectateur présent), invité qui ne revient pas, coupure pendant le choix des équipes |
 
 En local, Chromium doit être installé une fois : `npx playwright install chromium`.
 Pour écrire un scénario, `e2e/outils.mjs` fournit `appareil()`,
-`attendsQue()`, `verifie()` et les raccourcis Wi-Fi (`lan.connecte`,
-`lan.lanceMatch`). L'application est accessible en `window.faceOff` en mode
+`attendsQue()`, `verifie()` et les raccourcis Wi-Fi (`lan.ouvrePartie`,
+`lan.rejoint`, `lan.prendSiege`, `lan.connecte`, `lan.lanceMatch`). L'application est accessible en `window.faceOff` en mode
 développement.
 
 `npm run sprites` doit être relancé après toute modification de
@@ -468,31 +469,68 @@ voir `core/rules.ts::creePartie`) :
 ### 8. Multijoueur Wi-Fi : l'hôte est le serveur
 
 Menu → **MULTI WIFI**. L'appareil qui fait **CRÉER UNE PARTIE** (téléphone,
-tablette ou ordinateur) devient le serveur. Il règle d'abord le format du
-match : 2, 3 ou 5 contre 5, durée et assistances, pour les deux joueurs.
-Sur un autre appareil du même Wi-Fi, la partie apparaît toute seule dans la
-liste, sans adresse IP à saisir ; le bouton **ACTUALISER** relance la
-recherche. Le joueur qui rejoint attend dans la **salle d'attente** que
-l'hôte appuie sur **LANCER**.
+tablette ou ordinateur) devient le serveur. Il règle d'abord le **format** de
+la partie (voir ci-dessous), puis la taille des équipes (2, 3 ou 5 contre 5),
+la durée et les assistances, pour tous les joueurs. Sur les autres appareils
+du même Wi-Fi, la partie apparaît toute seule dans la liste, sans adresse IP à
+saisir ; le bouton **ACTUALISER** relance la recherche. Chaque ligne indique
+l'hôte, le format, le nombre de joueurs déjà assis (« 1/4 ») et l'équipe de
+l'hôte ; une partie lancée affiche son score et **REGARDER**.
+
+**Jusqu'à 4 joueurs et 8 spectateurs.** L'hôte choisit le format :
+
+| Format | Humains à gauche (équipe A, l'hôte) | à droite (équipe B) |
+|---|---|---|
+| 1 CONTRE 1 | 1 | 1 |
+| 2 CONTRE 1 | 2 | 1 |
+| 1 CONTRE 2 | 1 | 2 |
+| 2 CONTRE 2 | 2 | 2 |
+| COOP CONTRE CPU | 2 | le CPU |
+
+Les places que personne n'occupe sont tenues par le CPU. L'hôte est assis
+d'office au premier siège (A1) ; il n'y a **aucun siège par défaut pour les
+autres**. Quatre sièges : A1 (l'hôte), A2, B1, B2.
+
+- **À l'arrivée**, un écran propose **JOUER** (prendre un siège) ou
+  **REGARDER**. Tant qu'on n'a pas choisi, l'hôte voit l'arrivant grisé parmi
+  les spectateurs (« ? »).
+- **La salle d'attente** montre les quatre sièges au centre (équipe A à
+  gauche, équipe B à droite) avec le portrait de chaque joueur et son rôle
+  (HÔTE, JOUEUR, VOUS), et les spectateurs en petits bonhommes en bas
+  (8 au plus). Un siège libre se prend d'un toucher (**PRENDRE**) ; on peut en
+  changer, ou passer spectateur (**REGARDER**), tant que la partie n'est pas
+  lancée. L'hôte change le format (si un siège disparaît, son joueur doit
+  rechoisir), règle le handicap de chaque camp, **exclut** un joueur (la
+  croix sur sa carte) et lance quand il y a quelqu'un en face (en coop :
+  quand le second siège de l'équipe est pris). Ceux qui n'ont pas choisi au
+  lancement regardent.
+- **Une fois la partie lancée**, les sièges sont verrouillés : quiconque
+  arrive ensuite regarde. Un spectateur reste dans la salle d'attente tant
+  qu'on y est (et peut y prendre un siège libéré), puis attend sur l'écran
+  « mode spectateur » pendant le choix des équipes.
 
 Le déroulé est ensuite une machine d'états arbitrée par l'hôte
 (`net/partie.ts`, testée dans `tests/partie-lan.test.ts`). **On ne passe à
-l'étape suivante que quand les deux joueurs ont validé.**
+l'étape suivante que quand tous les joueurs ont validé.**
 
-1. **Choix des équipes**, en simultané. Chacun ne règle que son côté, **PRÊT**
-   verrouille son choix et **MODIFIER** le déverrouille.
-2. **Choix des maillots**, même principe. Si les deux ont pris le même club,
-   l'invité démarre en extérieur, et deux maillots identiques ne peuvent pas
-   être validés.
-3. **Match**. La **pause est partagée** : n'importe lequel des deux la
-   déclenche (bouton, Échap, ou téléphone verrouillé), l'hôte fige la
-   simulation pour les deux. À la reprise, un compte à rebours de 3 s évite de
-   surprendre l'autre joueur.
-4. **Fin** : chacun vote **REJOUER** ou **CHANGER D'ÉQUIPES**. On ne relance que
-   quand les deux votes concordent.
+1. **Choix des équipes**. En **1 contre 1**, chacun ne règle que son côté,
+   **PRÊT** verrouille son choix et **MODIFIER** le déverrouille. Dans **tous
+   les autres formats**, l'hôte règle les deux camps (flèches sur chaque
+   panneau ; au clavier gauche/droite pour son équipe, haut/bas pour l'autre)
+   et valide seul : les autres regardent les choix se faire.
+2. **Choix des maillots**, même principe. Si les deux camps ont pris le même
+   club, le camp de droite démarre en extérieur, et deux maillots identiques ne
+   peuvent pas être validés.
+3. **Match**. La **pause est partagée** : n'importe quel joueur la déclenche
+   (bouton, Échap, ou téléphone verrouillé), l'hôte fige la simulation pour
+   tous. À la reprise, un compte à rebours de 3 s évite de surprendre les
+   autres. Le ralenti d'un but s'arrête quand **tous** les joueurs l'ont passé.
+4. **Fin** : chaque joueur vote **REJOUER** ou **CHANGER D'ÉQUIPES** (on voit
+   le vote de chacun). On ne relance que quand **tous** les votes concordent.
 
-L'hôte peut **exclure** le joueur ; si l'un des deux quitte ou perd la
-connexion, l'autre est ramené au bon écran avec un message.
+Si un joueur quitte volontairement, tout le monde retourne en salle d'attente
+avec un message ; s'il perd la connexion, son siège lui est gardé (voir
+Reconnexion plus bas).
 
 **Pourquoi c'est un peu plus subtil qu'il n'y paraît.** Une page web (même
 installée en PWA) n'a pas le droit d'ouvrir un port d'écoute, de faire du
@@ -535,11 +573,13 @@ classique, ni découvrir seule les appareils voisins. D'où le montage :
   jeu, bornées et validées (direction ramenée à ±1, appuis comptés, rien
   d'autre). Les deux côtés valident chaque message reçu (schéma, tailles, valeurs
   finies — `net/protocole.ts`, testé dans `tests/net.test.ts`).
-- Une seule place par partie : l'annonce est retirée dès qu'un joueur est
-  entré, et l'hôte peut **exclure** le joueur.
-- Le client n'envoie que des *actions* sur ses propres choix (équipe, maillot,
-  prêt, vote, pause). L'hôte les applique selon les règles de
-  `net/partie.ts` ; « lancer » ne vient jamais du réseau.
+- Les sièges sont comptés par l'hôte : un siège pris ne peut pas être volé,
+  une même machine ne se présente pas deux fois, et l'hôte peut **exclure**
+  n'importe quel joueur.
+- Le client n'envoie que des *actions* sur ses propres choix (siège, équipe,
+  maillot, prêt, vote, pause). L'hôte les applique selon les règles de
+  `net/partie.ts` ; « lancer », le format et le handicap ne viennent jamais du
+  réseau, et l'équipe d'un camp n'est réglable que par l'hôte (sauf en 1 contre 1).
 
 **Fiabilité et fluidité.**
 
@@ -558,17 +598,19 @@ classique, ni découvrir seule les appareils voisins. D'où le montage :
   6 s de silence, la liaison est considérée comme coupée.
 - **Reconnexion.** Une coupure pendant une partie (Wi-Fi qui décroche,
   téléphone mis en veille) ne la termine plus.
-  - L'hôte garde la place de l'invité pendant 60 s (`RECONNEXION_S` dans
-    `net/partie.ts`) et fige le match. L'hôte et les spectateurs voient
-    « CONNEXION PERDUE — EN ATTENTE DE X » avec le compte à rebours.
+  - L'hôte garde le siège du joueur pendant 60 s (`RECONNEXION_S` dans
+    `net/partie.ts`) et fige le match ; avec plusieurs joueurs absents, le
+    match ne reprend que quand tous sont revenus. L'hôte et les spectateurs
+    voient « CONNEXION PERDUE — EN ATTENTE DE X » avec le compte à rebours.
   - L'invité relance seul la découverte, retrouve l'annonce de son hôte et se
     reconnecte. Il prouve qu'il est bien le joueur parti avec un jeton secret,
     tiré à son arrivée et envoyé seulement par la liaison chiffrée.
   - Le match reprend au même score et au même temps de jeu, après le compte à
     rebours de 3 s. En plein match, l'invité est repris en route comme un
     spectateur.
-  - Au bout du délai, ou si l'hôte appuie sur NE PLUS ATTENDRE, l'hôte revient
-    en salle d'attente. L'invité peut aussi quitter pendant l'attente.
+  - Au bout du délai, ou si l'hôte appuie sur NE PLUS ATTENDRE, tout le monde
+    revient en salle d'attente et les sièges perdus sont libérés. Un joueur
+    peut aussi quitter pendant l'attente.
   - En salle d'attente, rien n'est gardé : la place se libère tout de suite.
     Si c'est l'hôte qui tombe, pas de reprise possible, car il porte la
     simulation : l'invité revient à la liste au bout du délai.
@@ -586,43 +628,48 @@ par un broker MQTT local, pour tester à deux onglets sur une seule machine.
 - Pour du jeu par Internet, le même protocole pourrait passer par un serveur
   relais (TURN).
 
-**Mode spectateur.** Une partie complète reste annoncée sur le réseau (avec
-le score et le nombre de spectateurs) : dans la liste, elle affiche REGARDER.
-Jusqu'à 4 spectateurs (`SPECTATEURS_MAX`) se branchent sur l'hôte, qui leur
-envoie le match comme à l'invité (instantanés, évènements, état de la
-partie) ; on peut arriver en plein match, il est pris en route. Le spectateur
-ne pilote rien et ne vote pas ; entre deux matchs, il attend sur un écran
-« mode spectateur ». En bas de son écran, une barre de réactions : les deux
-logos des équipes du match, toujours présents, puis flamme, gyrophare, cœur
-et « OUF » (touches 1 à 6 au clavier). L'hôte relaie chaque réaction à tout
-le monde avec le nom de son auteur (une toutes les 0,4 s au plus par
-appareil) ; elles montent le long du bord droit de tous les écrans, petites
-et semi-transparentes. Les joueurs peuvent aussi réagir, mais seulement sur
-l'écran de fin. Le nombre de spectateurs s'affiche en haut à gauche chez les
-joueurs. Protocole réseau v10.
+**Mode spectateur.** Une partie lancée reste annoncée sur le réseau (avec le
+score et le nombre de spectateurs) : dans la liste, elle affiche REGARDER.
+Jusqu'à 8 spectateurs (`SPECTATEURS_MAX`, indécis compris) se branchent sur
+l'hôte, qui leur envoie le match comme aux joueurs (instantanés, évènements,
+état de la partie) ; on peut arriver en plein match, il est pris en route. Le
+spectateur ne pilote rien et ne vote pas. En bas de son écran, une barre de
+réactions : les deux logos des équipes du match, toujours présents, puis
+flamme, gyrophare, cœur et « OUF » (touches 1 à 6 au clavier). L'hôte relaie
+chaque réaction à tout le monde avec le nom de son auteur (une toutes les
+0,4 s au plus par appareil) ; elles montent le long du bord droit de tous les
+écrans, petites et semi-transparentes. Les joueurs peuvent aussi réagir, mais
+seulement sur l'écran de fin. Le nombre de spectateurs s'affiche en haut à
+gauche chez les joueurs.
+
+**Ça tient ? (coût réseau).** Chaque appareil branché reçoit ~60 instantanés
+par seconde de ~0,6 Ko : environ 35 Ko/s, soit 0,3 Mbit/s. Avec 3 joueurs et
+8 spectateurs, l'hôte émet ~3 Mbit/s, ce qui est peu pour un Wi-Fi local ;
+le vrai coût, pour un téléphone d'entrée de gamme comme hôte, est de tenir 11
+liaisons WebRTC (chiffrement DTLS compris) en plus de la simulation et du
+rendu. L'hôte limite donc les appareils à 3 + 8 et refuse au-delà (« COMPLET »).
 
 **Mode coop (à deux contre le CPU).** Dans **CRÉER UNE PARTIE**, la ligne
-**MODE** passe de VERSUS à **COOP** et une ligne **NIVEAU DU CPU** (facile,
-normal, pro) apparaît. L'hôte et l'invité forment alors la même équipe, à
-gauche, contre l'ordinateur à droite. Dans la liste des parties, une partie coop
-porte la mention COOP.
+**FORMAT** passe à **COOP CONTRE CPU** et une ligne **NIVEAU DU CPU** (facile,
+normal, pro) apparaît. L'hôte et un autre joueur (siège A2) forment alors la
+même équipe, à gauche, contre l'ordinateur à droite. Dans la liste des parties,
+le format s'affiche (COOP).
 
-- **Le salon** affiche « JOUEUR 1 + JOUEUR 2 » et le niveau du CPU ; pas de
-  handicap (c'est le niveau du CPU qui règle la difficulté) ni de bilan de
-  duels.
+- **La salle d'attente** affiche le niveau du CPU ; pas de handicap (c'est le
+  niveau du CPU qui règle la difficulté) ni de bilan de duels.
 - **Choix des équipes et des maillots** : l'hôte règle tout, l'équipe commune
   (« NOTRE ÉQUIPE ») comme celle du CPU (« ADVERSAIRE CPU »), avec des flèches
   sur chaque panneau (au clavier : gauche/droite pour son équipe, haut/bas pour
-  le CPU). L'invité regarde les choix se faire et n'a rien à valider : le
+  le CPU). L'autre joueur regarde les choix se faire et n'a rien à valider : le
   « PRÊT » de l'hôte suffit à passer à l'étape suivante.
-- **En match**, l'hôte pilote un patineur et l'invité un autre, tous deux de
+- **En match**, l'hôte pilote un patineur et son équipier un autre, tous deux de
   l'équipe 0 ; les coéquipiers CPU jouent comme d'habitude, et passer le palet
   à l'autre humain est la base du jeu. Chacun a son bouton CHANGE : il donne la
   main à un coéquipier CPU, jamais au patineur de l'autre (le changement
   automatique non plus). Sur une passe vers un coéquipier CPU, c'est celui qui
   a passé qui prend la main sur le receveur ; un palet ramassé par un CPU va à
-  l'humain le plus proche. Ma flèche est bleue ; celle de l'autre humain est
-  rouge vif, bien visible sur la glace (en versus comme en coop).
+  l'humain le plus proche. Ma flèche est bleue ; celle de chaque autre humain
+  est rouge vif, bien visible sur la glace.
 - **Les bonus** de l'équipe ne s'appliquent qu'à celui des deux humains qui a
   le palet : il est doré (super vitesse, tir surpuissant et son bouton TIR doré,
   freeze, blackout...), et l'or passe de l'un à l'autre avec le palet, puis
@@ -634,13 +681,23 @@ porte la mention COOP.
   meilleure combo), puis on vote REJOUER ou CHANGER D'ÉQUIPES comme en versus.
   Pas de bilan de duel (le CPU n'en est pas un).
 
-Code : `MatchState.coop` et `MatchState.partenaire` (le patineur de l'invité),
-`OptionsPartie.coop`, `controle(state, s, siege)` et `changeJoueur(..., siege)`
-(`core/actions.ts`), `siegeDe` et `joueurDore` (`core/pouvoirs.ts`), `pas(..., entree)` dont
-le callback reçoit `partenaire` pour distinguer les deux humains ;
-`ConfigLan.coop`/`niveau` (`net/partie.ts`) ; protocole v20 (le drapeau coop de
-l'instantané et le patineur de l'invité). Testé dans `tests/coop.test.ts` et
-par le scénario e2e `coop`.
+Code, pour toutes les équipes à deux humains (coop, 2 contre 1, 2 contre 2) :
+`MatchState.duo[eq]` et `MatchState.partenaires[eq]` (le patineur du second
+humain de l'équipe ; `controles[eq]` est celui du premier), `OptionsPartie.duo`,
+`controle(state, s, siege)` et `changeJoueur(..., siege)` (`core/actions.ts`),
+`siegeDe` et `joueurDore` (`core/pouvoirs.ts`), `pas(..., entree)` dont le
+callback reçoit `partenaire` pour distinguer les deux humains d'une équipe.
+Côté réseau (`net/partie.ts`) : `EtatPartieLan.sieges` (quatre sièges),
+`camps` (équipe et maillot de chaque camp), `spectateurs`, `indecis`,
+`ConfigLan.format`/`niveau`, `compositionHumaine` (ce que le simulateur veut,
+d'après les sièges occupés) et `siegeReel` (quel siège pilote quel humain du
+simulateur : un humain seul d'une équipe est toujours le « premier »). Chaque
+appareil a sa propre liaison avec l'hôte (`SessionHote.membres`), et l'hôte lit
+l'entrée de chaque siège (`entreeSiege`) pour piloter le bon patineur.
+Protocole v23 : l'instantané porte `duo` des deux équipes (le patineur du
+second humain est marqué, avec son équipe). Testé dans `tests/coop.test.ts`,
+`tests/duo.test.ts`, `tests/partie-lan.test.ts` et par les scénarios e2e `coop`
+et `quatre`.
 
 **Le buteur célèbre aussi sur la glace.** Pendant que le bandeau « BUT ! »,
 l'écusson et le buteur en grand traversent l'écran, le jeu reste visible

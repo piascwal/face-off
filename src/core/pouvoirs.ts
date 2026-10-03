@@ -214,22 +214,22 @@ export const pouvoirPret = (state: MatchState, eq: TeamId): boolean => {
   return !!p && p.pret !== null && p.tirage <= 0 && p.actif === null;
 };
 
-/** Le siège d'un patineur humain : 0 pour l'hôte, 1 pour l'invité en coop, -1 s'il n'est piloté par personne. */
+/** Le siège d'un patineur humain dans son équipe : 0 le premier humain, 1 le second, -1 s'il n'est piloté par personne. */
 export function siegeDe(state: MatchState, s: Skater): -1 | 0 | 1 {
-  if (state.partenaire === s) return 1;
+  if (state.partenaires[s.eq] === s) return 1;
   return state.controles[s.eq] === s ? 0 : -1;
 }
 
 /**
  * Le joueur doré de l'équipe : celui qu'elle pilote, ou celui qui a déclenché
- * le bonus pour l'ordinateur. En coop, c'est celui des deux humains qui a
+ * le bonus pour l'ordinateur. Avec deux humains, c'est celui des deux qui a
  * le palet (`dore` garde son siège, 0 ou 1) : l'or passe de l'un à l'autre
  * avec le palet, et l'autre humain n'a aucun avantage.
  */
 export function joueurDore(state: MatchState, eq: TeamId): Skater | null {
   const p = state.pouvoirs?.[eq];
   if (!p?.actif || !DEF_POUVOIRS[p.actif].dore) return null;
-  if (state.humains[eq]) return state.coop && eq === 0 && p.dore === 1 ? state.partenaire : state.controles[eq];
+  if (state.humains[eq]) return state.duo[eq] && p.dore === 1 ? state.partenaires[eq] : state.controles[eq];
   return state.patineurs.find((s) => s.eq === eq && s.rang === p.dore) ?? null;
 }
 
@@ -272,7 +272,7 @@ export function activePouvoir(rink: Rink, state: MatchState, eq: TeamId, qui: Sk
   p.actif = id;
   p.pret = null;
   p.reste = DEF_POUVOIRS[id].duree;
-  p.dore = state.coop && eq === 0 ? (qui && siegeDe(state, qui) === 1 ? 1 : 0) : (qui?.rang ?? -1);
+  p.dore = state.duo[eq] ? (qui && siegeDe(state, qui) === 1 ? 1 : 0) : (qui?.rang ?? -1);
   p.passes = 0;
   p.tirFait = false;
   state.evenements.push({ type: 'pouvoir', eq, quoi: 'active', id: POUVOIRS.indexOf(id) });
@@ -315,8 +315,8 @@ export function majPouvoirs(rink: Rink, state: MatchState, dt: number): void {
   for (const eq of [0, 1] as TeamId[]) {
     const p = pv[eq];
     if (p.tirage > 0) p.tirage = Math.max(0, p.tirage - dt);
-    // coop : l'or suit celui des deux humains qui a le palet
-    if (p.actif && state.coop && eq === 0 && pal.porteur && 'face' in pal.porteur) {
+    // deux humains : l'or suit celui des deux qui a le palet
+    if (p.actif && state.duo[eq] && pal.porteur && 'face' in pal.porteur) {
       const siege = siegeDe(state, pal.porteur);
       if (siege >= 0) p.dore = siege;
     }
@@ -427,7 +427,7 @@ function retireRenfort(state: MatchState, eq: TeamId): void {
     return best;
   };
   if (state.controles[eq] === r) state.controles[eq] = reprend();
-  if (state.partenaire === r) state.partenaire = reprend();
+  if (state.partenaires[eq] === r) state.partenaires[eq] = reprend();
   state.evenements.push({ type: 'onde', x: r.x, y: r.y, r: 20, c: '#ffd35c' });
   state.evenements.push({ type: 'etincelles', x: r.x, y: r.y - 6, n: 12, c: '#ffd35c' });
 }
@@ -597,7 +597,7 @@ export const estInverse = (state: MatchState, eq: TeamId): boolean => pouvoirAct
 /** Le joueur qui devient doré : celui qu'on pilote, sinon le porteur du palet, sinon le plus proche du palet. */
 function quiDore(state: MatchState, eq: TeamId): Skater | null {
   const porteur = state.palet.porteur;
-  if (state.coop && eq === 0 && state.partenaire && porteur === state.partenaire) return state.partenaire;
+  if (state.duo[eq] && state.partenaires[eq] && porteur === state.partenaires[eq]) return state.partenaires[eq];
   if (state.humains[eq] && state.controles[eq]) return state.controles[eq];
   if (porteur && 'face' in porteur && porteur.eq === eq) return porteur;
   return plusProcheDuPalet(state, eq);

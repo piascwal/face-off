@@ -8,16 +8,16 @@
 import { attends, lan } from './outils.mjs';
 
 export default async function coop(env) {
-  const hote = await env.appareil('HOTE', { pseudo: 'LYNX 12', stockage: { coopWifi: true, bonus: true, niveau: 1 } });
+  const hote = await env.appareil('HOTE', { pseudo: 'LYNX 12', stockage: { formatWifi: 'coop', bonus: true, niveau: 1 } });
   const invite = await env.appareil('INVITE', { pseudo: 'BISON 15' });
   const H = hote.page;
   const I = invite.page;
   await H.evaluate(() => window.faceOff.lan.ouvreConfig());
   await attends(300);
   await env.capture(H, '0-config');
-  await lan.connecte(env, hote, invite);
-  env.verifie(await H.evaluate(() => window.faceOff.lan.partie.config.coop), 'la partie est créée en coop');
-  env.verifie(await env.attendsQue(I, () => window.faceOff.lan.partie?.config.coop === true), 'l\'invité voit une partie coop dans le salon');
+  await lan.connecte(env, hote, invite, 1);
+  env.verifie(await H.evaluate(() => window.faceOff.lan.partie.config.format === 'coop'), 'la partie est créée en coop');
+  env.verifie(await env.attendsQue(I, () => window.faceOff.lan.partie?.config.format === 'coop'), 'l\'invité voit une partie coop dans le salon');
   await env.capture(H, '0-salon-hote');
   await env.capture(I, '0-salon-invite');
 
@@ -25,7 +25,7 @@ export default async function coop(env) {
   await H.evaluate(() => window.faceOff.lan.agit({ a: 'lancer' }));
   await attends(500);
   env.verifie(await env.attendsQue(I, () => window.faceOff.ecranUI === 'lanChoix'), 'l\'invité arrive au choix des équipes');
-  const choix = () => H.evaluate(() => window.faceOff.lan.partie.joueurs.map((j) => j.equipe));
+  const choix = () => H.evaluate(() => window.faceOff.lan.partie.camps.map((c) => c.equipe));
   const e0 = await choix();
   await I.evaluate(() => { window.faceOff.lan.tourneEquipe(1, 0); window.faceOff.lan.tourneEquipe(1, 1); });
   await attends(300);
@@ -34,7 +34,7 @@ export default async function coop(env) {
   await attends(300);
   const e1 = await choix();
   env.verifie(e1[0] !== e0[0] && e1[1] !== e0[1], `l'hôte change l'équipe commune et celle du CPU (${e0} -> ${e1})`);
-  env.verifie(await env.attendsQue(I, (eq) => window.faceOff.lan.partie.joueurs.map((j) => j.equipe).join() === eq, e1.join()), 'l\'invité voit ces choix');
+  env.verifie(await env.attendsQue(I, (eq) => window.faceOff.lan.partie.camps.map((c) => c.equipe).join() === eq, e1.join()), 'l\'invité voit ces choix');
   await env.capture(H, '0-choix-hote');
   await env.capture(I, '0-choix-invite');
   // l'invité n'a rien à valider : le « prêt » de l'hôte suffit
@@ -43,10 +43,10 @@ export default async function coop(env) {
   env.verifie(await H.evaluate(() => window.faceOff.lan.partie.phase) === 'equipes', 'le « prêt » de l\'invité ne compte pas');
   await H.evaluate(() => window.faceOff.lan.agit({ a: 'pret', pret: true }));
   env.verifie(await env.attendsQue(H, () => window.faceOff.lan.partie.phase === 'maillots', undefined, 3000), 'l\'hôte seul fait passer aux maillots');
-  const maillotCpu = await H.evaluate(() => window.faceOff.lan.partie.joueurs[1].variante);
+  const maillotCpu = await H.evaluate(() => window.faceOff.lan.partie.camps[1].variante);
   await H.evaluate(() => window.faceOff.lan.tourneEquipe(1, 1));
   await attends(300);
-  env.verifie(await H.evaluate(() => window.faceOff.lan.partie.joueurs[1].variante) !== maillotCpu, 'l\'hôte règle aussi le maillot du CPU');
+  env.verifie(await H.evaluate(() => window.faceOff.lan.partie.camps[1].variante) !== maillotCpu, 'l\'hôte règle aussi le maillot du CPU');
   await env.capture(I, '0-maillots-invite');
   await H.evaluate(() => window.faceOff.lan.agit({ a: 'pret', pret: true }));
   env.verifie(await env.attendsQue(I, () => window.faceOff.ecranUI === 'jeu', undefined, 6000), 'le match démarre chez l\'invité sans qu\'il ait rien validé');
@@ -61,10 +61,10 @@ export default async function coop(env) {
   const roles = await H.evaluate(() => {
     const st = window.faceOff.state;
     return {
-      coop: st.coop,
+      coop: st.duo[0] && !st.humains[1],
       humains: st.humains,
-      distincts: !!st.controles[0] && !!st.partenaire && st.controles[0] !== st.partenaire,
-      eqPartenaire: st.partenaire?.eq,
+      distincts: !!st.controles[0] && !!st.partenaires[0] && st.controles[0] !== st.partenaires[0],
+      eqPartenaire: st.partenaires[0]?.eq,
       humainsParEquipe: [0, 1].map((e) => st.patineurs.filter((s) => s.eq === e && s.humain).length),
     };
   });
@@ -73,7 +73,7 @@ export default async function coop(env) {
   env.verifie(roles.humainsParEquipe[0] === 2 && roles.humainsParEquipe[1] === 0, `deux humains à gauche, aucun à droite (${roles.humainsParEquipe})`);
   env.verifie(await I.evaluate(() => window.faceOff.lan.eqLocal) === 0, 'l\'invité joue l\'équipe 0');
   env.verifie(
-    await env.attendsQue(I, () => window.faceOff.state.coop && !!window.faceOff.state.partenaire && window.faceOff.lan.pilote(window.faceOff.state) === window.faceOff.state.partenaire, undefined, 3000),
+    await env.attendsQue(I, () => window.faceOff.state.duo[0] && !!window.faceOff.state.partenaires[0] && window.faceOff.lan.pilote(window.faceOff.state) === window.faceOff.state.partenaires[0], undefined, 3000),
     'chez l\'invité, son patineur piloté est le partenaire',
   );
   await env.capture(I, '1-invite');
@@ -95,7 +95,7 @@ export default async function coop(env) {
   const pos = (page, quoi) =>
     page.evaluate((q) => {
       const st = window.faceOff.state;
-      const s = q === 'invite' ? st.partenaire : st.controles[0];
+      const s = q === 'invite' ? st.partenaires[0] : st.controles[0];
       return s ? { x: s.x, y: s.y } : null;
     }, quoi);
 
@@ -108,7 +108,7 @@ export default async function coop(env) {
     const st = window.faceOff.state;
     const app = window.faceOff;
     const h = st.controles[0];
-    const i = st.partenaire;
+    const i = st.partenaires[0];
     Object.assign(h, { x: app.rink.x + 40, y: app.rink.cy - 30, vx: 0, vy: 0 });
     Object.assign(i, { x: app.rink.x + app.rink.w - 40, y: app.rink.cy + 30, vx: 0, vy: 0 });
     for (const o of st.patineurs) if (o !== h && o !== i) Object.assign(o, { x: app.rink.cx, y: app.rink.y + 14, vx: 0, vy: 0 });
@@ -139,7 +139,7 @@ export default async function coop(env) {
   await enJeu();
   await H.evaluate(() => {
     const st = window.faceOff.state;
-    const s = st.partenaire;
+    const s = st.partenaires[0];
     if (st.palet.porteur) st.palet.porteur.tient = false;
     s.x = window.faceOff.rink.cx + 60;
     s.y = window.faceOff.rink.cy - 40;
@@ -152,7 +152,7 @@ export default async function coop(env) {
   await attends(150);
   await I.keyboard.down('Space');
   await attends(350);
-  env.verifie(await H.evaluate(() => window.faceOff.state.partenaire.arme), 'ESPACE maintenue par l\'invité : son tir se charge chez l\'hôte');
+  env.verifie(await H.evaluate(() => window.faceOff.state.partenaires[0].arme), 'ESPACE maintenue par l\'invité : son tir se charge chez l\'hôte');
   await I.keyboard.up('Space');
   env.verifie(await env.attendsQue(H, () => window.faceOff.state.patineurs.some((s) => s.eq === 0 && s.tirT > 0), undefined, 1500), 'tir lâché : le geste se joue chez l\'hôte');
   env.verifie(await env.attendsQue(I, () => window.faceOff.state.patineurs.some((s) => s.eq === 0 && s.tirT > 0), undefined, 1500), 'et chez l\'invité');
@@ -186,14 +186,14 @@ export default async function coop(env) {
   await prepare(H);
   const avant = await H.evaluate(() => {
     const st = window.faceOff.state;
-    return { h: st.patineurs.indexOf(st.controles[0]), i: st.patineurs.indexOf(st.partenaire) };
+    return { h: st.patineurs.indexOf(st.controles[0]), i: st.patineurs.indexOf(st.partenaires[0]) };
   });
   await I.keyboard.press('KeyL');
   await attends(500);
   const apres = await H.evaluate(() => {
     const st = window.faceOff.state;
     const humains = st.patineurs.filter((s) => s.humain);
-    return { h: st.patineurs.indexOf(st.controles[0]), i: st.patineurs.indexOf(st.partenaire), nb: humains.length, eq: humains.map((s) => s.eq) };
+    return { h: st.patineurs.indexOf(st.controles[0]), i: st.patineurs.indexOf(st.partenaires[0]), nb: humains.length, eq: humains.map((s) => s.eq) };
   });
   env.verifie(apres.nb === 2 && apres.eq.every((e) => e === 0) && apres.h !== apres.i, 'toujours deux humains distincts dans l\'équipe 0 après un changement');
   env.verifie(apres.h === avant.h, 'le changement de l\'invité n\'a pas pris le patineur de l\'hôte');
@@ -203,7 +203,7 @@ export default async function coop(env) {
   const passe = await H.evaluate(() => {
     const st = window.faceOff.state;
     const r = window.faceOff.rink;
-    const s = st.partenaire;
+    const s = st.partenaires[0];
     const h = st.controles[0];
     const cpu = st.patineurs.find((m) => m.eq === 0 && !m.humain);
     Object.assign(s, { x: r.cx - 40, y: r.cy, vx: 0, vy: 0 });
@@ -225,7 +225,7 @@ export default async function coop(env) {
   await attends(900);
   const apresPasse = await H.evaluate(() => {
     const st = window.faceOff.state;
-    return { h: st.patineurs.indexOf(st.controles[0]), i: st.patineurs.indexOf(st.partenaire), passes: st.stats.passes[0] };
+    return { h: st.patineurs.indexOf(st.controles[0]), i: st.patineurs.indexOf(st.partenaires[0]), passes: st.stats.passes[0] };
   });
   env.verifie(apresPasse.i === passe.cpu && apresPasse.h === passe.h, `passe de l'invité : il prend la main sur le receveur, l'hôte garde la sienne (${JSON.stringify(passe)} -> ${JSON.stringify(apresPasse)})`);
   env.verifie(apresPasse.passes === passe.passes + 1, 'la passe compte');
@@ -243,8 +243,8 @@ export default async function coop(env) {
   await H.evaluate(() => {
     const st = window.faceOff.state;
     st.controles[0].tient = false;
-    st.palet.porteur = st.partenaire;
-    st.partenaire.tient = true;
+    st.palet.porteur = st.partenaires[0];
+    st.partenaires[0].tient = true;
   });
   env.verifie(await env.attendsQue(I, () => window.faceOff.state.pouvoirs[0].dore === 1, undefined, 2000), 'le palet passe à l\'invité : l\'or le suit (chez les deux)');
   env.verifie(await H.evaluate(() => window.faceOff.state.pouvoirs[0].dore) === 1, 'idem chez l\'hôte');
@@ -265,5 +265,5 @@ export default async function coop(env) {
   await H.evaluate(() => window.faceOff.lan.agit({ a: 'vote', vote: 'rejouer' }));
   await I.evaluate(() => window.faceOff.lan.agit({ a: 'vote', vote: 'rejouer' }));
   env.verifie(await env.attendsQue(I, () => window.faceOff.ecranUI === 'jeu' && window.faceOff.state.score[0] === 0, undefined, 8000), 'revanche : nouveau match en coop chez l\'invité');
-  env.verifie(await H.evaluate(() => window.faceOff.state.coop && !!window.faceOff.state.partenaire), 'et toujours en coop chez l\'hôte');
+  env.verifie(await H.evaluate(() => window.faceOff.state.duo[0] && !!window.faceOff.state.partenaires[0]), 'et toujours en coop chez l\'hôte');
 }

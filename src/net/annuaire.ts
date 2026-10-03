@@ -1,3 +1,4 @@
+import { estFormat, SPECTATEURS_MAX, type FormatLan } from './partie';
 import { ClientMqtt } from './mqtt';
 import { chiffre, dechiffre, idAleatoire, VERSION_PROTOCOLE, type Salon } from './reseau-local';
 
@@ -19,16 +20,17 @@ export interface AnnoncePartie {
   equipe: string;
   effectif: number;
   duree: number;
-  /** Les deux joueurs sont là : on ne peut plus que regarder (mode spectateur). */
-  plein: boolean;
+  /** La partie est lancée : les sièges sont pris, on ne peut plus que regarder (mode spectateur). */
+  enCours: boolean;
+  /** Format (combien d'humains de chaque côté) et nombre de joueurs déjà assis. */
+  format: FormatLan;
+  joueurs: number;
   /** Nombre de spectateurs connectés. */
   spect: number;
-  /** Équipe de l'invité ('' tant qu'il n'y en a pas). */
+  /** Équipe du camp adverse (celui de droite). */
   adverse: string;
   /** Score du match en cours (ou du dernier). */
   score: [number, number];
-  /** Partie coop : l'invité joue avec l'hôte contre le CPU. */
-  coop: boolean;
   v: number;
   t: number;
   /** Index local du salon où l'annonce a été vue (non transmis). */
@@ -54,11 +56,11 @@ export function valideAnnonce(o: unknown, idTopic: string, salon: number): Annon
   if (typeof a.equipe !== 'string' || !/^[a-z]{2,16}$/.test(a.equipe)) return null;
   if (typeof a.effectif !== 'number' || !Number.isInteger(a.effectif) || a.effectif < 0 || a.effectif > 9) return null;
   if (typeof a.duree !== 'number' || !Number.isInteger(a.duree) || a.duree < 0 || a.duree > 9) return null;
-  if (typeof a.plein !== 'boolean' || typeof a.spect !== 'number' || !Number.isInteger(a.spect) || a.spect < 0 || a.spect > 9) return null;
+  if (typeof a.enCours !== 'boolean' || typeof a.spect !== 'number' || !Number.isInteger(a.spect) || a.spect < 0 || a.spect > SPECTATEURS_MAX) return null;
+  if (!estFormat(a.format) || typeof a.joueurs !== 'number' || !Number.isInteger(a.joueurs) || a.joueurs < 0 || a.joueurs > 4) return null;
   if (typeof a.adverse !== 'string' || !/^([a-z]{2,16})?$/.test(a.adverse)) return null;
   const sc = a.score;
   if (!Array.isArray(sc) || sc.length !== 2 || !sc.every((x) => typeof x === 'number' && Number.isInteger(x) && x >= 0 && x < 100)) return null;
-  if (typeof a.coop !== 'boolean') return null;
   if (typeof a.v !== 'number' || typeof a.t !== 'number' || !Number.isFinite(a.t)) return null;
   return {
     id: a.id,
@@ -66,11 +68,12 @@ export function valideAnnonce(o: unknown, idTopic: string, salon: number): Annon
     equipe: a.equipe,
     effectif: a.effectif,
     duree: a.duree,
-    plein: a.plein,
+    enCours: a.enCours,
+    format: a.format,
+    joueurs: a.joueurs,
     spect: a.spect,
     adverse: a.adverse,
     score: [sc[0] as number, sc[1] as number],
-    coop: a.coop,
     v: a.v,
     t: a.t,
     salon,

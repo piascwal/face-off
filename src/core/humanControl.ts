@@ -112,7 +112,7 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
   }
   if (intent.passeAppui && actif) {
     if (s.tient) passeJoueur(state, s, intent.ix, intent.iy, state.assistPasse);
-    else changeJoueur(state, s.eq, s === state.partenaire ? 1 : 0);
+    else changeJoueur(state, s.eq, s === state.partenaires[s.eq] ? 1 : 0);
   }
   // petit bouton, celui des accélérations : avec le palet, SPRINT — ou ESQUIVE si
   // un défenseur arrive en mise en échec ; sans le palet, mise en ÉCHEC (l'élan

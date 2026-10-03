@@ -28,10 +28,11 @@ export interface OptionsPartie {
   /** Équipes pilotées par un humain ; par défaut seule l'équipe 0 (solo contre le CPU). */
   humains?: [boolean, boolean];
   /**
-   * Coop (partie Wi-Fi) : l'hôte et l'invité jouent ensemble l'équipe 0 contre
-   * le CPU (qui garde le niveau `niveauIdx`) ; `humains` est alors ignoré.
+   * Partie Wi-Fi : équipes à deux humains (coop : l'équipe 0 seule contre le
+   * CPU, qui garde le niveau `niveauIdx`). Une équipe en `duo` est forcément
+   * humaine, quoi qu'en dise `humains`.
    */
-  coop?: boolean;
+  duo?: [boolean, boolean];
   /** Handicap de chaque équipe (partie Wi-Fi) ; aucun par défaut. */
   bonus?: [BonusEquipe, BonusEquipe];
   /** Durée de la phase « but » ; allongée quand le ralenti des buts est activé. */
@@ -88,17 +89,17 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     }
   }
 
-  const coop = opts.mode === 'match' && !!opts.coop && nb >= 2;
+  const duo: [boolean, boolean] = opts.mode === 'match' && nb >= 2 ? [!!opts.duo?.[0], !!opts.duo?.[1]] : [false, false];
   const state: MatchState = {
     mode: opts.mode,
     niv: niveauAdverse,
     nivEq,
     nb,
     patineurs: [],
-    humains: opts.mode === 'demo' ? [false, false] : coop ? [true, false] : (opts.humains ?? [true, false]),
+    humains: opts.mode === 'demo' ? [false, false] : [duo[0] || (opts.humains ?? [true, false])[0], duo[1] || (opts.humains ?? [true, false])[1]],
     controles: [null, null],
-    coop,
-    partenaire: null,
+    duo,
+    partenaires: [null, null],
     gardiens: [nouveauGardien(0), nouveauGardien(1)],
     palet: nouveauPalet(),
     // « 1 but d'avance » : l'équipe aidée commence le match en menant
@@ -198,9 +199,11 @@ export function engagement(rink: Rink, state: MatchState, duree: number): void {
       const premier = state.patineurs.find((s) => s.eq === eq && s.rang === 0);
       if (state.humains[eq] && premier) controle(state, premier);
     }
-    // coop : le second humain démarre avec le coéquipier de rang 1
-    const second = state.patineurs.find((s) => s.eq === 0 && s.rang === 1);
-    if (state.coop && second) controle(state, second, 1);
+    // équipe à deux humains : le second démarre avec le coéquipier de rang 1
+    for (const eq of [0, 1] as TeamId[]) {
+      const second = state.patineurs.find((s) => s.eq === eq && s.rang === 1);
+      if (state.duo[eq] && second) controle(state, second, 1);
+    }
   }
   // les cages déformées par un bonus (géante, mini) ont duré le temps du but : retour à la normale
   for (const eq of [0, 1] as TeamId[]) {

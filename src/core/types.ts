@@ -269,11 +269,12 @@ export interface MatchState {
   /** Patineur actuellement piloté par l'humain de chaque équipe (null pour une équipe CPU). */
   controles: [Skater | null, Skater | null];
   /**
-   * Coop (Wi-Fi) : deux humains dans l'équipe 0 contre le CPU. `controles[0]`
-   * est le patineur de l'hôte, `partenaire` celui de l'invité (null hors coop).
+   * Wi-Fi : une équipe peut avoir deux humains (`duo[eq]`). `controles[eq]` est
+   * le patineur du premier (siège 0), `partenaires[eq]` celui du second
+   * (siège 1) ; null quand l'équipe n'a qu'un humain ou aucun.
    */
-  coop: boolean;
-  partenaire: Skater | null;
+  duo: [boolean, boolean];
+  partenaires: [Skater | null, Skater | null];
   gardiens: [Goalie, Goalie];
   palet: Puck;
   score: [number, number];

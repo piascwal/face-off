@@ -1,6 +1,7 @@
 import { lisCoupe, type EtatCoupe, type TailleCoupe } from '../core/coupe';
 import { POUVOIRS } from '../core/pouvoirs';
 import type { PouvoirId } from '../core/types';
+import { estFormat, type FormatLan } from '../net/partie';
 
 const CLE = 'face-off-v1';
 
@@ -32,8 +33,8 @@ export interface Preferences {
   coupe: EtatCoupe | null;
   /** Bonus (power-ups) activés en match. */
   bonus: boolean;
-  /** Multi Wi-Fi : créer une partie en coop (à deux contre le CPU) plutôt qu'en versus. */
-  coopWifi: boolean;
+  /** Multi Wi-Fi : le format des parties créées (1 contre 1, 2 contre 2, coop...). */
+  formatWifi: FormatLan;
   /** Bonus choisi pour le mode entraînement (gardé d'une fois sur l'autre). */
   bonusEntrainement: PouvoirId;
 }
@@ -72,7 +73,7 @@ const DEFAUT: Preferences = {
   mode: 'classique',
   coupe: null,
   bonus: true,
-  coopWifi: false,
+  formatWifi: '1v1',
   bonusEntrainement: 'puissant',
 };
 
@@ -104,7 +105,10 @@ export function chargePreferences(): Preferences {
   if ((pref.mode as string) === 'coupe') pref.mode = 'coupe8';
   if (!MODES.includes(pref.mode)) pref.mode = 'classique';
   pref.coupe = lisCoupe(pref.coupe);
-  if (typeof pref.coopWifi !== 'boolean') pref.coopWifi = false;
+  // l'ancien réglage « coop » (booléen) devient un format
+  const ancienne = (pref as unknown as { coopWifi?: unknown }).coopWifi;
+  delete (pref as unknown as { coopWifi?: unknown }).coopWifi;
+  if (!estFormat(pref.formatWifi)) pref.formatWifi = ancienne === true ? 'coop' : '1v1';
   if (!POUVOIRS.includes(pref.bonusEntrainement)) pref.bonusEntrainement = 'puissant';
   if (modifie) sauvePreferences(pref);
   return pref;

@@ -19,6 +19,7 @@ export type EcranUI =
   | 'lan'
   | 'lanConfig'
   | 'salon'
+  | 'lanRole'
   | 'lanChoix'
   | 'lanSpect'
   // match et fin de match (tous les parcours)
@@ -26,4 +27,4 @@ export type EcranUI =
   | 'fin';
 
 /** Écrans de menu plein cadre : ni tableau d'affichage ni bandeau par-dessus. */
-export const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'commandes', 'entrainement', 'equipes', 'maillots', 'coupeChoix', 'coupe', 'lan', 'lanConfig', 'salon', 'lanChoix', 'lanSpect'];
+export const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'commandes', 'entrainement', 'equipes', 'maillots', 'coupeChoix', 'coupe', 'lan', 'lanConfig', 'salon', 'lanRole', 'lanChoix', 'lanSpect'];

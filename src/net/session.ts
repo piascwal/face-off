@@ -1,23 +1,32 @@
 import { Annuaire, COURTIERS, type AnnoncePartie, type Signal } from './annuaire';
 import { Liaison } from './liaison';
-import type { InputIntent } from '@core/types';
+import { INTENT_VIDE, type InputIntent } from '@core/types';
 import {
   appliqueAction,
+  arrive,
   avanceAbsence,
   avanceReprise,
+  campDe,
   debutRalenti,
-  inviteAbsent,
-  inviteArrive,
-  invitePart,
-  inviteRevenu,
+  joueurAbsent,
+  joueurPart,
+  joueurRevenu,
+  joueursAssis,
+  nbRegardeurs,
   nouvellePartie,
   RECONNEXION_S,
+  regardeurPart,
+  roleDe,
+  siegeDeAppareil,
   SPECTATEURS_MAX,
+  versAttente,
   versFin,
   type ActionLan,
   type ConfigLan,
   type EtatPartieLan,
   type Reaction,
+  type Role,
+  type Siege,
 } from './partie';
 import { bonjour, EmetteurEntrees, EntreeDistante, lisCtrl, type MsgCtrl } from './protocole';
 import { detecteReseaux, idAleatoire, salonPour, VERSION_PROTOCOLE, type Salon } from './reseau-local';
@@ -32,9 +41,9 @@ import { detecteReseaux, idAleatoire, salonPour, VERSION_PROTOCOLE, type Salon }
  * les serveurs de découverte : le client s'en déconnecte.
  *
  * Coupure pendant une partie (Wi-Fi qui décroche, téléphone mis en veille) :
- * l'hôte garde la place de l'invité et fige le match ; l'invité relance seul
+ * l'hôte garde le siège du joueur et fige le match ; le joueur relance seul
  * la découverte, retrouve l'annonce de l'hôte et se reconnecte avec le jeton
- * secret donné à son arrivée (voir `inviteAbsent` dans partie.ts).
+ * secret donné à son arrivée (voir `joueurAbsent` dans partie.ts).
  */
 
 export type RaisonFin = 'quitte' | 'exclu' | 'perdu' | 'complet' | 'version' | 'injoignable';
@@ -43,14 +52,6 @@ const PING_MS = 1000;
 const SILENCE_MAX_MS = 6000;
 /** Une réaction au plus toutes les 0,4 s par appareil (anti-matraquage). */
 const REACTION_MIN_MS = 400;
-
-/** Un spectateur branché sur l'hôte : il reçoit tout le match, et n'envoie que des réactions. */
-interface Spectateur {
-  l: Liaison;
-  veille: Veille | null;
-  /** Connu une fois son « bonjour » reçu. */
-  nom: string | null;
-}
 
 /**
  * Options de développement (jamais actives en production) : réseau et
@@ -134,38 +135,48 @@ export interface InfosHote {
   config: ConfigLan;
 }
 
+/** Un appareil branché sur l'hôte : joueur, spectateur ou arrivant qui n'a pas encore choisi. */
+interface Membre {
+  l: Liaison;
+  veille: Veille | null;
+  /** Connu une fois son « bonjour » reçu. */
+  nom: string | null;
+  appareil: string;
+  /** Jeton secret : le même jeton rend son siège à un joueur qui revient après une coupure. */
+  jeton: string;
+  /** L'équipe qu'il préfère (reprise quand il prend la place de droite en 1 contre 1). */
+  equipe: string;
+  /** Entrées du joueur, reconstruites pas à pas. */
+  entree: EntreeDistante;
+  code: string | null;
+}
+
+/** Appareils branchés au plus : 3 autres joueurs, et des spectateurs. */
+const MEMBRES_MAX = 3 + SPECTATEURS_MAX;
+
 export class SessionHote {
   /** État partagé de la partie ; l'hôte en est le seul arbitre. */
   readonly partie: EtatPartieLan;
-  code: string | null = null;
-  /** Un client est en train de se connecter (offre reçue, liaison pas encore ouverte). */
-  connexionEnCours = false;
   onChange: () => void = () => {};
-  /** Les deux joueurs ont validé (maillots, ou vote « rejouer ») : l'app lance le match. */
+  /** Tous les joueurs ont validé (maillots, ou vote « rejouer ») : l'app lance le match. */
   onDebut: () => void = () => {};
-  onInviteParti: (raison: RaisonFin, nom: string) => void = () => {};
+  onJoueurParti: (raison: RaisonFin, nom: string) => void = () => {};
   /** Réaction relayée à tous (spectateur, ou joueur sur l'écran de fin) : à afficher ici aussi. */
   onReaction: (r: Reaction, de: string) => void = () => {};
   /**
-   * Un spectateur vient d'arriver (état de la partie déjà envoyé) : si un match
-   * est en cours, l'app lui envoie `debut` pour qu'il le prenne en route.
+   * Un appareil vient de se présenter (état de la partie déjà envoyé) : si un
+   * match est en cours, l'app lui envoie `debut` pour qu'il le prenne en route.
    */
-  onSpectateur: (envoie: (m: MsgCtrl) => void) => void = () => {};
-  /** L'invité est revenu après une coupure (état déjà envoyé) : en plein match, l'app lui renvoie `debut`. */
-  onInviteRevenu: (envoie: (m: MsgCtrl) => void) => void = () => {};
+  onArrivee: (envoie: (m: MsgCtrl) => void) => void = () => {};
+  /** Un joueur est revenu après une coupure (état déjà envoyé) : en plein match, l'app lui renvoie `debut`. */
+  onJoueurRevenu: (envoie: (m: MsgCtrl) => void) => void = () => {};
 
-  private liaison: Liaison | null = null;
-  /** L'appareil de la liaison courante s'est présenté (bonjour accepté). */
-  private presente = false;
-  /** Jeton secret de l'invité : le même jeton lui rend sa place après une coupure. */
-  private jetonInvite: string | null = null;
-  private spectateurs: Spectateur[] = [];
+  private membres: Membre[] = [];
+  /** Jeton de chaque joueur absent dont le siège est gardé. */
+  private gardes = new Map<Siege, string>();
   private score: [number, number] = [0, 0];
   /** Dernière réaction de chaque auteur (anti-matraquage). */
   private dernieresReactions = new Map<string, number>();
-  /** Entrées du joueur invité, reconstruites pas à pas (une par invité, pas par match). */
-  private entree = new EntreeDistante();
-  private veille: Veille | null = null;
   private ferme_ = false;
 
   private constructor(
@@ -186,37 +197,60 @@ export class SessionHote {
     return s;
   }
 
+  /** La plus mauvaise latence parmi les appareils branchés (null s'il n'y en a pas). */
   get latenceMs(): number | null {
-    return this.veille?.latenceMs ?? null;
+    let pire: number | null = null;
+    for (const m of this.presents) {
+      const ms = m.veille?.latenceMs ?? null;
+      if (ms !== null && (pire === null || ms > pire)) pire = ms;
+    }
+    return pire;
   }
 
-  get aUnInvite(): boolean {
-    return this.partie.joueurs[1] !== null;
+  /** Un appareil est en train de se connecter (offre reçue, pas encore présenté). */
+  get connexionEnCours(): boolean {
+    return this.membres.some((m) => m.nom === null);
   }
 
-  /** Spectateurs présentés (bonjour reçu). */
-  private get presents(): Spectateur[] {
-    return this.spectateurs.filter((s) => s.nom !== null);
+  /** Appareils présentés (bonjour reçu). */
+  private get presents(): Membre[] {
+    return this.membres.filter((m) => m.nom !== null);
+  }
+
+  /** Code de vérification de la liaison d'un appareil (le même s'affiche chez lui). */
+  codeDe(appareil: string): string | null {
+    return this.presents.find((m) => m.appareil === appareil)?.code ?? null;
+  }
+
+  /** Latence de la liaison d'un appareil. */
+  latenceDe(appareil: string): number | null {
+    return this.presents.find((m) => m.appareil === appareil)?.veille?.latenceMs ?? null;
+  }
+
+  /** Cet appareil est-il connecté en ce moment (un joueur absent ne l'est pas) ? */
+  connecte(appareil: string): boolean {
+    return this.presents.some((m) => m.appareil === appareil);
   }
 
   /**
-   * Annonce la partie sur le réseau, y compris quand elle est pleine : on
+   * Annonce la partie sur le réseau, y compris quand elle est lancée : on
    * peut toujours venir la regarder (score et nombre de spectateurs à jour).
    */
   private annonce(): void {
     if (this.ferme_) return;
-    const [j, invite] = this.partie.joueurs;
-    const c = this.partie.config;
+    const p = this.partie;
+    const c = p.config;
     this.annuaire.annonce({
-      nom: j.nom,
-      equipe: j.equipe,
+      nom: p.sieges[0]!.nom,
+      equipe: p.camps[0].equipe,
       effectif: c.effectif,
       duree: c.duree,
-      plein: !!invite,
-      spect: this.presents.length,
-      adverse: invite?.equipe ?? '',
+      enCours: p.phase !== 'attente',
+      format: c.format,
+      joueurs: joueursAssis(p).length,
+      spect: nbRegardeurs(p),
+      adverse: p.camps[1].equipe,
       score: [...this.score],
-      coop: c.coop,
     });
   }
 
@@ -228,21 +262,19 @@ export class SessionHote {
   }
 
   get nbSpectateurs(): number {
-    return this.presents.length;
+    return nbRegardeurs(this.partie);
   }
 
-  /** Envoie l'état de la partie à l'invité et aux spectateurs, et prévient l'app. */
+  /** Envoie l'état de la partie à tous les appareils, et prévient l'app. */
   private diffuse(): void {
-    this.partie.spect = this.presents.length;
     const m: MsgCtrl = { t: 'etat', e: this.partie };
-    this.liaison?.envoieCtrl(m);
-    for (const s of this.presents) s.l.envoieCtrl(m);
+    for (const x of this.presents) x.l.envoieCtrl(m);
     this.onChange();
   }
 
   /** Réaction d'un joueur de l'hôte (écran de fin seulement). */
   reagit(r: Reaction): void {
-    if (this.partie.phase === 'fin') this.relaieReaction(r, this.partie.joueurs[0].nom);
+    if (this.partie.phase === 'fin') this.relaieReaction(r, this.partie.sieges[0]!.nom);
   }
 
   private relaieReaction(r: Reaction, de: string): void {
@@ -250,14 +282,14 @@ export class SessionHote {
     if (t - (this.dernieresReactions.get(de) ?? -Infinity) < REACTION_MIN_MS) return;
     this.dernieresReactions.set(de, t);
     const m: MsgCtrl = { t: 'reaction', r, de };
-    this.liaison?.envoieCtrl(m);
-    for (const s of this.presents) s.l.envoieCtrl(m);
+    for (const x of this.presents) x.l.envoieCtrl(m);
     this.onReaction(r, de);
   }
 
-  /** Applique une action de l'hôte lui-même (même règles que pour l'invité). */
+  /** Applique une action de l'hôte lui-même (mêmes règles que pour les autres). */
   agit(action: ActionLan): void {
-    const debut = appliqueAction(this.partie, 0, action, this.equipeConnue);
+    const debut = appliqueAction(this.partie, this.partie.sieges[0]!.appareil, action, this.equipeConnue);
+    this.annonce();
     this.diffuse();
     if (debut) this.onDebut();
   }
@@ -271,10 +303,11 @@ export class SessionHote {
   /** Le match s'est terminé : place au vote « rejouer / changer d'équipes ». */
   finMatch(): void {
     versFin(this.partie);
+    this.annonce();
     this.diffuse();
   }
 
-  /** Fait avancer le compte à rebours de reprise après une pause, et l'attente d'un invité absent. */
+  /** Fait avancer le compte à rebours de reprise après une pause, et l'attente des joueurs absents. */
   avance(dt: number): void {
     const absence = avanceAbsence(this.partie, dt);
     if (absence === 'fini') this.finAbsence();
@@ -282,258 +315,217 @@ export class SessionHote {
     if (avanceReprise(this.partie, dt)) this.diffuse();
   }
 
-  /** Secondes qu'il reste à l'invité pour revenir (0 : il est là). */
+  /** Secondes qu'il reste aux joueurs absents pour revenir (0 : tout le monde est là). */
   get absence(): number {
     return this.partie.absent;
   }
 
-  /** L'hôte n'attend plus l'invité parti : retour en salle d'attente. */
+  /** L'hôte n'attend plus les joueurs partis : retour en salle d'attente. */
   arreteAttente(): void {
     if (this.partie.absent > 0) this.finAbsence();
   }
 
-  /** L'invité n'est pas revenu à temps : sa place est libérée. */
+  /** Les joueurs absents ne sont pas revenus à temps : leurs sièges sont libérés. */
   private finAbsence(): void {
-    const invite = this.partie.joueurs[1];
-    if (this.liaison) this.lache(this.liaison);
-    invitePart(this.partie);
-    this.jetonInvite = null;
+    const noms = this.partie.absents.map((s) => this.partie.sieges[s]?.nom ?? '').filter(Boolean);
+    this.gardes.clear();
+    versAttente(this.partie);
     this.annonce();
     this.diffuse();
-    if (invite) this.onInviteParti('perdu', invite.nom);
+    if (noms.length) this.onJoueurParti('perdu', noms.join(' ET '));
   }
 
   private async surSignal(de: string, salon: number, sig: Signal): Promise<void> {
     if (sig.type !== 'offre' || this.ferme_) return;
-    if (sig.spect) {
-      await this.accepteSpectateur(de, salon, sig.sdp);
-      return;
-    }
-    if (this.liaison) {
+    if (this.membres.length >= MEMBRES_MAX) {
       await this.annuaire.signale(de, salon, { type: 'refus', raison: 'complet' });
       return;
     }
+    // les regardeurs (spectateurs et indécis) ont leur plafond : au-delà, on ne peut plus que revenir sur son siège gardé
+    if (nbRegardeurs(this.partie) + this.membres.filter((m) => m.nom === null).length >= SPECTATEURS_MAX && this.partie.absent <= 0) {
+      await this.annuaire.signale(de, salon, { type: 'refus', raison: 'spectateurs' });
+      return;
+    }
     const l = new Liaison();
-    this.liaison = l;
-    this.presente = false;
-    this.entree = new EntreeDistante();
-    this.connexionEnCours = true;
+    const m: Membre = { l, veille: null, nom: null, appareil: '', jeton: '', equipe: '', entree: new EntreeDistante(), code: null };
+    this.membres.push(m);
     this.onChange();
     try {
       const sdp = await l.accepteOffre(sig.sdp);
       await this.annuaire.signale(de, salon, { type: 'reponse', sdp });
       await l.ouverte();
-      this.code = await l.codeVerification();
+      m.code = await l.codeVerification();
     } catch {
-      this.libere(l);
+      this.retire(m);
+      this.onChange();
       return;
     }
-    // on attend le « bonjour » du client pour connaître son nom et son équipe
-    l.onCtrl = (o) => this.surCtrl(l, o);
+    if (!this.membres.includes(m)) return;
+    // on attend le « bonjour » pour connaître son nom
+    l.onCtrl = (o) => this.surCtrl(m, o);
     l.onJeu = (d) => {
-      if (this.entree.recoit(d, performance.now() / 1000)) this.veille?.recuJeu();
+      if (m.entree.recoit(d, performance.now() / 1000)) m.veille?.recuJeu();
     };
-    l.onFerme = () => this.parti(l, 'perdu');
-    this.veille = new Veille(l, () => l.ferme());
+    l.onFerme = () => this.parti(m, 'perdu');
+    m.veille = new Veille(l, () => l.ferme());
     // un pair qui ouvre la liaison sans jamais se présenter ne bloque pas la partie
     setTimeout(() => {
-      if (this.liaison === l && !this.presente) this.libere(l);
+      if (m.nom === null && this.membres.includes(m)) {
+        this.retire(m);
+        this.onChange();
+      }
     }, 10_000);
   }
 
-  private surCtrl(l: Liaison, o: unknown): void {
-    if (l !== this.liaison) return;
-    const m = lisCtrl(o);
-    if (!m || this.veille?.recu(m)) return;
-    if (m.t === 'bonjour') {
-      if (m.v !== VERSION_PROTOCOLE || m.spect || this.presente) {
-        l.ferme();
+  private surCtrl(m: Membre, o: unknown): void {
+    if (!this.membres.includes(m)) return;
+    const msg = lisCtrl(o);
+    if (!msg || m.veille?.recu(msg)) return;
+    const p = this.partie;
+    if (msg.t === 'bonjour') {
+      if (msg.v !== VERSION_PROTOCOLE || m.nom !== null) {
+        this.retire(m);
+        this.onChange();
         return;
       }
-      if (this.partie.absent > 0) {
-        // la place est gardée : seul l'invité parti la reprend, avec son jeton
-        if (m.jeton !== this.jetonInvite) {
-          l.ferme();
-          return;
-        }
-        this.presente = true;
-        this.connexionEnCours = false;
-        inviteRevenu(this.partie);
+      // un joueur absent revient avec son jeton : il retrouve son siège
+      const siege = [...this.gardes].find(([s, j]) => j === msg.jeton && p.absents.includes(s))?.[0];
+      if (siege !== undefined) {
+        this.gardes.delete(siege);
+        Object.assign(m, { nom: msg.nom, appareil: msg.appareil, jeton: msg.jeton, equipe: msg.equipe });
+        joueurRevenu(p, siege);
         this.annonce();
         this.diffuse();
-        this.onInviteRevenu((x) => l.envoieCtrl(x));
+        this.onJoueurRevenu((x) => m.l.envoieCtrl(x));
         return;
       }
-      if (this.aUnInvite) {
-        l.ferme();
+      // un appareil déjà présent (ancienne liaison pas encore tombée) ne se présente pas deux fois
+      if (roleDe(p, msg.appareil) || this.membres.some((x) => x !== m && x.nom !== null && x.appareil === msg.appareil)) {
+        this.retire(m);
+        this.onChange();
         return;
       }
-      inviteArrive(this.partie, m.nom, this.equipeConnue(m.equipe) ? m.equipe : this.partie.joueurs[0].equipe, m.appareil);
-      this.jetonInvite = m.jeton;
-      this.presente = true;
-      this.connexionEnCours = false;
-      this.score = [0, 0];
-      // la partie est pleine : elle reste annoncée, mais seulement pour la regarder
+      Object.assign(m, { nom: msg.nom, appareil: msg.appareil, jeton: msg.jeton, equipe: msg.equipe });
+      arrive(p, msg.nom, msg.appareil);
+      // venu pour regarder seulement : pas la peine de choisir
+      if (msg.spect && p.phase === 'attente') appliqueAction(p, msg.appareil, { a: 'spectateur' });
       this.annonce();
       this.diffuse();
-    } else if (m.t === 'action' && this.aUnInvite) {
-      const debut = appliqueAction(this.partie, 1, m.x, this.equipeConnue);
+      this.onArrivee((x) => m.l.envoieCtrl(x));
+    } else if (m.nom === null) {
+      // rien d'autre n'est accepté d'un appareil qui ne s'est pas présenté
+    } else if (msg.t === 'action') {
+      const avant = p.sieges.map((j) => j?.appareil ?? null);
+      const debut = appliqueAction(p, m.appareil, msg.x, this.equipeConnue);
+      if (msg.x.a === 'siege') this.prendEquipePreferee(m, avant);
+      this.annonce();
       this.diffuse();
       if (debut) this.onDebut();
-    } else if (m.t === 'reaction' && this.aUnInvite && this.partie.phase === 'fin') {
+    } else if (msg.t === 'reaction') {
       // les joueurs ne réagissent que sur l'écran de fin (pendant le match, les doigts sont pris)
-      this.relaieReaction(m.r, this.partie.joueurs[1]!.nom);
-    } else if (m.t === 'quitte') {
-      this.parti(l, 'quitte');
+      const role = roleDe(p, m.appareil);
+      if (role && (role.t !== 'siege' || p.phase === 'fin')) this.relaieReaction(msg.r, m.nom);
+    } else if (msg.t === 'quitte') {
+      this.parti(m, 'quitte');
     }
   }
 
-  // -------------------------------------------------------------- spectateurs
-
-  private async accepteSpectateur(de: string, salon: number, offre: string): Promise<void> {
-    if (this.spectateurs.length >= SPECTATEURS_MAX) {
-      await this.annuaire.signale(de, salon, { type: 'refus', raison: 'spectateurs' });
-      return;
-    }
-    const l = new Liaison();
-    const s: Spectateur = { l, veille: null, nom: null };
-    this.spectateurs.push(s);
-    try {
-      const sdp = await l.accepteOffre(offre);
-      await this.annuaire.signale(de, salon, { type: 'reponse', sdp });
-      await l.ouverte();
-    } catch {
-      this.retireSpectateur(s);
-      return;
-    }
-    if (!this.spectateurs.includes(s)) return;
-    l.onCtrl = (o) => this.surCtrlSpectateur(s, o);
-    l.onJeu = () => {};
-    l.onFerme = () => this.retireSpectateur(s);
-    s.veille = new Veille(l, () => l.ferme());
-    setTimeout(() => {
-      if (s.nom === null) this.retireSpectateur(s);
-    }, 10_000);
+  /** 1 contre 1 : le premier arrivé du camp de droite y apporte l'équipe qu'il préfère. */
+  private prendEquipePreferee(m: Membre, avant: (string | null)[]): void {
+    const p = this.partie;
+    if (p.config.format !== '1v1' || p.phase !== 'attente') return;
+    const s = siegeDeAppareil(p, m.appareil);
+    if (s === null || campDe(s) !== 1 || avant[s] === m.appareil) return;
+    if (m.equipe && this.equipeConnue(m.equipe)) p.camps[1].equipe = m.equipe;
   }
 
-  private surCtrlSpectateur(s: Spectateur, o: unknown): void {
-    if (!this.spectateurs.includes(s)) return;
-    const m = lisCtrl(o);
-    if (!m || s.veille?.recu(m)) return;
-    if (m.t === 'bonjour') {
-      if (m.v !== VERSION_PROTOCOLE || !m.spect || s.nom !== null) {
-        this.retireSpectateur(s);
-        return;
-      }
-      s.nom = m.nom;
-      this.diffuse();
-      this.onSpectateur((x) => s.l.envoieCtrl(x));
-      this.annonce();
-    } else if (m.t === 'reaction' && s.nom !== null) {
-      this.relaieReaction(m.r, s.nom);
-    } else if (m.t === 'quitte') {
-      this.retireSpectateur(s);
-    }
-  }
-
-  private retireSpectateur(s: Spectateur): void {
-    const i = this.spectateurs.indexOf(s);
+  /** Ferme la liaison d'un appareil et l'oublie, sans toucher à la partie. */
+  private retire(m: Membre): void {
+    const i = this.membres.indexOf(m);
     if (i < 0) return;
-    this.spectateurs.splice(i, 1);
-    s.l.onFerme = () => {};
-    s.l.ferme();
-    s.veille?.arrete();
-    if (s.nom !== null && !this.ferme_) {
-      this.diffuse();
-      this.annonce();
+    this.membres.splice(i, 1);
+    m.l.onFerme = () => {};
+    m.l.ferme();
+    m.veille?.arrete();
+  }
+
+  /** Un appareil est parti (volontairement, ou la liaison est tombée). */
+  private parti(m: Membre, raison: RaisonFin): void {
+    if (!this.membres.includes(m)) return;
+    const p = this.partie;
+    const role = m.nom !== null ? roleDe(p, m.appareil) : null;
+    this.retire(m);
+    if (!role) {
+      this.onChange();
+      return;
     }
-  }
-
-  /** Ferme la liaison courante, sans toucher à la partie. */
-  private lache(l: Liaison): boolean {
-    if (this.liaison !== l) return false;
-    l.onFerme = () => {};
-    l.ferme();
-    this.veille?.arrete();
-    this.veille = null;
-    this.liaison = null;
-    this.presente = false;
-    this.code = null;
-    this.connexionEnCours = false;
-    return true;
-  }
-
-  /** Ferme la liaison ; l'invité perd sa place, sauf si elle lui est gardée (absent). */
-  private libere(l: Liaison): void {
-    if (!this.lache(l)) return;
-    if (this.partie.absent <= 0) {
-      invitePart(this.partie);
-      this.jetonInvite = null;
-    }
-    this.annonce();
-    this.onChange();
-  }
-
-  private parti(l: Liaison, raison: RaisonFin): void {
-    if (this.liaison !== l) return;
-    const invite = this.presente ? this.partie.joueurs[1] : null;
-    // coupure (pas un départ volontaire) : on garde sa place et on fige le match
-    if (invite && raison === 'perdu' && inviteAbsent(this.partie, delaiReconnexion())) {
-      this.lache(l);
+    if (role.t !== 'siege') {
+      regardeurPart(p, m.appareil);
       this.annonce();
       this.diffuse();
       return;
     }
-    this.libere(l);
-    if (invite) this.onInviteParti(raison, invite.nom);
+    const s = role.siege;
+    // coupure (pas un départ volontaire) : on garde son siège et on fige le match
+    if (raison === 'perdu' && joueurAbsent(p, s, delaiReconnexion())) {
+      this.gardes.set(s, m.jeton);
+      this.annonce();
+      this.diffuse();
+      return;
+    }
+    const nom = p.sieges[s]?.nom ?? '';
+    joueurPart(p, s);
+    // un joueur de moins en cours de route : tout le monde retourne en salle d'attente
+    if (p.phase !== 'attente') versAttente(p);
+    this.annonce();
+    this.diffuse();
+    this.onJoueurParti(raison, nom);
   }
 
-  /** Intention du joueur invité pour le prochain pas de simulation. */
-  entreeInvite(maintenant: number): InputIntent {
-    return this.entree.prochain(maintenant);
+  /** Intention du joueur assis au siège `s` pour le prochain pas de simulation (vide s'il est absent). */
+  entreeSiege(s: Siege, maintenant: number): InputIntent {
+    const j = this.partie.sieges[s];
+    const m = j ? this.presents.find((x) => x.appareil === j.appareil) : undefined;
+    return m ? m.entree.prochain(maintenant) : INTENT_VIDE;
   }
 
-  exclut(): void {
-    const l = this.liaison;
-    if (!l || !this.aUnInvite) return;
-    l.envoieCtrl({ t: 'exclu' } satisfies MsgCtrl);
-    l.onCtrl = () => {};
-    invitePart(this.partie);
-    this.jetonInvite = null;
-    this.onChange();
+  /** L'hôte exclut un appareil de la partie. */
+  exclut(appareil: string): void {
+    const m = this.presents.find((x) => x.appareil === appareil);
+    if (!m) return;
+    const p = this.partie;
+    const role = roleDe(p, appareil);
+    m.l.envoieCtrl({ t: 'exclu' } satisfies MsgCtrl);
+    m.l.onCtrl = () => {};
+    if (role?.t === 'siege') {
+      joueurPart(p, role.siege);
+      if (p.phase !== 'attente') versAttente(p);
+    } else regardeurPart(p, appareil);
+    this.annonce();
+    this.diffuse();
     // laisse partir le message avant de couper
-    setTimeout(() => this.libere(l), 150);
+    setTimeout(() => this.retire(m), 150);
   }
 
-  /** Message de match (début, évènements) : pour l'invité et les spectateurs. */
+  /** Message de match (début, évènements) : pour tous les appareils. */
   envoieCtrl(m: MsgCtrl): void {
-    this.liaison?.envoieCtrl(m);
-    for (const s of this.presents) s.l.envoieCtrl(m);
+    for (const x of this.presents) x.l.envoieCtrl(m);
   }
 
   envoieJeu(data: ArrayBuffer): void {
-    this.liaison?.envoieJeu(data);
-    for (const s of this.presents) s.l.envoieJeu(data);
+    for (const x of this.presents) x.l.envoieJeu(data);
   }
 
   ferme(): void {
     if (this.ferme_) return;
     this.ferme_ = true;
-    const l = this.liaison;
-    if (l) {
-      l.envoieCtrl({ t: 'quitte' } satisfies MsgCtrl);
-      l.onFerme = () => {};
-      setTimeout(() => l.ferme(), 150);
+    for (const m of this.membres) {
+      m.l.envoieCtrl({ t: 'quitte' } satisfies MsgCtrl);
+      m.l.onFerme = () => {};
+      m.veille?.arrete();
+      setTimeout(() => m.l.ferme(), 150);
     }
-    for (const s of this.spectateurs) {
-      s.l.envoieCtrl({ t: 'quitte' } satisfies MsgCtrl);
-      s.l.onFerme = () => {};
-      s.veille?.arrete();
-      setTimeout(() => s.l.ferme(), 150);
-    }
-    this.spectateurs = [];
-    this.veille?.arrete();
-    this.liaison = null;
+    this.membres = [];
     this.annuaire.ferme();
   }
 }
@@ -547,8 +539,8 @@ export class SessionClient {
   /** Dernier état de la partie diffusé par l'hôte. */
   partie: EtatPartieLan | null = null;
   code: string | null = null;
-  /** Partie rejointe pour la regarder seulement : pas d'entrées, des réactions. */
-  spectateur = false;
+  /** Rejointe depuis « REGARDER » : on n'y vient que pour la regarder. */
+  private veutRegarder = false;
   /** Connexion perdue en pleine partie : on tente de revenir jusqu'à cet instant (performance.now, ms). */
   reconnexion: { limite: number } | null = null;
   onChange: () => void = () => {};
@@ -596,6 +588,23 @@ export class SessionClient {
     return this.veille?.latenceMs ?? null;
   }
 
+  /** Notre rôle dans la partie, d'après l'état diffusé par l'hôte (null avant le premier). */
+  get role(): Role | null {
+    const e = this.partie;
+    return e && this.identite ? roleDe(e, this.identite.appareil) : null;
+  }
+
+  /** Notre siège, ou null si nous ne jouons pas (spectateur, indécis, pas encore présenté). */
+  get siege(): Siege | null {
+    const e = this.partie;
+    return e && this.identite ? siegeDeAppareil(e, this.identite.appareil) : null;
+  }
+
+  /** Nous regardons seulement : pas d'entrées à envoyer, des réactions. */
+  get spectateur(): boolean {
+    return this.siege === null;
+  }
+
   /** Bouton « actualiser » : on vide la liste et on redemande les annonces retenues. */
   actualise(): void {
     this.parties = [];
@@ -616,7 +625,7 @@ export class SessionClient {
   async rejoins(partie: AnnoncePartie, nom: string, equipe: string, appareil: string, spect = false): Promise<void> {
     if (!this.annuaire || this.liaison) return;
     if (partie.v !== VERSION_PROTOCOLE) throw new Error('version');
-    this.spectateur = spect;
+    this.veutRegarder = spect;
     this.identite = { nom, equipe, appareil, jeton: idAleatoire(16) };
     await this.connecte(partie);
   }
@@ -627,7 +636,7 @@ export class SessionClient {
     const id = this.identite;
     if (!annuaire || !id || this.liaison) throw new Error('injoignable');
     const { nom, equipe, appareil, jeton } = id;
-    const spect = this.spectateur;
+    const spect = this.veutRegarder;
     const l = new Liaison();
     this.liaison = l;
     this.emetteur = new EmetteurEntrees();
@@ -683,13 +692,12 @@ export class SessionClient {
 
   /** Demande à l'hôte d'appliquer une action sur ses propres choix. */
   agit(x: ActionLan): void {
-    if (this.spectateur) return;
     this.liaison?.envoieCtrl({ t: 'action', x } satisfies MsgCtrl);
   }
 
   /** Envoie l'intention de cette image à l'hôte (à appeler à chaque image pendant un match). */
   envoieEntree(intent: InputIntent): void {
-    if (this.liaison && !this.spectateur) this.liaison.envoieJeu(this.emetteur.encode(intent));
+    if (this.liaison && this.siege !== null) this.liaison.envoieJeu(this.emetteur.encode(intent));
   }
 
   /** Réaction (l'hôte la relaie à tout le monde, avec notre nom). */
@@ -712,7 +720,7 @@ export class SessionClient {
   /** Une coupure en pleine partie (hors salle d'attente) laisse le temps de revenir ; un spectateur, lui, rouvre la liste. */
   private peutRevenir(): boolean {
     const e = this.partie;
-    return !this.spectateur && !!this.rejointe && !!this.identite && !!e?.joueurs[1] && e.phase !== 'attente';
+    return this.siege !== null && !!this.rejointe && !!this.identite && !!e && e.phase !== 'attente';
   }
 
   /**

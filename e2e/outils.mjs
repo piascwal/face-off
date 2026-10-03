@@ -114,17 +114,34 @@ export async function environnement(nomTest) {
 
 /** Actions de l'application, raccourcis pour les tests Wi-Fi. */
 export const lan = {
-  /** L'hôte ouvre une partie ; l'invité la voit dans la liste et la rejoint. */
-  async connecte(env, hote, invite) {
+  /** L'hôte ouvre une partie (le format vient de son stockage local) ; elle apparaît dans la liste des autres. */
+  async ouvrePartie(env, hote) {
     await hote.page.evaluate(() => {
       window.faceOff.lan.ouvreConfig();
       window.faceOff.lan.creePartie();
     });
-    await env.attendsQue(hote.page, () => !!window.faceOff.lan.hote);
-    await invite.page.evaluate(() => window.faceOff.lan.ouvre());
-    env.verifie(await env.attendsQue(invite.page, () => (window.faceOff.lan.client?.parties.length ?? 0) > 0), 'l\'invité voit la partie dans la liste');
-    await invite.page.evaluate(() => window.faceOff.lan.rejoins(window.faceOff.lan.client.parties[0]));
-    return env.verifie(await env.attendsQue(hote.page, () => !!window.faceOff.lan.hote?.partie.joueurs[1]), 'l\'invité est connecté à l\'hôte');
+    return env.attendsQue(hote.page, () => !!window.faceOff.lan.hote);
+  },
+  /** Un appareil rejoint la première partie de sa liste et attend l'état de la salle (rôle encore à choisir). */
+  async rejoint(env, appareil) {
+    await appareil.page.evaluate(() => window.faceOff.lan.ouvre());
+    env.verifie(await env.attendsQue(appareil.page, () => (window.faceOff.lan.client?.parties.length ?? 0) > 0), `${appareil.nom} voit la partie dans la liste`);
+    await appareil.page.evaluate(() => window.faceOff.lan.rejoins(window.faceOff.lan.client.parties[0]));
+    return env.verifie(await env.attendsQue(appareil.page, () => !!window.faceOff.lan.client?.partie), `${appareil.nom} est connecté à l'hôte`);
+  },
+  /** Prend un siège libre de la salle d'attente (0 = A1, 1 = A2, 2 = B1, 3 = B2) et attend qu'il soit à soi. */
+  async prendSiege(env, appareil, siege) {
+    await appareil.page.evaluate((s) => window.faceOff.lan.prendSiege(s), siege);
+    return env.verifie(await env.attendsQue(appareil.page, (s) => window.faceOff.lan.siege === s, siege), `${appareil.nom} est assis au siège ${siege}`);
+  },
+  /**
+   * L'hôte ouvre une partie ; l'invité la voit dans la liste, la rejoint et
+   * prend un siège (par défaut B1 : l'adversaire en 1 contre 1 ; A2 en coop).
+   */
+  async connecte(env, hote, invite, siege = 2) {
+    await lan.ouvrePartie(env, hote);
+    await lan.rejoint(env, invite);
+    return lan.prendSiege(env, invite, siege);
   },
   /** Du salon au match : l'hôte lance, les deux valident équipes puis maillots. */
   async lanceMatch(env, hote, invite) {

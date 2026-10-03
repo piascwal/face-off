@@ -15,12 +15,12 @@ export default async function spectateur(env) {
   // un 3e appareil ouvre la liste : la partie pleine y est « à regarder »
   const spect = await env.appareil('SPECT', { pseudo: 'OURS 22' });
   await spect.page.evaluate(() => window.faceOff.lan.ouvre());
-  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.lan.client?.parties.some((p) => p.plein)), 'la partie pleine est annoncée (REGARDER)');
+  env.verifie(await env.attendsQue(spect.page, () => window.faceOff.lan.client?.parties.some((p) => p.enCours)), 'la partie pleine est annoncée (REGARDER)');
   await env.capture(spect.page, '1-liste');
-  await spect.page.evaluate(() => window.faceOff.lan.rejoins(window.faceOff.lan.client.parties.find((p) => p.plein), true));
+  await spect.page.evaluate(() => window.faceOff.lan.rejoins(window.faceOff.lan.client.parties.find((p) => p.enCours), true));
   env.verifie(await env.attendsQue(spect.page, () => window.faceOff.ecranUI === 'jeu' && window.faceOff.lan.spectateur), 'le spectateur est pris en route dans le match');
   env.verifie(await env.attendsQue(hote.page, () => window.faceOff.lan.hote.nbSpectateurs === 1), 'l\'hôte compte 1 spectateur');
-  env.verifie(await env.attendsQue(invite.page, () => window.faceOff.lan.client.partie.spect === 1), 'l\'invité voit 1 spectateur');
+  env.verifie(await env.attendsQue(invite.page, () => window.faceOff.lan.client.partie.spectateurs.length === 1), 'l\'invité voit 1 spectateur');
   await attends(1500);
   const tH = await hote.page.evaluate(() => window.faceOff.state.temps);
   const tS = await spect.page.evaluate(() => window.faceOff.state.temps);

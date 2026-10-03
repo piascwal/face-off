@@ -5,7 +5,7 @@ import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
 import { pas } from '../src/core/simulation';
 import { INTENT_VIDE } from '../src/core/types';
-import { appliqueAction, inviteArrive, lisAction, lisEtatPartie, nouvellePartie } from '../src/net/partie';
+import { appliqueAction, arrive, lisAction, lisEtatPartie, nouvellePartie } from '../src/net/partie';
 import { decodeInstantane, encodeInstantane } from '../src/net/protocole';
 
 const rink = calculeRink(400, 200);
@@ -38,20 +38,22 @@ describe('handicap', () => {
 
   it('seul l’hôte règle le handicap, et chacun doit revalider', () => {
     const e = nouvellePartie(
-      { effectif: 1, duree: 1, assistTir: true, assistPasse: true, changementAuto: true, ralenti: true, pouvoirs: true, coop: false, niveau: 1 },
+      { effectif: 1, duree: 1, assistTir: true, assistPasse: true, changementAuto: true, ralenti: true, pouvoirs: true, format: '1v1', niveau: 1 },
       'LYNX 12',
       'nice',
       '0123456789abcdef',
     );
-    inviteArrive(e, 'ORQUE 7', 'nice', 'fedcba9876543210');
-    appliqueAction(e, 0, { a: 'lancer' });
-    appliqueAction(e, 1, { a: 'pret', pret: true });
-    appliqueAction(e, 0, { a: 'bonus', place: 1, bonus: 'gardien' });
+    const invite = 'fedcba9876543210';
+    arrive(e, 'ORQUE 7', invite);
+    appliqueAction(e, invite, { a: 'siege', siege: 2 });
+    appliqueAction(e, '0123456789abcdef', { a: 'lancer' });
+    appliqueAction(e, invite, { a: 'pret', pret: true });
+    appliqueAction(e, '0123456789abcdef', { a: 'bonus', camp: 1, bonus: 'gardien' });
     expect(e.bonus).toEqual(['aucun', 'gardien']);
-    expect(e.joueurs[1]!.pret).toBe(false);
-    appliqueAction(e, 1, { a: 'bonus', place: 1, bonus: 'but' });
+    expect(e.sieges[2]!.pret).toBe(false);
+    appliqueAction(e, invite, { a: 'bonus', camp: 1, bonus: 'but' });
     expect(e.bonus[1]).toBe('gardien');
-    expect(lisAction({ a: 'bonus', place: 1, bonus: 'but' })).toBeNull();
+    expect(lisAction({ a: 'bonus', camp: 1, bonus: 'but' })).toBeNull();
     expect(lisEtatPartie(JSON.parse(JSON.stringify(e)))?.bonus).toEqual(['aucun', 'gardien']);
   });
 });
