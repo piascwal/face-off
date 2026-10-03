@@ -106,9 +106,14 @@ export function chargePreferences(): Preferences {
   if (!MODES.includes(pref.mode)) pref.mode = 'classique';
   pref.coupe = lisCoupe(pref.coupe);
   // l'ancien réglage « coop » (booléen) devient un format
-  const ancienne = (pref as unknown as { coopWifi?: unknown }).coopWifi;
-  delete (pref as unknown as { coopWifi?: unknown }).coopWifi;
-  if (!estFormat(pref.formatWifi)) pref.formatWifi = ancienne === true ? 'coop' : '1v1';
+  const ancien = pref as unknown as { coopWifi?: unknown };
+  if ('coopWifi' in ancien) {
+    // pas encore de format enregistré (la valeur par défaut est déjà là) : on reprend l'ancien choix
+    if (ancien.coopWifi === true && pref.formatWifi === DEFAUT.formatWifi) pref.formatWifi = 'coop';
+    delete ancien.coopWifi;
+    modifie = true;
+  }
+  if (!estFormat(pref.formatWifi)) pref.formatWifi = '1v1';
   if (!POUVOIRS.includes(pref.bonusEntrainement)) pref.bonusEntrainement = 'puissant';
   if (modifie) sauvePreferences(pref);
   return pref;

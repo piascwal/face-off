@@ -9,7 +9,7 @@ import {
   estReaction,
   hoteChoisit,
   joueursAssis,
-  rangCore,
+  patineurPilote,
   SPECTATEURS_MAX,
   siegeReel,
   tousOntPasse,
@@ -131,15 +131,8 @@ export class ParcoursLan {
 
   /** Le patineur que cet appareil pilote : le premier ou le second humain de son équipe. */
   pilote(state: MatchState): Skater | null {
-    const e = this.partie;
-    const s = this.siege;
-    if (!e || s === null) return null;
-    return rangCore(e, s) === 1 ? state.partenaires[campDe(s)] : state.controles[campDe(s)];
-  }
-
-  /** Partie en coop : les joueurs jouent ensemble contre le CPU. */
-  get coop(): boolean {
-    return this.partie?.config.format === 'coop';
+    // hors match Wi-Fi (solo, coupe), pas de partie réseau : le joueur pilote l'équipe 0
+    return patineurPilote(state, this.jeu ? this.partie : null, this.siege);
   }
 
   /** Hôte : le siège réel de l'humain `rang` de l'équipe `eq` du simulateur. */

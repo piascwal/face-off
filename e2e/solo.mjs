@@ -41,6 +41,12 @@ export default async function solo(env) {
   await touche('Enter');
   env.verifie((await ecran()) === 'jeu', 'ENTRÉE : le match commence');
   env.verifie((await p.evaluate(() => window.faceOff.equipesActuelles[0].id)) === 'vaujany-exterieur', 'équipe et maillot choisis appliqués');
+  // le joueur piloté est bien connu de l'affichage : commandes tactiles, jauge et trait de visée en dépendent
+  env.verifie(
+    await p.evaluate(() => !!window.faceOff.state.controles[0] && window.faceOff.lan.pilote(window.faceOff.state) === window.faceOff.state.controles[0]),
+    'le patineur piloté est celui du joueur (commandes, jauge de tir, visée)',
+  );
+  await env.capture(p, '3b-match-commandes');
 
   // pause et reprise
   await attends(2000);

@@ -602,7 +602,7 @@ export class SessionClient {
 
   /** Nous regardons seulement : pas d'entrées à envoyer, des réactions. */
   get spectateur(): boolean {
-    return this.siege === null;
+    return !!this.rejointe && this.siege === null;
   }
 
   /** Bouton « actualiser » : on vide la liste et on redemande les annonces retenues. */

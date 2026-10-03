@@ -25,7 +25,7 @@
  */
 
 import { NIVEAUX } from '@core/constants';
-import { BONUS_EQUIPE, type BonusEquipe } from '@core/types';
+import { BONUS_EQUIPE, type BonusEquipe, type MatchState, type Skater } from '@core/types';
 
 export type VarianteMaillot = 'interieur' | 'exterieur';
 export type PhaseLan = 'attente' | 'equipes' | 'maillots' | 'match' | 'fin';
@@ -234,6 +234,18 @@ export function siegeReel(e: EtatPartieLan, camp: Camp, rangCore: 0 | 1): Siege 
 /** Le rang dans le simulateur (0 : `controles`, 1 : `partenaires`) d'un siège donné. */
 export function rangCore(e: EtatPartieLan, s: Siege): 0 | 1 {
   return joueursDuCamp(e, campDe(s)).length >= 2 ? rangDe(s) : 0;
+}
+
+/**
+ * Le patineur piloté sur cet appareil, celui dont l'affichage dépend
+ * (commandes tactiles, jauge de tir, trait de visée, flèche bleue). Hors
+ * match Wi-Fi (`e` null : solo, coupe), le joueur pilote l'équipe 0 ; en
+ * Wi-Fi, celui de son siège, et un spectateur (`siege` null) personne.
+ */
+export function patineurPilote(state: MatchState, e: EtatPartieLan | null, siege: Siege | null): Skater | null {
+  if (!e) return state.controles[0];
+  if (siege === null) return null;
+  return rangCore(e, siege) === 1 ? state.partenaires[campDe(siege)] : state.controles[campDe(siege)];
 }
 
 // -------------------------------------------------------------- arrivées --
