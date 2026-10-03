@@ -192,10 +192,15 @@ const illustrationIcone = await loadImage(path.join(__dirname, '..', 'assets', '
 
 /**
  * Icône carrée à partir de l'illustration. Version « maskable » (Android la
- * découpe en cercle ou en carré arrondi) : le joueur doit tenir dans les 80 %
- * centraux, donc l'illustration est réduite, ses bords estompés, et posée sur
- * un dégradé de la même ambiance (salle sombre, glace).
+ * découpe en cercle ou en carré arrondi, et n'en montre que le centre) :
+ * l'illustration remplit tout le carré, légèrement agrandie et centrée sur le
+ * visage, pour que le joueur occupe l'icône ; seuls les bords (vitres, glace)
+ * sont rognés par le masque.
  */
+const ZOOM_MASKABLE = 1.06;
+/** Point de l'illustration (en fraction) placé au centre de l'icône maskable : le visage. */
+const CENTRE_MASKABLE = { x: 0.5, y: 0.47 };
+
 function dessineIcone(taille, maskable) {
   const canvas = createCanvas(taille, taille);
   const ctx = canvas.getContext('2d');
@@ -207,38 +212,11 @@ function dessineIcone(taille, maskable) {
     ctx.drawImage(illustrationIcone, 0, 0, taille, taille);
     return canvas;
   }
-  const k = 0.72;
-  const d = taille * k;
-  const x0 = (taille - d) / 2;
-  // fond : la salle sombre en haut, la glace en bas (couleurs des bords de l'illustration)
-  const fond = ctx.createLinearGradient(0, 0, 0, taille);
-  fond.addColorStop(0, '#10213a');
-  fond.addColorStop(0.45, '#16294a');
-  fond.addColorStop(0.62, '#3472a8');
-  fond.addColorStop(1, '#4aa3d8');
-  ctx.fillStyle = fond;
-  ctx.fillRect(0, 0, taille, taille);
-  // l'illustration réduite, ses bords estompés (masque de transparence en deux passes)
-  const t = createCanvas(Math.round(d), Math.round(d));
-  const g = t.getContext('2d');
-  g.imageSmoothingEnabled = true;
-  g.imageSmoothingQuality = 'high';
-  g.drawImage(illustrationIcone, 0, 0, t.width, t.height);
-  const f = 0.09;
-  g.globalCompositeOperation = 'destination-in';
-  for (const [x1, y1] of [
-    [t.width, 0],
-    [0, t.height],
-  ]) {
-    const m = g.createLinearGradient(0, 0, x1, y1);
-    m.addColorStop(0, 'rgba(0,0,0,0)');
-    m.addColorStop(f, 'rgba(0,0,0,1)');
-    m.addColorStop(1 - f, 'rgba(0,0,0,1)');
-    m.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = m;
-    g.fillRect(0, 0, t.width, t.height);
-  }
-  ctx.drawImage(t, x0, x0);
+  // un carré de l'illustration, un peu plus petit qu'elle, centré sur le visage (sans sortir de l'image)
+  const cote = Math.min(W, H) / ZOOM_MASKABLE;
+  const sx = Math.min(W - cote, Math.max(0, W * CENTRE_MASKABLE.x - cote / 2));
+  const sy = Math.min(H - cote, Math.max(0, H * CENTRE_MASKABLE.y - cote / 2));
+  ctx.drawImage(illustrationIcone, sx, sy, cote, cote, 0, 0, taille, taille);
   return canvas;
 }
 
