@@ -7,3 +7,4 @@ dist-ssr/
 !.vscode/extensions.json
 *.tsbuildinfo
 e2e/captures/
+__pycache__/
