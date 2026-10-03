@@ -79,15 +79,21 @@ export default async function bonus(env) {
   await env.capture(p, '4-bonus-parti');
 
   // chaque bonus, donné directement : il part dès la fin du tirage
+  // un but peut tomber juste au moment où le bonus est donné (le précédent fait
+  // souvent marquer) : il ne part alors qu'à la remise en jeu, on recommence après
   const donne = async (id) => {
-    await enJeu();
-    await p.evaluate((i) => {
-      const pv = window.faceOff.state.pouvoirs[0];
-      pv.actif = null;
-      pv.pret = i;
-      pv.tirage = 0;
-    }, id);
-    return env.attendsQue(p, (i) => window.faceOff.state.pouvoirs[0].actif === i, id, 1500);
+    for (let essai = 0; essai < 3; essai++) {
+      await enJeu();
+      await p.evaluate((i) => {
+        const pv = window.faceOff.state.pouvoirs[0];
+        pv.actif = null;
+        pv.pret = i;
+        pv.tirage = 0;
+      }, id);
+      await env.attendsQue(p, (i) => window.faceOff.state.pouvoirs[0].actif === i || window.faceOff.state.phase !== 'jeu', id, 1500);
+      if (await p.evaluate((i) => window.faceOff.state.pouvoirs[0].actif === i, id)) return true;
+    }
+    return false;
   };
 
   // but x2 : lui aussi a une fin (10 s)
