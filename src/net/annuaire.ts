@@ -1,15 +1,9 @@
 import { estFormat, SPECTATEURS_MAX, type FormatLan } from './partie';
+import { COURTIERS } from './courtiers';
 import { ClientMqtt } from './mqtt';
 import { chiffre, dechiffre, idAleatoire, VERSION_PROTOCOLE, type Salon } from './reseau-local';
 
-/**
- * Serveurs publics MQTT (sur WebSocket chiffré) utilisés comme simple boîte
- * aux lettres pour la découverte. Aucun n'est à nous et aucun n'est
- * indispensable : on se connecte à tous en parallèle, on publie sur tous et
- * on dédoublonne à la réception — la découverte marche tant qu'au moins un
- * répond. Ils ne voient passer que des messages chiffrés (voir reseau-local).
- */
-export const COURTIERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'];
+export { COURTIERS };
 
 const RAFRAICHISSEMENT_MS = 30_000;
 const PEREMPTION_MS = 5 * 60_000;

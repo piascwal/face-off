@@ -10,7 +10,7 @@ import { mkdirSync } from 'node:fs';
 import http from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Aedes from 'aedes';
+import { Aedes } from 'aedes';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { createWebSocketStream, WebSocketServer } from 'ws';
@@ -23,7 +23,7 @@ export const attends = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Courtier MQTT sur WebSocket, sur un port libre. */
 async function demarreCourtier() {
-  const aedes = Aedes();
+  const aedes = await Aedes.createBroker();
   const serveur = http.createServer();
   const wss = new WebSocketServer({ server: serveur, handleProtocols: (p) => (p.has('mqtt') ? 'mqtt' : false) });
   wss.on('connection', (ws) => aedes.handle(createWebSocketStream(ws)));

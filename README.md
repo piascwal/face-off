@@ -564,7 +564,30 @@ classique, ni découvrir seule les appareils voisins. D'où le montage :
 
 - Tout ce qui transite par les serveurs publics est chiffré (AES-GCM, le topic
   en donnée authentifiée) avec la clé dérivée du réseau : sans votre adresse
-  publique, on ne peut ni lire les annonces, ni injecter une offre.
+  publique, on ne peut ni lire les annonces, ni injecter une offre. Cette
+  adresse n'est pas un secret (elle se devine, et les clients 4G/5G la
+  partagent souvent avec des inconnus) : la vraie barrière est la suivante.
+- **Liaisons limitées au réseau local** (`net/liaison.ts`, `candidatLocal`).
+  Les appareils ne se proposent et n'acceptent que des adresses locales :
+  candidats `host` sur un nom mDNS `.local` (le défaut des navigateurs), une
+  IPv4 privée ou de lien local, une IPv6 locale. En secours (réseau qui bloque
+  le mDNS), un candidat vu depuis Internet (`srflx`) n'est accepté que s'il
+  sort par **notre propre adresse publique** : le trafic ne fait que traverser
+  la box. Jamais de relais. Un tiers sur Internet, même avec la clé de
+  découverte, ne peut donc pas se connecter à une partie. Testé, avec le
+  limiteur et le plafond MQTT, dans `tests/securite.test.ts`.
+- **Débit limité par appareil** (`net/limiteur.ts`) : chez l'hôte, 20 messages
+  de contrôle par seconde (rafale de 40) et 240 entrées de jeu par seconde ;
+  au-delà, les messages sont ignorés. Un appareil malveillant ne peut pas
+  saturer l'hôte, ni, à travers lui, les autres appareils.
+- Le client MQTT coupe la connexion à un paquet de plus de 64 Ko
+  (`PAQUET_MQTT_MAX`), dès son en-tête, sans le stocker.
+- **Politique de sécurité du contenu (CSP)** sur la page publiée
+  (`vite.config.ts`) : seuls les fichiers du jeu sont chargés, et les seules
+  connexions sortantes autorisées sont celles des trois serveurs de découverte
+  (`net/courtiers.ts`). Aucune dépendance n'est livrée aux joueurs : tout le
+  code exécuté est celui du dépôt.
+- La CI s'exécute avec des droits en lecture seule (`permissions: contents: read`).
 - Le jeu lui-même est chiffré par DTLS.
 - Un **code de vérification à 4 chiffres**, dérivé des empreintes des certificats
   DTLS des deux appareils, est affiché des deux côtés. S'il diffère, quelqu'un
@@ -625,8 +648,9 @@ par un broker MQTT local, pour tester à deux onglets sur une seule machine.
 - Les Wi-Fi « invités » qui isolent les appareils entre eux (isolation AP)
   empêchent la liaison directe.
 - Un réseau d'entreprise qui bloque STUN empêche la détection du réseau.
-- Pour du jeu par Internet, le même protocole pourrait passer par un serveur
-  relais (TURN).
+- Le jeu par Internet est volontairement impossible : les liaisons sont
+  limitées au réseau local (voir Sécurité). Il faudrait un serveur relais
+  (TURN) et une vraie authentification des parties.
 
 **Mode spectateur.** Une partie lancée reste annoncée sur le réseau (avec le
 score et le nombre de spectateurs) : dans la liste, elle affiche REGARDER.

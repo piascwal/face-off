@@ -91,6 +91,13 @@ export interface PaquetMqtt {
   corps: Uint8Array;
 }
 
+/**
+ * Taille maximale d'un paquet MQTT reçu. Nos annonces et offres chiffrées
+ * font quelques kilo-octets : au-delà, c'est une erreur ou une tentative de
+ * saturer la mémoire, et la connexion est coupée (puis rétablie).
+ */
+export const PAQUET_MQTT_MAX = 64 * 1024;
+
 /** Découpe un flux d'octets (trames WebSocket arbitraires) en paquets MQTT complets. */
 export class LecteurMqtt {
   private tampon: Uint8Array = new Uint8Array(0);
@@ -117,6 +124,7 @@ export class LecteurMqtt {
         if (i >= 5) throw new Error('longueur MQTT invalide');
         break;
       }
+      if (longueur > PAQUET_MQTT_MAX) throw new Error('paquet MQTT trop gros');
       const debut = i + 1;
       if (this.tampon.length < debut + longueur) break;
       const h = this.tampon[0]!;

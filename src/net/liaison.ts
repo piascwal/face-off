@@ -1,6 +1,51 @@
 import { SERVEURS_STUN } from './reseau-local';
 
 /**
+ * Un candidat ICE (ligne `a=candidate:` ou `candidate:` d'une description
+ * SDP) désigne-t-il le réseau local ? Sont gardés :
+ * - les candidats `host` (l'appareil lui-même) sur une adresse privée : nom
+ *   mDNS `.local` (ce que les navigateurs annoncent par défaut), IPv4 privée
+ *   ou de lien local, IPv6 locale unique ou de lien local ;
+ * - en secours (réseau qui bloque le mDNS), les candidats `srflx` dont
+ *   l'adresse publique est la nôtre (`ipsPubliques`) : l'autre appareil sort
+ *   sur Internet par la même box, le trafic ne fait que la traverser.
+ * Tout le reste (adresse publique d'un autre réseau, relais) est refusé :
+ * même un tiers qui aurait percé la clé de découverte ne peut pas se
+ * connecter depuis Internet. Hors `plageStricte` (développement), tout
+ * candidat `host` est accepté.
+ */
+export function candidatLocal(ligne: string, plageStricte = true, ipsPubliques: readonly string[] = []): boolean {
+  const champs = ligne.trim().replace(/^a=/, '').split(/\s+/);
+  const typ = champs.indexOf('typ');
+  const genre = typ < 0 ? '' : champs[typ + 1];
+  const adresse = (champs[4] ?? '').toLowerCase();
+  if (genre === 'srflx') return ipsPubliques.includes(adresse);
+  if (genre !== 'host') return false;
+  if (!plageStricte) return adresse !== '';
+  return adressePrivee(adresse);
+}
+
+/** Adresse privée, de lien local ou nom mDNS (`.local`) : jamais joignable depuis Internet. */
+export function adressePrivee(a: string): boolean {
+  if (/^[a-z0-9-]+\.local$/.test(a)) return true;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(a);
+  if (v4) {
+    const [x, y] = [Number(v4[1]), Number(v4[2])];
+    return x === 10 || (x === 172 && y >= 16 && y <= 31) || (x === 192 && y === 168) || (x === 169 && y === 254) || x === 127;
+  }
+  if (a.includes(':')) return /^f[cd][0-9a-f]{0,2}:/.test(a) || /^fe[89ab][0-9a-f]?:/.test(a) || a === '::1';
+  return false;
+}
+
+/** Retire d'une description SDP tous les candidats qui ne sont pas sur le réseau local. */
+export function filtreSdpLocal(sdp: string, plageStricte = true, ipsPubliques: readonly string[] = []): string {
+  return sdp
+    .split(/\r?\n/)
+    .filter((l) => !l.startsWith('a=candidate:') || candidatLocal(l, plageStricte, ipsPubliques))
+    .join('\r\n');
+}
+
+/**
  * Liaison pair-à-pair WebRTC entre l'hôte et un client, sur le Wi-Fi.
  *
  * Deux canaux de données, chiffrés de bout en bout par DTLS (obligatoire
@@ -11,6 +56,12 @@ import { SERVEURS_STUN } from './reseau-local';
  *   suivant, sans jamais bloquer ceux d'après (pas d'à-coups sur le Wi-Fi).
  * Les canaux sont « négociés » (ids fixes) : les deux côtés les créent à
  * l'identique, sans aller-retour supplémentaire.
+ *
+ * Liaison strictement locale : jamais de relais, et seuls les candidats ICE
+ * du réseau local sont proposés et acceptés (voir `candidatLocal`) ; le STUN
+ * ne sert qu'au secours par la box commune (`ipsPubliques` : nos adresses
+ * publiques). `plageStricte` n'est relâché qu'en développement (tests sur une
+ * machine dont l'adresse n'est pas dans une plage privée).
  */
 export class Liaison {
   readonly pc: RTCPeerConnection;
@@ -21,8 +72,11 @@ export class Liaison {
   onFerme: () => void = () => {};
   private fermee = false;
 
-  constructor() {
-    this.pc = new RTCPeerConnection({ iceServers: [{ urls: SERVEURS_STUN }] });
+  constructor(
+    private readonly plageStricte = true,
+    private readonly ipsPubliques: readonly string[] = [],
+  ) {
+    this.pc = new RTCPeerConnection({ iceServers: ipsPubliques.length ? [{ urls: SERVEURS_STUN }] : [] });
     this.ctrl = this.pc.createDataChannel('ctrl', { negotiated: true, id: 0, ordered: true });
     this.jeu = this.pc.createDataChannel('jeu', { negotiated: true, id: 1, ordered: false, maxRetransmits: 0 });
     this.jeu.binaryType = 'arraybuffer';
@@ -60,7 +114,7 @@ export class Liaison {
         });
       });
     }
-    return this.pc.localDescription!.sdp;
+    return filtreSdpLocal(this.pc.localDescription!.sdp, this.plageStricte, this.ipsPubliques);
   }
 
   async creeOffre(): Promise<string> {
@@ -69,13 +123,13 @@ export class Liaison {
   }
 
   async accepteOffre(sdp: string): Promise<string> {
-    await this.pc.setRemoteDescription({ type: 'offer', sdp });
+    await this.pc.setRemoteDescription({ type: 'offer', sdp: filtreSdpLocal(sdp, this.plageStricte, this.ipsPubliques) });
     await this.pc.setLocalDescription(await this.pc.createAnswer());
     return this.descriptionComplete();
   }
 
   async accepteReponse(sdp: string): Promise<void> {
-    await this.pc.setRemoteDescription({ type: 'answer', sdp });
+    await this.pc.setRemoteDescription({ type: 'answer', sdp: filtreSdpLocal(sdp, this.plageStricte, this.ipsPubliques) });
   }
 
   /** Résout quand les deux canaux sont ouverts, échoue après `delaiMs`. */

@@ -1,5 +1,6 @@
 import { Annuaire, COURTIERS, type AnnoncePartie, type Signal } from './annuaire';
 import { Liaison } from './liaison';
+import { Limiteur } from './limiteur';
 import { INTENT_VIDE, type InputIntent } from '@core/types';
 import {
   appliqueAction,
@@ -75,11 +76,20 @@ function delaiReconnexion(): number {
 
 const attente = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Nos adresses IPv4 publiques (celles de la box), vues à la détection du réseau : secours des liaisons locales. */
+let ipsPubliques: string[] = [];
+
 async function salonsDuReseau(): Promise<Salon[]> {
   const dev = reglagesDev();
   const cles = dev.reseau ? [`dev:${dev.reseau}`] : await detecteReseaux();
   if (!cles.length) throw new Error('reseau');
+  ipsPubliques = cles.filter((c) => c.startsWith('ip4:')).map((c) => c.slice(4));
   return Promise.all(cles.map(salonPour));
+}
+
+/** Candidats ICE limités aux plages privées ; relâché en développement (`?reseau=`), pour les tests. */
+function plageStricte(): boolean {
+  return !reglagesDev().reseau;
 }
 
 function courtiers(): string[] {
@@ -148,8 +158,20 @@ interface Membre {
   equipe: string;
   /** Entrées du joueur, reconstruites pas à pas. */
   entree: EntreeDistante;
+  /** Débit autorisé sur chaque canal (anti-saturation). */
+  limiteCtrl: Limiteur;
+  limiteJeu: Limiteur;
   code: string | null;
 }
+
+/**
+ * Débits par appareil : messages de contrôle (actions, réactions, ping),
+ * et entrées de jeu (une par image affichée, jusqu'à 120 Hz).
+ */
+const CTRL_PAR_S = 20;
+const CTRL_RAFALE = 40;
+const JEU_PAR_S = 240;
+const JEU_RAFALE = 480;
 
 /** Appareils branchés au plus : 3 autres joueurs, et des spectateurs. */
 const MEMBRES_MAX = 3 + SPECTATEURS_MAX;
@@ -346,8 +368,8 @@ export class SessionHote {
       await this.annuaire.signale(de, salon, { type: 'refus', raison: 'spectateurs' });
       return;
     }
-    const l = new Liaison();
-    const m: Membre = { l, veille: null, nom: null, appareil: '', jeton: '', equipe: '', entree: new EntreeDistante(), code: null };
+    const l = new Liaison(plageStricte(), ipsPubliques);
+    const m: Membre = { l, veille: null, nom: null, appareil: '', jeton: '', equipe: '', entree: new EntreeDistante(), code: null, limiteCtrl: new Limiteur(CTRL_PAR_S, CTRL_RAFALE), limiteJeu: new Limiteur(JEU_PAR_S, JEU_RAFALE) };
     this.membres.push(m);
     this.onChange();
     try {
@@ -364,7 +386,7 @@ export class SessionHote {
     // on attend le « bonjour » pour connaître son nom
     l.onCtrl = (o) => this.surCtrl(m, o);
     l.onJeu = (d) => {
-      if (m.entree.recoit(d, performance.now() / 1000)) m.veille?.recuJeu();
+      if (m.limiteJeu.accepte() && m.entree.recoit(d, performance.now() / 1000)) m.veille?.recuJeu();
     };
     l.onFerme = () => this.parti(m, 'perdu');
     m.veille = new Veille(l, () => l.ferme());
@@ -381,6 +403,8 @@ export class SessionHote {
     if (!this.membres.includes(m)) return;
     const msg = lisCtrl(o);
     if (!msg || m.veille?.recu(msg)) return;
+    // au-delà de son débit, un appareil est ignoré (il ne peut pas saturer l'hôte ni les autres)
+    if (!m.limiteCtrl.accepte()) return;
     const p = this.partie;
     if (msg.t === 'bonjour') {
       if (msg.v !== VERSION_PROTOCOLE || m.nom !== null) {
@@ -637,7 +661,7 @@ export class SessionClient {
     if (!annuaire || !id || this.liaison) throw new Error('injoignable');
     const { nom, equipe, appareil, jeton } = id;
     const spect = this.veutRegarder;
-    const l = new Liaison();
+    const l = new Liaison(plageStricte(), ipsPubliques);
     this.liaison = l;
     this.emetteur = new EmetteurEntrees();
     try {

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { readFileSync } from 'node:fs';
 import { VitePWA } from 'vite-plugin-pwa';
+import { COURTIERS } from './src/net/courtiers.ts';
 
 // Déployé sur GitHub Pages en tant que site de projet
 // (https://piascwal.github.io/face-off/) : tout doit être résolu sous ce
@@ -13,6 +14,29 @@ const BASE = process.env.NODE_ENV === 'production' ? '/face-off/' : '/';
 // téléphone a bien reçu la dernière mise en ligne.
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 const VERSION_APP = `V${version}${process.env.GITHUB_RUN_NUMBER ? `+${process.env.GITHUB_RUN_NUMBER}` : ''}`;
+
+/**
+ * Politique de sécurité du contenu, posée sur la page publiée (pas en
+ * développement : le serveur Vite injecte ses propres scripts) : rien d'autre
+ * que les fichiers du jeu, et des connexions vers les seuls serveurs de
+ * découverte. WebRTC (le jeu en réseau local) n'est pas concerné par
+ * `connect-src`. Défense en profondeur : même un bug d'affichage ne pourrait
+ * ni charger un script étranger, ni envoyer des données ailleurs.
+ */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "media-src 'self'",
+  `connect-src 'self' ${COURTIERS.map((u) => new URL(u).origin).join(' ')}`,
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+].join('; ');
 
 export default defineConfig({
   base: BASE,
@@ -30,6 +54,11 @@ export default defineConfig({
     },
   },
   plugins: [
+    {
+      name: 'face-off-csp',
+      apply: 'build',
+      transformIndexHtml: (html) => html.replace('<meta charset="UTF-8" />', `<meta charset="UTF-8" />\n<meta http-equiv="Content-Security-Policy" content="${CSP}" />`),
+    },
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png', 'sprites/*.png', 'sprites/*.json'],
