@@ -1,6 +1,6 @@
 {
   "name": "face-off",
-  "version": "0.38.1",
+  "version": "0.38.2",
   "private": true,
   "description": "Face-Off — hockey arcade en pixel art (humain vs CPU, ou à deux sur le même Wi-Fi).",
   "type": "module",

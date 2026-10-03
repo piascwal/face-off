@@ -86,16 +86,34 @@ src/
   core/     — simulation pure, sans DOM ni canvas (voir plus bas)
   audio/    — synthèse Web Audio, pilotée par les évènements de game-core
   input/    — clavier + tactile → InputIntent
-  net/      — multijoueur Wi-Fi : découverte chiffrée, liaison WebRTC, protocole
+  net/      — multijoueur Wi-Fi : découverte chiffrée, liaison WebRTC, protocole,
+              sessions (session-hote / session-client / session-commun),
+              règles de la partie (partie, partie-modele, sieges, partie-validation)
   render/   — tout le dessin canvas (police pixel, patinoire, sprites, HUD, menus)
   app/      — assemble le tout (voir « L'application » ci-dessous)
 scripts/
+  convertit-sources.py — conversion des illustrations sources en pixel art
+                         (étapes dans scripts/sources/, une par type de dessin)
   generate-sprites.mjs — génère les PNG des joueurs/gardiens et les icônes PWA
                          (icônes tirées de assets/icone-app.jpg, carrée : à
                          remplacer pour changer l'icône, puis npm run sprites)
 tests/      — tests Vitest (simulation, IA, coupe, réseau)
 e2e/        — tests de bout en bout dans Chromium (voir « Démarrer »)
 ```
+
+**Taille des fichiers.** Aucun fichier de code, de script ou de test ne
+dépasse 500 lignes : au-delà, on découpe par responsabilité (le module
+d'origine réexporte les morceaux quand d'autres fichiers l'importent déjà,
+comme `core/physics.ts`, `core/pouvoirs.ts` ou `net/partie.ts`). Quelques
+exemples : la physique est répartie entre `core/physics.ts` (patineurs,
+gardien), `core/collisions.ts` (chocs, mises en échec) et `core/palet.ts`
+(palet, buts) ; les bonus entre `core/pouvoirs.ts` (tirage, activation),
+`pouvoirs-def.ts` (définitions) et `pouvoirs-effets.ts` (effets en jeu) ; les
+écrans Wi-Fi entre `render/lan-liste.ts`, `lan-salon.ts`, `lan-choix.ts`,
+`lan-match.ts` et `lan-commun.ts` ; les patineurs dans
+`render/entities-render.ts`, le gardien et le palet dans
+`gardien-palet-render.ts`, les traces et particules dans
+`particules-render.ts`.
 
 ### L'application (`src/app/`)
 
@@ -104,10 +122,12 @@ boutons, touches du clavier) :
 
 | Fichier | Rôle |
 |---|---|
-| `game-app.ts` | Noyau : canevas et mise à l'échelle, patinoire, boucle de jeu à pas fixe, rendu du match, entrées, ralenti des buts, fin de match |
+| `game-app.ts` | Noyau : canevas et mise à l'échelle, patinoire, boucle de jeu à pas fixe, entrées, ralenti des buts, fin de match |
+| `rendu-app.ts` | Dessin d'une image : match, surcouches, ralenti, écrans |
 | `parcours-solo.ts` | Menu, réglages avancés, choix des équipes et maillots, match contre l'ordinateur, pause, écran de fin |
 | `parcours-coupe.ts` | Mode coupe : choix de l'équipe, tableau, dévoilement des résultats |
-| `parcours-lan.ts` | Multijoueur Wi-Fi : sessions hôte/client, phases de la partie, match en réseau, réactions |
+| `parcours-lan.ts` | Multijoueur Wi-Fi : sessions hôte/client, phases de la partie, réactions |
+| `match-lan.ts` | Match en réseau : simulation chez l'hôte, instantanés et évènements, boucle du client, ralenti, fin |
 | `vues-lan.ts` | Écrans du Wi-Fi et surcouches du match en réseau (pause, coupure, latence) |
 | `image-fin.ts` | Image de victoire / défaite aux couleurs du joueur |
 | `ecrans.ts` | Liste des écrans |
@@ -241,7 +261,7 @@ Nouveau module `src/core/shooting.ts`. À l'instant du tir, on calcule une
   but est loin de la position du gardien à cet instant.
 
 Cette qualité réduit ensuite, de façon continue, le rayon de blocage effectif
-du gardien et son seuil de capture propre du palet (`physics.ts`) — donc un
+du gardien et son seuil de capture propre du palet (`core/palet.ts`) — donc un
 tir puissant et bien placé a statistiquement plus de chances de battre le
 gardien, sans jamais rendre un tir imparable à 100 %. Testé et verrouillé par
 `tests/shooting.test.ts` (monotonie puissance/précision, plafond à 0,92).
@@ -254,7 +274,11 @@ d'images de patinage, et `gardien.jpg`). Ces images sont des dessins pixel
 art agrandis et compressés en JPEG sur fond magenta ; la chaîne les ramène à
 du vrai pixel art, puis les décline pour chaque équipe.
 
-**1. Conversion (une fois, Python)** — `scripts/convertit-sources.py` :
+**1. Conversion (une fois, Python)** — `scripts/convertit-sources.py`, qui
+enchaîne les étapes rangées dans `scripts/sources/` (outils communs dans
+`commun.py`, puis un module par type de dessin : `planche.py`, `gardien.py`,
+`portrait.py`, `chutes.py`, `tirs.py`, `echec.py`, `supporters.py`,
+`celebrations.py`, `coupe.py`) :
 
 - détoure le fond (et, pour le gardien, la glace, l'ombre et le reflet) ;
 - découpe la planche image par image, en rendant à chacune le bout de
@@ -271,7 +295,7 @@ le maillot rouge, le casque (base dorée, bande rouge), les empiècements et les
 bandes suivent l'équipe, l'écusson est posé sur la poitrine, alors que le cuir
 brun-or des jambières, du blocage et du gant d'attrape, la crosse et la grille
 du masque gardent leurs couleurs (zones en tête de `gardien()` dans
-`convertit-sources.py` : à ajuster si le dessin change).
+`scripts/sources/gardien.py` : à ajuster si le dessin change).
 
 Il écrit `joueur.png` / `gardien.png`, leurs cartes de rôles
 (`*-roles.png`) et `sprites.json` (tailles de case, ancrages) dans
@@ -318,7 +342,7 @@ déjà transparent).
 Lors d'un but, l'écusson de l'équipe qui marque s'affiche en très grand
 (`render/screens.ts::dessineLogoBut`, rebond « easeOutBack » à l'entrée puis
 fondu). Ordre d'empilement : la patinoire et les joueurs (assombris), puis
-l'écusson géant, puis le tableau et le bandeau « BUT ! » avec le score. Le cœur du jeu (`physics.ts::marque`)
+l'écusson géant, puis le tableau et le bandeau « BUT ! » avec le score. Le cœur du jeu (`palet.ts::marque`)
 ne connaît toujours aucune couleur ni logo : il émet juste l'équipe (`eq`)
 qui a marqué, et c'est `SystemeEffets` côté rendu qui résout la couleur du
 bandeau et l'écusson à afficher — cohérent avec le reste de l'architecture
@@ -595,13 +619,13 @@ classique, ni découvrir seule les appareils voisins. D'où le montage :
 - L'hôte est **autoritaire** : il ne reçoit du client que des intentions de
   jeu, bornées et validées (direction ramenée à ±1, appuis comptés, rien
   d'autre). Les deux côtés valident chaque message reçu (schéma, tailles, valeurs
-  finies — `net/protocole.ts`, testé dans `tests/net.test.ts`).
+  finies — `net/protocole.ts`, `instantane.ts` et `entrees.ts`, testé dans `tests/net.test.ts`).
 - Les sièges sont comptés par l'hôte : un siège pris ne peut pas être volé,
   une même machine ne se présente pas deux fois, et l'hôte peut **exclure**
   n'importe quel joueur.
 - Le client n'envoie que des *actions* sur ses propres choix (siège, équipe,
   maillot, prêt, vote, pause). L'hôte les applique selon les règles de
-  `net/partie.ts` ; « lancer », le format et le handicap ne viennent jamais du
+  `net/partie.ts` et `partie-validation.ts` ; « lancer », le format et le handicap ne viennent jamais du
   réseau, et l'équipe d'un camp n'est réglable que par l'hôte (sauf en 1 contre 1).
 
 **Fiabilité et fluidité.**
@@ -711,7 +735,7 @@ humain de l'équipe ; `controles[eq]` est celui du premier), `OptionsPartie.duo`
 `controle(state, s, siege)` et `changeJoueur(..., siege)` (`core/actions.ts`),
 `siegeDe` et `joueurDore` (`core/pouvoirs.ts`), `pas(..., entree)` dont le
 callback reçoit `partenaire` pour distinguer les deux humains d'une équipe.
-Côté réseau (`net/partie.ts`) : `EtatPartieLan.sieges` (quatre sièges),
+Côté réseau (`net/partie-modele.ts`, `net/sieges.ts`) : `EtatPartieLan.sieges` (quatre sièges),
 `camps` (équipe et maillot de chaque camp), `spectateurs`, `indecis`,
 `ConfigLan.format`/`niveau`, `compositionHumaine` (ce que le simulateur veut,
 d'après les sièges occupés) et `siegeReel` (quel siège pilote quel humain du
@@ -891,8 +915,9 @@ bonus dans la grille (le choix est gardé), puis un match sans chrono
 contre l'ordinateur. Le bonus choisi part tout seul et revient peu après
 chaque fin ; l'adversaire n'a pas de bonus. PAUSE > ABANDONNER pour sortir.
 
-Code : `core/pouvoirs.ts` (règles, tirage, départ automatique, effets ; testé dans
-`tests/pouvoirs.test.ts`), `render/hud-bonus.ts` et `render/icones-bonus.ts`
+Code : `core/pouvoirs.ts` (tirage, départ automatique, activation),
+`core/pouvoirs-def.ts` (définitions) et `core/pouvoirs-effets.ts` (effets en jeu) ;
+testé dans `tests/pouvoirs-*.test.ts`, `render/hud-bonus.ts` et `render/icones-bonus.ts`
 (jauges, tirage), `render/scene.ts` (le « BONUS » doré), feuille dorée calculée à la volée
 (`BanqueSprites.spriteJoueurDore`). En Wi-Fi, les bonus voyagent dans
 l'instantané (protocole v19 : en plus, le tir déjà fait du super héros, les
@@ -930,7 +955,7 @@ durée de la traversée, ralentissement au centre, taille) sont regroupés dans
 `CELEBRATION` (`src/render/celebration.ts`) ; avec le ralenti des buts, la
 célébration en direct dure au moins le temps de la traversée. Pour ajouter un
 dessin : fond magenta, joueur entier ; l'ajouter à `CELEBRATIONS` dans
-`scripts/convertit-sources.py` avec les zones du casque, du visage, des gants,
+`scripts/sources/celebrations.py` avec les zones du casque, du visage, des gants,
 de la culotte et de la crosse (et la grille du dessin si la source n'a pas la
 même taille), puis relancer la conversion et `npm run sprites`. Sept
 dessins pour l'instant : jambe levée, à genou poing levé, crosse brandie
@@ -965,7 +990,7 @@ patinage pendant tout l'élan du bouton ÉCHEC sans le palet (`elanT`, déjà
 transmis en Wi-Fi) et 0,12 s après (choc ou glisse). Pendant l'élan : trois
 images fantômes et des traits de vitesse derrière le joueur ; au choc, en plus
 du flash et de la secousse, une onde blanche et des étincelles blanches et
-dorées (`core/physics.ts`). Le test `e2e/echec.mjs` déclenche un vrai élan et
+dorées (`core/collisions.ts`). Le test `e2e/echec.mjs` déclenche un vrai élan et
 capture la pose et le choc.
 
 **Écran des maillots.** Le joueur y est vu de face (`portrait-<id>.png`,
