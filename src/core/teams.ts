@@ -42,6 +42,8 @@ export const EQUIPES_JOUABLES: TeamProfile[] = [
   { id: 'edmonton', vit: 1.15, tir: 1.15, defense: 0.85, gardien: 0.92 },
   // Blackhawks de Chicago : complets, un bon gardien
   { id: 'chicago', vit: 1.07, tir: 1.0, defense: 1.05, gardien: 1.08 },
+  // Castres Hockey Club : l'éclair de l'écusson, vifs en attaque, une défense plus légère
+  { id: 'castres', vit: 1.1, tir: 1.04, defense: 0.94, gardien: 0.98 },
 ];
 
 export function trouveEquipe(id: string): TeamProfile {

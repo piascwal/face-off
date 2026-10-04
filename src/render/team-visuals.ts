@@ -178,6 +178,14 @@ const INTERIEURS: Omit<TeamDef, 'exterieur'>[] = [
     logo: 'logos/chicago.png',
     interieur: { maillot: '#cf1126', fonce: '#111111', clair: '#ffffff', casque: '#111111' },
   },
+  {
+    id: 'castres',
+    nom: 'CHC',
+    ville: 'Castres',
+    code: 'CASTRES',
+    logo: 'logos/castres.png',
+    interieur: { maillot: '#16105a', fonce: '#9a9ca4', clair: '#ffffff', casque: '#16105a' },
+  },
 ];
 
 export const EQUIPES_JOUABLES: TeamDef[] = INTERIEURS.map((def) => ({

@@ -181,9 +181,9 @@ sprites, HUD, menus, effets).
 
 ### Sélection d'équipe
 
-Dix-neuf équipes jouables : des clubs français (Toulouse, Nice, Vaujany,
+Vingt équipes jouables : des clubs français (Toulouse, Nice, Vaujany,
 Nîmes, Grenoble, Montpellier, Marseille, Valence, Annecy, Roanne, Angers,
-Bordeaux, Rouen) et des écussons « invités » (Canadiens de Montréal, Ducks
+Bordeaux, Rouen, Castres) et des écussons « invités » (Canadiens de Montréal, Ducks
 d'Anaheim, Avalanche du Colorado, Senators d'Ottawa, Oilers d'Edmonton,
 Blackhawks de Chicago). Pour en ajouter une : l'écusson dans
 `assets/logos-src/<id>.jpg`, sa palette dans `src/render/team-visuals.ts` et
