@@ -1,5 +1,6 @@
 /** Rendu d'une image de l'application : scène, effets d'écran, tableau, écrans des parcours, et par-dessus le match. */
 
+import { dessineMiseAJour, dessineRappelMiseAJour } from '@render/mise-a-jour-vue';
 import { menaceEchec } from '@core/actions';
 import { boutonBonus, DEF_POUVOIRS, TREMBLEMENT_CHUTE } from '@core/pouvoirs';
 import { dessineLoupe } from '@render/loupe-ecran';
@@ -88,7 +89,16 @@ export function rendu(app: GameApp): void {
     g.fillStyle = `rgba(255,255,255,${app.effets.flash * 0.5})`;
     g.fillRect(0, 0, app.W, app.H);
   }
-  if (app.attenteDemarrage && app.ecranUI === 'menu') dessineEcranDemarrage(app, g, temps);
+  if (app.ecranUI === 'menu') {
+    if (app.attenteDemarrage) dessineEcranDemarrage(app, g, temps);
+    else if (app.maj.proposee)
+      dessineMiseAJour(g, app.boutons, app.W, app.H, {
+        version: app.maj.version,
+        onMaj: () => app.maj.accepte(),
+        onPlusTard: () => app.maj.plusTard(),
+      });
+    else if (app.maj.refusee) dessineRappelMiseAJour(g, app.boutons, () => app.maj.rouvre());
+  }
 }
 
 /** Bonus « tremblement » : l'écran tremble fort tant que les joueurs sont au sol. */

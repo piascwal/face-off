@@ -251,6 +251,18 @@ interdisent le plein écran sans geste de l'utilisateur, on ne peut donc pas
 le déclencher au simple chargement de la page ; si le joueur le quitte
 ensuite, il n'est réimposé qu'au lancement d'un match.
 
+**Mise à jour proposée, jamais imposée.** Le service worker (`registerType:
+'prompt'`) télécharge la nouvelle version en arrière-plan sans l'installer de
+force : le menu affiche « MISE A JOUR DISPONIBLE » (`src/app/mise-a-jour.ts`,
+`src/render/mise-a-jour-vue.ts`) avec METTRE A JOUR (installe et recharge) et
+PLUS TARD. Rien n'est bloquant : hors ligne, la recherche échoue en silence et le
+jeu reste jouable avec la version en cache ; après un « plus tard », un petit
+bouton MISE A JOUR reste en haut à gauche du menu, et la proposition revient au
+prochain lancement. La recherche a lieu au lancement, toutes les 30 minutes et au
+retour au premier plan. `version.json`, publié à chaque build et jamais mis en
+cache, donne le numéro de la version proposée. On ne propose qu'au menu, jamais
+en plein match (une version différente casserait aussi le Wi-Fi : voir §8).
+
 ### 3. La probabilité de but augmente avec la puissance et le placement du tir
 
 Nouveau module `src/core/shooting.ts`. À l'instant du tir, on calcule une

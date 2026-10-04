@@ -23,6 +23,7 @@ import {
 } from '@render/index';
 import { type EcranUI } from './ecrans';
 import { ImageFinMatch } from './image-fin';
+import { MiseAJour } from './mise-a-jour';
 import { ParcoursCoupe } from './parcours-coupe';
 import { ParcoursLan } from './parcours-lan';
 import { rendu } from './rendu-app';
@@ -95,6 +96,8 @@ export class GameApp {
   readonly givre = new GivreEcran();
   readonly entrees = new GestionnaireEntreesJeu();
   readonly ralenti = new Ralenti();
+  /** la mise à jour proposée au joueur (jamais bloquante) */
+  readonly maj = new MiseAJour();
   readonly imageFin = new ImageFinMatch();
   /** Les deux équipes actuellement affichées (match en cours, ou paire par défaut en démo/menu). */
   equipesActuelles: [EquipeVisuelle, EquipeVisuelle] = [

@@ -55,12 +55,21 @@ export default defineConfig({
   },
   plugins: [
     {
+      // la version publiée, lisible sans cache : sert à dire laquelle est proposée
+      name: 'face-off-version',
+      apply: 'build',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ version: VERSION_APP }) });
+      },
+    },
+    {
       name: 'face-off-csp',
       apply: 'build',
       transformIndexHtml: (html) => html.replace('<meta charset="UTF-8" />', `<meta charset="UTF-8" />\n<meta http-equiv="Content-Security-Policy" content="${CSP}" />`),
     },
     VitePWA({
-      registerType: 'autoUpdate',
+      // « prompt » : on propose la mise à jour au joueur au lieu de recharger la page de force (voir app/mise-a-jour.ts)
+      registerType: 'prompt',
       includeAssets: ['icons/*.png', 'sprites/*.png', 'sprites/*.json'],
       manifest: {
         id: BASE,
