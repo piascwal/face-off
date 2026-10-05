@@ -3,6 +3,7 @@
 import { DUREES, EFFECTIFS, NIVEAUX } from '@core/constants';
 import type { BonusEquipe } from '@core/types';
 import type { FormatLan } from '@net/partie';
+import { qualitePing, texteLatence } from '@piascwal/lan-kit';
 import { texte } from './pixel-font';
 import { px } from './primitives';
 import type { BanqueSprites } from './sprites';
@@ -14,7 +15,7 @@ import { LIBELLES_BONUS, LIBELLES_FORMAT, oui, points, ROUGE, VERT, type ResumeC
 
 /** Un siège de la salle d'attente (A1, A2, B1, B2) ; `null` dans `EtatSalon.places` s'il n'existe pas dans ce format. */
 export interface PlaceSalon {
-  joueur: { nom: string; moi: boolean; hote: boolean } | null;
+  joueur: { nom: string; moi: boolean; hote: boolean; /** sa latence vue par l'hôte (ms), si elle est connue */ ping: number | null } | null;
   /** Prendre ce siège libre (jamais pour l'hôte, assis d'office). */
   onPrendre: (() => void) | null;
   /** Hôte : exclure ce joueur. */
@@ -45,6 +46,8 @@ export interface EtatSalon {
   /** Code de vérification de ma liaison avec l'hôte (ou de la dernière arrivée côté hôte). */
   code: string | null;
   latenceMs: number | null;
+  /** Le salon en ligne : son code, à donner aux amis, et le partage du lien. */
+  ligne: { code: string; copie: boolean; onPartage: () => void } | null;
   message: string | null;
   /** Handicap de chaque camp (l'hôte le règle, les autres le voient). */
   bonus: [BonusEquipe, BonusEquipe];
@@ -91,6 +94,11 @@ function carteSiege(
     const ty = y + h - 11;
     px(g, x + 8, ty, w - 16, 9, j.hote ? TAG_HOTE : TAG_JOUEUR);
     texte(g, j.moi ? (j.hote ? 'HOTE - VOUS' : 'VOUS') : j.hote ? 'HOTE' : 'JOUEUR', x + w / 2, ty + 1, '#06101a', 1, 'c', null);
+    if (!j.hote) {
+      const q = qualitePing(j.ping);
+      const couleur = q === 'bon' ? TAG_JOUEUR : q === 'moyen' ? C.or : q === 'mauvais' ? '#ff7a90' : C.gris;
+      texte(g, texteLatence(j.ping), x + w - (p.onExclure ? 14 : 4), y + 5, couleur, 1, 'd', null);
+    }
     if (p.onExclure) bouton(g, boutons, 'X', x + w - 12, y + 4, 9, 9, p.onExclure, { couleur: '#6a1f33', clair: '#a8374f', fonce: '#44111f', texte: C.blanc });
     return;
   }
@@ -122,6 +130,10 @@ export function dessineSalon(g: CanvasRenderingContext2D, boutons: ZoneBouton[],
   const coop = etat.format === 'coop';
   texte(g, "SALLE D'ATTENTE", cx, 2, C.blanc, 2, 'c');
   texte(g, `PARTIE DE ${etat.nomHote}`, 6, 4, C.gris, 1, 'g');
+  if (etat.ligne) {
+    texte(g, `SALON ${etat.ligne.code}`, 6, 13, C.or, 1, 'g');
+    bouton(g, boutons, etat.ligne.copie ? 'OK !' : 'LIEN', 6, 22, 44, 11, etat.ligne.onPartage, { couleur: '#24995c', clair: '#5fe0a0', fonce: '#14603a' });
+  }
 
   // format : l'hôte le change, les autres le voient
   const fy = 21;
@@ -186,7 +198,7 @@ export function dessineSalon(g: CanvasRenderingContext2D, boutons: ZoneBouton[],
   const aide = etat.message ?? etat.bilan ?? aideSalon(etat);
   texte(g, aide, cx, yEtat, etat.message ? '#ff9a5c' : etat.bilan ? C.blanc : '#6f7aa6', 1, 'c');
   if (etat.code) {
-    const ms = etat.latenceMs !== null ? `  WIFI ${Math.max(1, Math.round(etat.latenceMs))} MS` : '';
+    const ms = etat.latenceMs !== null ? `  PING ${Math.max(1, Math.round(etat.latenceMs))} MS` : '';
     texte(g, `CODE ${etat.code}${ms}`, W - 6, 4, '#6f7aa6', 1, 'd');
   }
 

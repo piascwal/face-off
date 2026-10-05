@@ -15,7 +15,9 @@ export type EcranUI =
   // coupe (parcours-coupe.ts)
   | 'coupeChoix'
   | 'coupe'
-  // Wi-Fi (parcours-lan.ts)
+  // multijoueur : en ligne ou Wi-Fi (parcours-ligne.ts, parcours-lan.ts)
+  | 'multi'
+  | 'lanLigne'
   | 'lan'
   | 'lanConfig'
   | 'salon'
@@ -27,4 +29,4 @@ export type EcranUI =
   | 'fin';
 
 /** Écrans de menu plein cadre : ni tableau d'affichage ni bandeau par-dessus. */
-export const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'commandes', 'entrainement', 'equipes', 'maillots', 'coupeChoix', 'coupe', 'lan', 'lanConfig', 'salon', 'lanRole', 'lanChoix', 'lanSpect'];
+export const ECRANS_MENU: EcranUI[] = ['menu', 'avance', 'commandes', 'entrainement', 'equipes', 'maillots', 'coupeChoix', 'coupe', 'multi', 'lanLigne', 'lan', 'lanConfig', 'salon', 'lanRole', 'lanChoix', 'lanSpect'];

@@ -1,3 +1,4 @@
+import { codeDuLien } from '@piascwal/lan-kit';
 import { GivreEcran } from '@render/givre-ecran';
 import { calculeRink, reprojette } from '@core/rink';
 import { creePartie, DUREE_BUT, type OptionsPartie } from '@core/rules';
@@ -126,6 +127,7 @@ export class GameApp {
 
     this.attacheEvenements();
     this.dispose();
+    this.ouvreInvitation();
     if (this.portrait) {
       // on prépare quand même une patinoire paysage pour la démo derrière l'écran "tournez votre téléphone"
       const w = this.W;
@@ -139,6 +141,14 @@ export class GameApp {
     this.creeDemo();
     this.dernier = performance.now();
     requestAnimationFrame((t) => this.boucle(t));
+  }
+
+  /** Le jeu a été ouvert par un lien d'invitation (`#salon=CODE`) : on propose de rejoindre ce salon. */
+  private ouvreInvitation(): void {
+    const code = codeDuLien(location.hash);
+    if (!code) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    this.lan.ligne.surInvitation(code);
   }
 
   // -------------------------------------------------------------- disposition
@@ -330,6 +340,8 @@ export class GameApp {
   }
 
   private surTouche(e: KeyboardEvent): void {
+    // un champ de saisie (pseudo, code) est ouvert : ces touches sont du texte, pas des commandes
+    if (e.target instanceof HTMLInputElement) return;
     if (!e.repeat) this.audio.init();
     if (e.code !== 'Escape') this.pleinEcran.tente();
     // premier geste sur le menu : rien que le plein écran, aucune touche ne réagit

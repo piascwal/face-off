@@ -3,80 +3,14 @@ import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
 import { pas } from '../src/core/simulation';
 import { INTENT_VIDE, type InputIntent } from '../src/core/types';
-import { valideAnnonce, valideSignal } from '../src/net/annuaire';
-import { correspond, encodeLongueur, LecteurMqtt, lisPublish, MQTT_PUBLISH, paquetPublish } from '../src/net/mqtt';
+import { valideAnnonceFaceOff } from '../src/net/annuaire';
 import { appliqueInstantane, decodeInstantane, encodeInstantane } from '../src/net/instantane';
 import { bonjour, lisCtrl, lisEvenement } from '../src/net/protocole';
 import { EmetteurEntrees, EntreeDistante, SILENCE_ENTREE_S } from '../src/net/entrees';
-import { adresseSrflx, chiffre, cleReseau, dechiffre, salonPour } from '../src/net/reseau-local';
 
-describe('MQTT minimal', () => {
-  it('encode la longueur restante sur 1 à 4 octets', () => {
-    expect(encodeLongueur(0)).toEqual([0]);
-    expect(encodeLongueur(127)).toEqual([127]);
-    expect(encodeLongueur(128)).toEqual([0x80, 1]);
-    expect(encodeLongueur(16383)).toEqual([0xff, 0x7f]);
-    expect(encodeLongueur(16384)).toEqual([0x80, 0x80, 1]);
-  });
-
-  it('recolle des paquets coupés arbitrairement entre trames', () => {
-    const charge = new Uint8Array(300).map((_, i) => i & 0xff);
-    const a = paquetPublish('faceoff/v1/abc/parties/1234', charge, true);
-    const b = paquetPublish('x/y', new Uint8Array([1, 2, 3]), false);
-    const flux = new Uint8Array(a.length + b.length);
-    flux.set(a);
-    flux.set(b, a.length);
-    const l = new LecteurMqtt();
-    const recus = [...l.pousse(flux.slice(0, 5)), ...l.pousse(flux.slice(5, 200)), ...l.pousse(flux.slice(200))];
-    expect(recus).toHaveLength(2);
-    expect(recus[0]!.type).toBe(MQTT_PUBLISH);
-    const m = lisPublish(recus[0]!);
-    expect(m.topic).toBe('faceoff/v1/abc/parties/1234');
-    expect(m.retain).toBe(true);
-    expect([...m.payload]).toEqual([...charge]);
-    expect(lisPublish(recus[1]!).payload).toEqual(new Uint8Array([1, 2, 3]));
-  });
-
-  it('applique les jokers de filtre', () => {
-    expect(correspond('a/+/c', 'a/b/c')).toBe(true);
-    expect(correspond('a/+/c', 'a/b/d')).toBe(false);
-    expect(correspond('a/#', 'a/b/c')).toBe(true);
-    expect(correspond('a/+', 'a/b/c')).toBe(false);
-  });
-});
-
-describe('empreinte du réseau local', () => {
-  it('lit l’adresse publique des seuls candidats srflx', () => {
-    expect(adresseSrflx('candidate:842163049 1 udp 1677729535 203.0.113.7 51234 typ srflx raddr 192.168.1.20 rport 51234')).toBe(
-      '203.0.113.7',
-    );
-    expect(adresseSrflx('candidate:1 1 udp 2122260223 abcd.local 51234 typ host')).toBeNull();
-  });
-
-  it('regroupe l’IPv4 publique telle quelle et l’IPv6 par préfixe /64', () => {
-    expect(cleReseau('203.0.113.7')).toBe('ip4:203.0.113.7');
-    expect(cleReseau('2a01:e0a:1f:2c40:1111:2222:3333:4444')).toBe(cleReseau('2a01:e0a:1f:2c40::9'));
-    expect(cleReseau('2a01:e0a:1f:2c40::9')).toBe('ip6:2a01:e0a:1f:2c40');
-    expect(cleReseau('abcd.local')).toBeNull();
-  });
-
-  it('chiffre les messages : illisibles depuis un autre réseau ou un autre topic', async () => {
-    const ici = await salonPour('ip4:203.0.113.7');
-    const ailleurs = await salonPour('ip4:198.51.100.9');
-    expect(ici.base).not.toContain('203');
-    expect(ici.base).not.toBe(ailleurs.base);
-    const topic = `${ici.base}/parties/0123456789abcdef`;
-    const c = await chiffre(ici, topic, { nom: 'LYNX 12' });
-    expect(await dechiffre(ici, topic, c)).toEqual({ nom: 'LYNX 12' });
-    expect(await dechiffre(ailleurs, topic, c)).toBeNull();
-    expect(await dechiffre(ici, `${ici.base}/parties/fedcba9876543210`, c)).toBeNull();
-    c[20] ^= 1;
-    expect(await dechiffre(ici, topic, c)).toBeNull();
-  });
-
-  it('valide annonces et signaux reçus', () => {
+describe('annonces reçues', () => {
+  it('valide le contenu des annonces reçues', () => {
     const ok = {
-      id: '0123456789abcdef',
       nom: 'LYNX 12',
       equipe: 'toulouse',
       effectif: 1,
@@ -87,26 +21,25 @@ describe('empreinte du réseau local', () => {
       spect: 2,
       adverse: 'nice',
       score: [2, 1],
-      v: 1,
-      t: 1,
     };
-    expect(valideAnnonce(ok, '0123456789abcdef', 0)).toMatchObject({ enCours: true, format: '1v1', joueurs: 2, spect: 2, adverse: 'nice', score: [2, 1] });
-    expect(valideAnnonce({ ...ok, adverse: '' }, ok.id, 0)?.adverse).toBe('');
-    expect(valideAnnonce({ ...ok, adverse: '../x' }, ok.id, 0)).toBeNull();
-    expect(valideAnnonce({ ...ok, score: [1, -3] }, ok.id, 0)).toBeNull();
-    expect(valideAnnonce({ ...ok, spect: 1.5 }, ok.id, 0)).toBeNull();
-    expect(valideAnnonce(ok, 'fedcba9876543210', 0)).toBeNull();
-    expect(valideAnnonce({ ...ok, format: 'coop' }, ok.id, 0)?.format).toBe('coop');
-    expect(valideAnnonce({ ...ok, format: 'oui' }, ok.id, 0)).toBeNull();
-    expect(valideAnnonce({ ...ok, joueurs: 5 }, ok.id, 0)).toBeNull();
-    expect(valideAnnonce({ ...ok, spect: 9 }, ok.id, 0)).toBeNull();
-    expect(valideAnnonce({ ...ok, nom: '<script>' }, ok.id, 0)).toBeNull();
-    expect(valideAnnonce({ ...ok, effectif: 50 }, ok.id, 0)).toBeNull();
-    expect(valideSignal({ type: 'offre', sdp: 'x'.repeat(20_000), nom: 'A' })).toBeNull();
-    expect(valideSignal({ type: 'refus', raison: 'complet' })).toEqual({ type: 'refus', raison: 'complet' });
-    expect(valideSignal({ type: 'refus', raison: 'spectateurs' })).toEqual({ type: 'refus', raison: 'spectateurs' });
-    expect(valideSignal({ type: 'offre', sdp: 'x', nom: 'A', spect: true })).toEqual({ type: 'offre', sdp: 'x', nom: 'A', spect: true });
-    expect(valideSignal({ type: 'offre', sdp: 'x', nom: 'A', spect: 'oui' })).toMatchObject({ spect: false });
+    expect(valideAnnonceFaceOff(ok)).toMatchObject({
+      enCours: true,
+      format: '1v1',
+      joueurs: 2,
+      spect: 2,
+      adverse: 'nice',
+      score: [2, 1],
+    });
+    expect(valideAnnonceFaceOff({ ...ok, adverse: '' })?.adverse).toBe('');
+    expect(valideAnnonceFaceOff({ ...ok, adverse: '../x' })).toBeNull();
+    expect(valideAnnonceFaceOff({ ...ok, score: [1, -3] })).toBeNull();
+    expect(valideAnnonceFaceOff({ ...ok, spect: 1.5 })).toBeNull();
+    expect(valideAnnonceFaceOff({ ...ok, format: 'coop' })?.format).toBe('coop');
+    expect(valideAnnonceFaceOff({ ...ok, format: 'oui' })).toBeNull();
+    expect(valideAnnonceFaceOff({ ...ok, joueurs: 5 })).toBeNull();
+    expect(valideAnnonceFaceOff({ ...ok, spect: 9 })).toBeNull();
+    expect(valideAnnonceFaceOff({ ...ok, nom: '<script>' })).toBeNull();
+    expect(valideAnnonceFaceOff({ ...ok, effectif: 50 })).toBeNull();
   });
 });
 
@@ -114,8 +47,15 @@ describe('protocole de jeu', () => {
   const rinkHote = calculeRink(400, 200);
 
   function partie() {
-    const state = creePartie(rinkHote, { mode: 'match', niveauIdx: 1, dureeIdx: 1, effectifIdx: 1, humains: [true, true] });
-    for (let i = 0; i < 400; i++) pas(rinkHote, state, 1 / 120, (eq) => ({ ...INTENT_VIDE, ix: eq === 0 ? 1 : -1 }));
+    const state = creePartie(rinkHote, {
+      mode: 'match',
+      niveauIdx: 1,
+      dureeIdx: 1,
+      effectifIdx: 1,
+      humains: [true, true],
+    });
+    for (let i = 0; i < 400; i++)
+      pas(rinkHote, state, 1 / 120, (eq) => ({ ...INTENT_VIDE, ix: eq === 0 ? 1 : -1 }));
     return state;
   }
 
@@ -128,7 +68,13 @@ describe('protocole de jeu', () => {
     expect(inst.patineurs).toHaveLength(hote.patineurs.length);
 
     const rinkClient = calculeRink(600, 300);
-    const client = creePartie(rinkClient, { mode: 'match', niveauIdx: 1, dureeIdx: 1, effectifIdx: 1, humains: [true, true] });
+    const client = creePartie(rinkClient, {
+      mode: 'match',
+      niveauIdx: 1,
+      dureeIdx: 1,
+      effectifIdx: 1,
+      humains: [true, true],
+    });
     appliqueInstantane(client, inst, inst, 1, rinkClient);
     const k = rinkClient.w / rinkHote.w;
     const s0 = hote.patineurs[0]!;
@@ -181,7 +127,10 @@ describe('protocole de jeu', () => {
   });
 
   it('valide les messages de contrôle et les évènements', () => {
-    expect(lisCtrl({ t: 'action', x: { a: 'equipe', equipe: 'nice' } })).toEqual({ t: 'action', x: { a: 'equipe', equipe: 'nice' } });
+    expect(lisCtrl({ t: 'action', x: { a: 'equipe', equipe: 'nice' } })).toEqual({
+      t: 'action',
+      x: { a: 'equipe', equipe: 'nice' },
+    });
     expect(lisCtrl({ t: 'action', x: { a: 'equipe', equipe: '../../x' } })).toBeNull();
     // « lancer » est réservé à l'hôte : jamais accepté venant du réseau
     expect(lisCtrl({ t: 'action', x: { a: 'lancer' } })).toBeNull();
@@ -196,12 +145,23 @@ describe('protocole de jeu', () => {
     expect(lisCtrl({ ...b, jeton: 'abc' })).toBeNull();
     expect(lisCtrl({ ...b, jeton: undefined })).toBeNull();
     expect(lisCtrl({ t: 'reaction', r: 'logo1', de: '' })).toEqual({ t: 'reaction', r: 'logo1', de: '' });
-    expect(lisCtrl({ t: 'reaction', r: 'gyro', de: 'OURS 22' })).toEqual({ t: 'reaction', r: 'gyro', de: 'OURS 22' });
+    expect(lisCtrl({ t: 'reaction', r: 'gyro', de: 'OURS 22' })).toEqual({
+      t: 'reaction',
+      r: 'gyro',
+      de: 'OURS 22',
+    });
     expect(lisCtrl({ t: 'reaction', r: 'bombe', de: '' })).toBeNull();
     expect(lisCtrl({ t: 'reaction', r: 'feu', de: '<b>' })).toBeNull();
     const id = (x: number, y: number): [number, number] => [x + 10, y];
-    expect(lisEvenement({ type: 'etincelles', x: 1, y: 2, n: 3 }, id, [1, 1])).toEqual({ type: 'etincelles', x: 11, y: 2, n: 3 });
+    expect(lisEvenement({ type: 'etincelles', x: 1, y: 2, n: 3 }, id, [1, 1])).toEqual({
+      type: 'etincelles',
+      x: 11,
+      y: 2,
+      n: 3,
+    });
     expect(lisEvenement({ type: 'eval', x: 1 }, id, [1, 1])).toBeNull();
-    expect(lisEvenement({ type: 'bulle', txt: 'x', x: 1, y: 2, c: '#fff', o: { a: 1 } }, id, [1, 1])).toBeNull();
+    expect(
+      lisEvenement({ type: 'bulle', txt: 'x', x: 1, y: 2, c: '#fff', o: { a: 1 } }, id, [1, 1]),
+    ).toBeNull();
   });
 });

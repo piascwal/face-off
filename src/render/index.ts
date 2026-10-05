@@ -24,6 +24,7 @@ export * from './theme';
 export * from './widgets';
 export * from './lan-commun';
 export * from './lan-liste';
+export * from './lan-ligne';
 export * from './lan-salon';
 export * from './lan-choix';
 export * from './lan-match';

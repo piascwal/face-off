@@ -86,8 +86,9 @@ src/
   core/     — simulation pure, sans DOM ni canvas (voir plus bas)
   audio/    — synthèse Web Audio, pilotée par les évènements de game-core
   input/    — clavier + tactile → InputIntent
-  net/      — multijoueur Wi-Fi : découverte chiffrée, liaison WebRTC, protocole,
-              sessions (session-hote / session-client / session-commun),
+  net/      — multijoueur (Wi-Fi et en ligne) : protocole, sessions (session-hote /
+              session-client / session-commun / canal) ; le socle (découverte chiffrée,
+              liaison WebRTC, salons en ligne) vient de lan-kit,
               règles de la partie (partie, partie-modele, sieges, partie-validation)
   render/   — tout le dessin canvas (police pixel, patinoire, sprites, HUD, menus)
   app/      — assemble le tout (voir « L'application » ci-dessous)
@@ -502,9 +503,30 @@ voir `core/rules.ts::creePartie`) :
 - **Secousses d'écran** : réduit l'intensité des tremblements et flashs
   (`render/effects.ts::SystemeEffets.intensiteEcran`) — accessibilité.
 
-### 8. Multijoueur Wi-Fi : l'hôte est le serveur
+### 8. Multijoueur : en ligne ou sur le Wi-Fi, l'hôte est le serveur
 
-Menu → **MULTI WIFI**. L'appareil qui fait **CRÉER UNE PARTIE** (téléphone,
+Menu → **MULTI**, puis **EN LIGNE** (Internet) ou **RESEAU LOCAL** (même Wi-Fi). Le
+**pseudo** se change dans cet écran et dans les réglages avancés (un champ de saisie se
+pose sur le jeu, ce qui fait apparaître le clavier du téléphone) ; il est gardé et nettoyé
+(majuscules, chiffres, espaces, 14 caractères).
+
+**En ligne.** **CREER UN SALON** règle d'abord la partie (comme sur le Wi-Fi) puis donne un
+code (`RMS7-S3MP`) affiché dans la salle d'attente avec un bouton **LIEN** (feuille de
+partage du téléphone, ou presse-papiers). Les amis font **REJOINDRE AVEC UN CODE**, ou
+ouvrent le lien (`#salon=CODE` : un bouton REJOINDRE leur est proposé). Aucun serveur à
+vous : le code dérive la clé qui chiffre la mise en relation sur les serveurs MQTT
+publics, puis les appareils se connectent en pair à pair (lan-kit 0.2.0). La salle, le
+match, la pause et la reconnexion sont ceux du Wi-Fi ; la veille tolère un silence plus
+long (12 s). Chaque joueur voit l'adresse IP des autres ; sur environ 15 à 20 % des
+réseaux (4G à NAT strict, Wi-Fi d'entreprise) la connexion est impossible tant qu'un relais
+TURN n'est pas branché (voir `docs/TURN.md` de lan-kit). Le code est dans
+`app/parcours-ligne.ts`, `app/saisie.ts`, `net/canal.ts` et `render/lan-ligne.ts`.
+
+**Pings.** L'hôte mesure la latence de chaque joueur et la renvoie à tous chaque seconde
+(message `pings`, protocole 24) : elle s'affiche sur chaque carte de la salle d'attente et,
+en match, en haut à gauche de l'écran (vert sous 60 ms, orange sous 150 ms, rouge au-delà).
+
+**Sur le Wi-Fi.** L'appareil qui fait **CRÉER UNE PARTIE** (téléphone,
 tablette ou ordinateur) devient le serveur. Il règle d'abord le **format** de
 la partie (voir ci-dessous), puis la taille des équipes (2, 3 ou 5 contre 5),
 la durée et les assistances, pour tous les joueurs. Sur les autres appareils
@@ -684,9 +706,10 @@ par un broker MQTT local, pour tester à deux onglets sur une seule machine.
 - Les Wi-Fi « invités » qui isolent les appareils entre eux (isolation AP)
   empêchent la liaison directe.
 - Un réseau d'entreprise qui bloque STUN empêche la détection du réseau.
-- Le jeu par Internet est volontairement impossible : les liaisons sont
-  limitées au réseau local (voir Sécurité). Il faudrait un serveur relais
-  (TURN) et une vraie authentification des parties.
+- Sur le Wi-Fi, les liaisons sont limitées au réseau local (voir Sécurité). En ligne,
+  elles sont ouvertes à Internet : un relais TURN reste à brancher pour les réseaux
+  qui bloquent le pair à pair (lan-kit, `docs/TURN.md`), et le code de salon est le
+  seul secret (8 caractères, dérivation lente).
 
 **Mode spectateur.** Une partie lancée reste annoncée sur le réseau (avec le
 score et le nombre de spectateurs) : dans la liste, elle affiche REGARDER.

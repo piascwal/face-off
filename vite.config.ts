@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import { readFileSync } from 'node:fs';
 import { VitePWA } from 'vite-plugin-pwa';
-import { COURTIERS } from './src/net/courtiers.ts';
+import { ORIGINES_COURTIERS } from './src/net/courtiers.ts';
 
 // Déployé sur GitHub Pages en tant que site de projet
 // (https://piascwal.github.io/face-off/) : tout doit être résolu sous ce
@@ -30,7 +30,7 @@ const CSP = [
   "img-src 'self' data: blob:",
   "font-src 'self'",
   "media-src 'self'",
-  `connect-src 'self' ${COURTIERS.map((u) => new URL(u).origin).join(' ')}`,
+  `connect-src 'self' ${ORIGINES_COURTIERS.map((u) => new URL(u).origin).join(' ')}`,
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",

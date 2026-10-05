@@ -1,3 +1,4 @@
+import { saisitPseudo } from './pseudo';
 import { coupeTerminee, nomsTours } from '@core/coupe';
 import { DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from '@core/constants';
 import { creePartie, type OptionsPartie } from '@core/rules';
@@ -323,7 +324,7 @@ export class ParcoursSolo {
         sauvePreferences(pref);
       },
       onJouer: () => this.jouer(),
-      onReseau: () => app.lan.ouvre(),
+      onReseau: () => app.lan.ligne.ouvreChoix(),
       onAvance: () => this.ouvreAvance(),
     };
   }
@@ -336,6 +337,8 @@ export class ParcoursSolo {
       sauvePreferences(pref);
     };
     return {
+      pseudo: pref.pseudo,
+      onPseudo: () => saisitPseudo(pref),
       son: pref.son,
       assistTir: pref.assistTir,
       assistPasse: pref.assistPasse,

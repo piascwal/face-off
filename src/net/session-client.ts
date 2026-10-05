@@ -1,7 +1,8 @@
 /** Session d'un joueur ou d'un spectateur qui rejoint la partie d'un hôte. */
 
-import { Annuaire, type AnnoncePartie, type Signal } from './annuaire';
-import { Liaison } from './liaison';
+import { Annuaire, type Liaison, type Signal, type Veille } from '@piascwal/lan-kit';
+import { valideAnnonceFaceOff, type AnnonceFaceOff, type AnnoncePartie } from './annuaire';
+import { CANAL_LOCAL, creeLiaison, creeVeille, ouvreReseau, type Canal, type Reseau } from './canal';
 import { type InputIntent } from '@core/types';
 import {
   roleDe,
@@ -14,17 +15,8 @@ import {
 } from './partie';
 import { bonjour, lisCtrl, type MsgCtrl } from './protocole';
 import { EmetteurEntrees } from './entrees';
-import { idAleatoire, VERSION_PROTOCOLE } from './reseau-local';
-import {
-  attente,
-  courtiers,
-  delaiReconnexion,
-  ipsDuReseau,
-  plageStricte,
-  salonsDuReseau,
-  Veille,
-  type RaisonFin,
-} from './session-commun';
+import { APP, idAleatoire, VERSION_PROTOCOLE } from './reseau-local';
+import { attente, delaiReconnexion, reglagesDev, type RaisonFin } from './session-commun';
 
 // ================================================================== client ==
 
@@ -35,6 +27,8 @@ export class SessionClient {
   /** Dernier état de la partie diffusé par l'hôte. */
   partie: EtatPartieLan | null = null;
   code: string | null = null;
+  /** La latence de chaque siège, mesurée par l'hôte (ms). */
+  pings: (number | null)[] = [null, null, null, null];
   /** Rejointe depuis « REGARDER » : on n'y vient que pour la regarder. */
   private veutRegarder = false;
   /** Connexion perdue en pleine partie : on tente de revenir jusqu'à cet instant (performance.now, ms). */
@@ -54,16 +48,20 @@ export class SessionClient {
   private identite: { nom: string; equipe: string; appareil: string; jeton: string } | null = null;
   private generationReconnexion = 0;
 
-  private constructor(private annuaire: Annuaire | null) {
+  private constructor(
+    private annuaire: Annuaire<AnnonceFaceOff> | null,
+    private readonly reseau: Reseau,
+    readonly canal: Canal,
+  ) {
     this.nettoyage = setInterval(() => this.oublieVieilles(), 5000);
   }
 
   /** Détecte le réseau, se connecte à la découverte et commence à écouter les parties. */
-  static async cree(): Promise<SessionClient> {
-    const salons = await salonsDuReseau();
-    const annuaire = new Annuaire(salons, courtiers(), false);
+  static async cree(canal: Canal = CANAL_LOCAL): Promise<SessionClient> {
+    const reseau = await ouvreReseau(canal);
+    const annuaire = SessionClient.annuaire(reseau);
     await annuaire.ouvre();
-    const s = new SessionClient(annuaire);
+    const s = new SessionClient(annuaire, reseau, canal);
     annuaire.onAnnonce = (a) => {
       s.vues.set(a.id, performance.now());
       const i = s.parties.findIndex((p) => p.id === a.id);
@@ -78,6 +76,15 @@ export class SessionClient {
     annuaire.onSignal = (_de, _salon, sig) => s.attenteReponse?.(sig);
     annuaire.ecouteAnnonces();
     return s;
+  }
+
+  private static annuaire(reseau: Reseau): Annuaire<AnnonceFaceOff> {
+    return new Annuaire<AnnonceFaceOff>({
+      app: APP,
+      salons: reseau.salons,
+      valideContenu: valideAnnonceFaceOff,
+      courtiers: reglagesDev().courtiers ?? undefined,
+    });
   }
 
   get latenceMs(): number | null {
@@ -118,7 +125,13 @@ export class SessionClient {
   }
 
   /** Rejoint une partie comme joueur, ou comme spectateur (`spect`). */
-  async rejoins(partie: AnnoncePartie, nom: string, equipe: string, appareil: string, spect = false): Promise<void> {
+  async rejoins(
+    partie: AnnoncePartie,
+    nom: string,
+    equipe: string,
+    appareil: string,
+    spect = false,
+  ): Promise<void> {
     if (!this.annuaire || this.liaison) return;
     if (partie.v !== VERSION_PROTOCOLE) throw new Error('version');
     this.veutRegarder = spect;
@@ -133,7 +146,7 @@ export class SessionClient {
     if (!annuaire || !id || this.liaison) throw new Error('injoignable');
     const { nom, equipe, appareil, jeton } = id;
     const spect = this.veutRegarder;
-    const l = new Liaison(plageStricte(), ipsDuReseau());
+    const l = creeLiaison(this.reseau);
     this.liaison = l;
     this.emetteur = new EmetteurEntrees();
     try {
@@ -164,6 +177,10 @@ export class SessionClient {
     l.onCtrl = (o) => {
       const m = lisCtrl(o);
       if (!m || this.veille?.recu(m)) return;
+      if (m.t === 'pings') {
+        this.pings = m.p;
+        return;
+      }
       if (m.t === 'etat') {
         this.partie = m.e;
         this.onChange();
@@ -178,7 +195,7 @@ export class SessionClient {
       this.onJeu(d);
     };
     l.onFerme = () => this.termine('perdu');
-    this.veille = new Veille(l, () => l.ferme());
+    this.veille = creeVeille(l, this.reseau, () => l.ferme());
     l.envoieCtrl(bonjour(nom, equipe, appareil, spect, jeton));
     // la liaison directe est établie : plus besoin des serveurs de découverte
     annuaire.ferme();
@@ -238,7 +255,7 @@ export class SessionClient {
       }
       try {
         if (!this.annuaire) {
-          const a = new Annuaire(await salonsDuReseau(), courtiers(), false);
+          const a = SessionClient.annuaire(this.reseau);
           await a.ouvre();
           if (!actif()) {
             a.ferme();

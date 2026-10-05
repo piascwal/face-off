@@ -1,5 +1,6 @@
 import { type MatchState, type Skater, type TeamId } from '@core/types';
 import type { AnnoncePartie } from '@net/annuaire';
+import { CANAL_LOCAL, type Canal } from '@net/canal';
 import {
   campDe,
   estReaction,
@@ -30,17 +31,18 @@ import type { EcranUI } from './ecrans';
 import type { GameApp } from './game-app';
 import { sauvePreferences } from './preferences';
 import { MatchLan, type JeuReseau } from './match-lan';
+import { ParcoursLigne } from './parcours-ligne';
 import { VuesLan } from './vues-lan';
 
-function messageErreurReseau(e: unknown): string {
+function messageErreurReseau(e: unknown, enLigne = false): string {
   const m = e instanceof Error ? e.message : '';
-  if (m === 'reseau') return 'WIFI NON DETECTE - VERIFIEZ LA CONNEXION';
+  if (m === 'reseau') return enLigne ? 'INTERNET INTROUVABLE' : 'WIFI NON DETECTE - VERIFIEZ LA CONNEXION';
   if (m.startsWith('aucun serveur')) return 'DECOUVERTE INDISPONIBLE - REESSAYEZ';
   if (m === 'complet') return 'CETTE PARTIE EST DEJA COMPLETE';
   if (m === 'spectateurs') return `DEJA ${SPECTATEURS_MAX} SPECTATEURS SUR CETTE PARTIE`;
   if (m === 'version') return 'VERSIONS DIFFERENTES : METTEZ LE JEU A JOUR';
   if (m === 'injoignable') return "L'HOTE NE REPOND PAS";
-  if (m === 'connexion impossible') return 'CONNEXION DIRECTE IMPOSSIBLE SUR CE WIFI';
+  if (m === 'connexion impossible') return enLigne ? 'CONNEXION DIRECTE IMPOSSIBLE : RESEAU BLOQUANT' : 'CONNEXION DIRECTE IMPOSSIBLE SUR CE WIFI';
   return 'ERREUR RESEAU - REESSAYEZ';
 }
 
@@ -59,6 +61,10 @@ const MESSAGES_FIN_CLIENT: Record<RaisonFin, string> = {
  * client), spectateurs et leurs réactions, fin de match et votes, coupures.
  */
 export class ParcoursLan {
+  /** Où se retrouvent les joueurs : le Wi-Fi, ou le salon d'un code. */
+  canal: Canal = CANAL_LOCAL;
+  /** Le parcours du jeu en ligne (choix du mode, création et recherche de salon). */
+  readonly ligne: ParcoursLigne;
   hote: SessionHote | null = null;
   client: SessionClient | null = null;
   /** Match réseau en cours sur cet appareil (null hors match). */
@@ -83,6 +89,7 @@ export class ParcoursLan {
   readonly match: MatchLan;
 
   constructor(private readonly app: GameApp) {
+    this.ligne = new ParcoursLigne(app, this);
     this.vues = new VuesLan(app, this);
     this.match = new MatchLan(app, this);
   }
@@ -138,6 +145,11 @@ export class ParcoursLan {
     else this.client?.agit(x);
   }
 
+  /** La latence de chaque siège, mesurée par l'hôte (null si inconnue). */
+  pings(): (number | null)[] {
+    return this.hote?.pings ?? this.client?.pings ?? [null, null, null, null];
+  }
+
   /** Pause en réseau : elle vaut pour les deux joueurs (l'hôte fige la simulation). */
   demandePause(): void {
     if (!this.pause) {
@@ -162,19 +174,31 @@ export class ParcoursLan {
     this.reactions = [];
   }
 
-  /** Écran de la liste des parties : détecte le réseau et écoute les annonces. */
+  /** L'écran des parties : la liste du Wi-Fi, ou l'accueil du jeu en ligne. */
+  private get ecranListe(): 'lan' | 'lanLigne' {
+    return this.canal.type === 'ligne' ? 'lanLigne' : 'lan';
+  }
+
+  /** Retour à l'écran des parties du mode en cours (Wi-Fi : la liste ; en ligne : l'accueil), avec un message. */
   ouvre(message: string | null = null): void {
+    if (this.canal.type === 'ligne') this.ligne.accueil(message);
+    else this.ouvreSession(message);
+  }
+
+  /** Détecte le réseau (ou dérive le salon du code) et écoute les annonces. */
+  ouvreSession(message: string | null, canal: Canal = this.canal): void {
     const app = this.app;
     app.audio.init();
     this.ferme();
+    this.canal = canal;
     app.creeDemo();
     app.effets.reinitialise();
-    app.ecranUI = 'lan';
+    app.ecranUI = this.ecranListe;
     app.enPause = false;
     this.statut = 'recherche';
     this.message = message;
     const gen = this.generation;
-    SessionClient.cree().then(
+    SessionClient.cree(canal).then(
       (c) => {
         if (gen !== this.generation) return c.ferme();
         this.client = c;
@@ -198,13 +222,14 @@ export class ParcoursLan {
       (e: unknown) => {
         if (gen !== this.generation) return;
         this.statut = 'erreur';
-        this.message = messageErreurReseau(e);
+        this.message = messageErreurReseau(e, canal.type === 'ligne');
       },
     );
   }
 
   quitte(): void {
     this.ferme();
+    this.canal = CANAL_LOCAL;
     this.app.retourMenu();
   }
 
@@ -229,7 +254,7 @@ export class ParcoursLan {
     const app = this.app;
     const pref = app.pref;
     this.ferme();
-    app.ecranUI = 'lan';
+    app.ecranUI = this.ecranListe;
     this.statut = 'creation';
     this.message = null;
     const gen = this.generation;
@@ -245,7 +270,7 @@ export class ParcoursLan {
       niveau: pref.niveau,
     };
     const equipeConnue = (id: string) => EQUIPES_JOUABLES.some((e) => e.id === id);
-    SessionHote.cree({ nom: pref.pseudo, appareil: pref.appareil, equipe: pref.equipeJoueur, config }, equipeConnue).then(
+    SessionHote.cree({ nom: pref.pseudo, appareil: pref.appareil, equipe: pref.equipeJoueur, config }, equipeConnue, this.canal).then(
       (h) => {
         if (gen !== this.generation) return h.ferme();
         this.hote = h;
@@ -270,7 +295,7 @@ export class ParcoursLan {
       (e: unknown) => {
         if (gen !== this.generation) return;
         this.statut = 'erreur';
-        this.message = messageErreurReseau(e);
+        this.message = messageErreurReseau(e, this.canal.type === 'ligne');
       },
     );
   }
@@ -294,7 +319,7 @@ export class ParcoursLan {
       (e: unknown) => {
         if (gen !== this.generation) return;
         this.statut = 'pret';
-        this.message = messageErreurReseau(e);
+        this.message = messageErreurReseau(e, this.canal.type === 'ligne');
       },
     );
   }
@@ -435,7 +460,9 @@ export class ParcoursLan {
     }
     const chiffre = /^(Digit|Numpad)([1-6])$/.exec(e.code);
     if (chiffre && !e.repeat && this.barreReactionsVisible()) this.reagit(CODES_REACTIONS[Number(chiffre[2]) - 1]!);
-    if (e.code === 'Escape') {
+    if (e.code === 'Escape' && ecran === 'multi') this.app.retourMenu();
+    else if (e.code === 'Escape' && ecran === 'lanLigne') this.ligne.retour();
+    else if (e.code === 'Escape') {
       if (ecran === 'lanSpect' || ecran === 'salon' || ecran === 'lanRole' || ecran === 'lanConfig') this.ouvre();
       else if (ecran === 'lan') this.quitte();
     }

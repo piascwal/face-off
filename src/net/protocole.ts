@@ -42,6 +42,8 @@ export type MsgCtrl =
   | { t: 'ev'; k: number; l: unknown[] }
   | { t: 'ping'; k: number }
   | { t: 'pong'; k: number }
+  /** Latence de chaque siège vue par l'hôte (ms), diffusée chaque seconde : null pour l'hôte, un CPU ou un siège pas encore mesuré. */
+  | { t: 'pings'; p: (number | null)[] }
   /**
    * Réaction (logo d'une équipe, flamme, gyrophare...) : envoyée à l'hôte, qui
    * la relaie à tout le monde avec le nom de son auteur (`de`, vide à l'envoi).
@@ -87,6 +89,10 @@ export function lisCtrl(o: unknown): MsgCtrl | null {
     case 'ping':
     case 'pong':
       return typeof m.k === 'number' && Number.isFinite(m.k) ? { t: m.t, k: m.k } : null;
+    case 'pings':
+      return Array.isArray(m.p) && m.p.length === 4 && m.p.every((x) => x === null || (typeof x === 'number' && Number.isInteger(x) && x >= 0 && x <= 10_000))
+        ? { t: 'pings', p: [...(m.p as (number | null)[])] }
+        : null;
     case 'reaction':
       return estReaction(m.r) && typeof m.de === 'string' && (m.de === '' || NOM_SUR.test(m.de)) ? { t: 'reaction', r: m.r, de: m.de } : null;
     case 'quitte':

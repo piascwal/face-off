@@ -1,8 +1,8 @@
 /** Session de l'hôte : il arbitre la partie et sert le match aux joueurs et aux spectateurs. */
 
-import { Annuaire, type Signal } from './annuaire';
-import { Liaison } from './liaison';
-import { Limiteur } from './limiteur';
+import { Annuaire, Limiteur, type Liaison, type Signal, type Veille } from '@piascwal/lan-kit';
+import { valideAnnonceFaceOff, type AnnonceFaceOff } from './annuaire';
+import { CANAL_LOCAL, creeLiaison, creeVeille, ouvreReseau, type Canal, type Reseau } from './canal';
 import { INTENT_VIDE, type InputIntent } from '@core/types';
 import {
   appliqueAction,
@@ -31,17 +31,8 @@ import {
 } from './partie';
 import { EntreeDistante } from './entrees';
 import { lisCtrl, type MsgCtrl } from './protocole';
-import { VERSION_PROTOCOLE } from './reseau-local';
-import {
-  courtiers,
-  delaiReconnexion,
-  ipsDuReseau,
-  plageStricte,
-  REACTION_MIN_MS,
-  salonsDuReseau,
-  Veille,
-  type RaisonFin,
-} from './session-commun';
+import { APP, VERSION_PROTOCOLE } from './reseau-local';
+import { delaiReconnexion, REACTION_MIN_MS, reglagesDev, type RaisonFin } from './session-commun';
 
 // ==================================================================== hôte ==
 
@@ -100,6 +91,9 @@ export class SessionHote {
   /** Un joueur est revenu après une coupure (état déjà envoyé) : en plein match, l'app lui renvoie `debut`. */
   onJoueurRevenu: (envoie: (m: MsgCtrl) => void) => void = () => {};
 
+  /** La latence de chaque siège vue par l'hôte (ms), renvoyée à tous chaque seconde. */
+  pings: (number | null)[] = [null, null, null, null];
+  private tPings = 0;
   private membres: Membre[] = [];
   /** Jeton de chaque joueur absent dont le siège est gardé. */
   private gardes = new Map<Siege, string>();
@@ -109,18 +103,30 @@ export class SessionHote {
   private ferme_ = false;
 
   private constructor(
-    private readonly annuaire: Annuaire,
+    private readonly annuaire: Annuaire<AnnonceFaceOff>,
+    private readonly reseau: Reseau,
+    readonly canal: Canal,
     infos: InfosHote,
     private readonly equipeConnue: (id: string) => boolean,
   ) {
     this.partie = nouvellePartie(infos.config, infos.nom, infos.equipe, infos.appareil);
   }
 
-  static async cree(infos: InfosHote, equipeConnue: (id: string) => boolean): Promise<SessionHote> {
-    const salons = await salonsDuReseau();
-    const annuaire = new Annuaire(salons, courtiers(), true);
+  static async cree(
+    infos: InfosHote,
+    equipeConnue: (id: string) => boolean,
+    canal: Canal = CANAL_LOCAL,
+  ): Promise<SessionHote> {
+    const reseau = await ouvreReseau(canal);
+    const annuaire = new Annuaire<AnnonceFaceOff>({
+      app: APP,
+      salons: reseau.salons,
+      valideContenu: valideAnnonceFaceOff,
+      courtiers: reglagesDev().courtiers ?? undefined,
+      testament: true,
+    });
     await annuaire.ouvre();
-    const s = new SessionHote(annuaire, infos, equipeConnue);
+    const s = new SessionHote(annuaire, reseau, canal, infos, equipeConnue);
     annuaire.onSignal = (de, salon, sig) => void s.surSignal(de, salon, sig);
     s.annonce();
     return s;
@@ -238,10 +244,25 @@ export class SessionHote {
 
   /** Fait avancer le compte à rebours de reprise après une pause, et l'attente des joueurs absents. */
   avance(dt: number): void {
+    this.tPings += dt;
+    if (this.tPings >= 1) {
+      this.tPings = 0;
+      this.majPings();
+    }
     const absence = avanceAbsence(this.partie, dt);
     if (absence === 'fini') this.finAbsence();
     else if (absence === 'change') this.diffuse();
     if (avanceReprise(this.partie, dt)) this.diffuse();
+  }
+
+  /** Mesure la latence de chaque siège et la renvoie à tous. */
+  private majPings(): void {
+    this.pings = this.partie.sieges.map((j, i) => {
+      const ms = j && i > 0 ? this.latenceDe(j.appareil) : null;
+      return ms === null ? null : Math.round(ms);
+    });
+    const msg: MsgCtrl = { t: 'pings', p: this.pings };
+    for (const m of this.presents) m.l.envoieCtrl(msg);
   }
 
   /** Secondes qu'il reste aux joueurs absents pour revenir (0 : tout le monde est là). */
@@ -271,12 +292,26 @@ export class SessionHote {
       return;
     }
     // les regardeurs (spectateurs et indécis) ont leur plafond : au-delà, on ne peut plus que revenir sur son siège gardé
-    if (nbRegardeurs(this.partie) + this.membres.filter((m) => m.nom === null).length >= SPECTATEURS_MAX && this.partie.absent <= 0) {
+    if (
+      nbRegardeurs(this.partie) + this.membres.filter((m) => m.nom === null).length >= SPECTATEURS_MAX &&
+      this.partie.absent <= 0
+    ) {
       await this.annuaire.signale(de, salon, { type: 'refus', raison: 'spectateurs' });
       return;
     }
-    const l = new Liaison(plageStricte(), ipsDuReseau());
-    const m: Membre = { l, veille: null, nom: null, appareil: '', jeton: '', equipe: '', entree: new EntreeDistante(), code: null, limiteCtrl: new Limiteur(CTRL_PAR_S, CTRL_RAFALE), limiteJeu: new Limiteur(JEU_PAR_S, JEU_RAFALE) };
+    const l = creeLiaison(this.reseau);
+    const m: Membre = {
+      l,
+      veille: null,
+      nom: null,
+      appareil: '',
+      jeton: '',
+      equipe: '',
+      entree: new EntreeDistante(),
+      code: null,
+      limiteCtrl: new Limiteur(CTRL_PAR_S, CTRL_RAFALE),
+      limiteJeu: new Limiteur(JEU_PAR_S, JEU_RAFALE),
+    };
     this.membres.push(m);
     this.onChange();
     try {
@@ -296,7 +331,7 @@ export class SessionHote {
       if (m.limiteJeu.accepte() && m.entree.recoit(d, performance.now() / 1000)) m.veille?.recuJeu();
     };
     l.onFerme = () => this.parti(m, 'perdu');
-    m.veille = new Veille(l, () => l.ferme());
+    m.veille = creeVeille(l, this.reseau, () => l.ferme());
     // un pair qui ouvre la liaison sans jamais se présenter ne bloque pas la partie
     setTimeout(() => {
       if (m.nom === null && this.membres.includes(m)) {
@@ -331,7 +366,10 @@ export class SessionHote {
         return;
       }
       // un appareil déjà présent (ancienne liaison pas encore tombée) ne se présente pas deux fois
-      if (roleDe(p, msg.appareil) || this.membres.some((x) => x !== m && x.nom !== null && x.appareil === msg.appareil)) {
+      if (
+        roleDe(p, msg.appareil) ||
+        this.membres.some((x) => x !== m && x.nom !== null && x.appareil === msg.appareil)
+      ) {
         this.retire(m);
         this.onChange();
         return;

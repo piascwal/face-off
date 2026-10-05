@@ -71,7 +71,7 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
     clair: '#ff7a90',
     fonce: '#8c1b3a',
   });
-  bouton(g, boutons, 'MULTI WIFI', cx + 4, jy, 84, 22, menu.onReseau, { couleur: '#1f7fb3', clair: '#6fd0ff', fonce: '#0f4d73' });
+  bouton(g, boutons, 'MULTI', cx + 4, jy, 84, 22, menu.onReseau, { couleur: '#1f7fb3', clair: '#6fd0ff', fonce: '#0f4d73' });
   bouton(g, boutons, 'REGLAGES AVANCES', cx - 60, jy + 28, 120, 13, menu.onAvance, { couleur: '#232a58' });
   texte(g, menu.version, W - 3, H - 9, '#4a5380', 1, 'd');
   const bas = py + ph + 6;
@@ -84,6 +84,9 @@ export function dessineMenu(g: CanvasRenderingContext2D, boutons: ZoneBouton[], 
 }
 
 export interface EtatAvance {
+  /** le pseudo montré aux autres joueurs en réseau */
+  pseudo: string;
+  onPseudo: () => void;
   son: boolean;
   assistTir: boolean;
   assistPasse: boolean;
@@ -113,10 +116,11 @@ export function dessineAvance(g: CanvasRenderingContext2D, boutons: ZoneBouton[]
   texte(g, 'REGLAGES AVANCES', cx, 4, C.blanc, 1, 'c');
 
   const pw = 234;
-  const ph = 108;
+  const ph = 124;
   const py = Math.max(14, Math.round(H * 0.18) - 10);
   panneau(g, cx - pw / 2, py, pw, ph);
   const lignes: [string, string, () => void][] = [
+    ['PSEUDO', menu.pseudo, menu.onPseudo],
     ['SON', menu.son ? 'OUI' : 'NON', menu.onSon],
     ['ASSISTANCE TIR', menu.assistTir ? 'OUI' : 'NON', menu.onAssistTir],
     ['ASSISTANCE PASSE', menu.assistPasse ? 'OUI' : 'NON', menu.onAssistPasse],

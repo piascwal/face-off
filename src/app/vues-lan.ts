@@ -28,10 +28,13 @@ import {
   dessineFinLan,
   dessineFinSpectateur,
   dessineLan,
+  dessineLigne,
+  dessineMulti,
   dessinePauseLan,
   dessineReactions,
   dessineRepriseLan,
   dessineSalon,
+  px,
   texte,
   trouveTeamDef,
   type CarteEquipe,
@@ -45,6 +48,7 @@ import {
   type EtatSalon,
   type ResumeConfig,
 } from '@render/index';
+import { qualitePing, texteLatence } from '@piascwal/lan-kit';
 import type { GameApp } from './game-app';
 import type { ParcoursLan } from './parcours-lan';
 import { sauvePreferences } from './preferences';
@@ -74,12 +78,22 @@ export class VuesLan {
     const ms = (j.role === 'hote' ? this.lan.hote?.latenceMs : this.lan.client?.latenceMs) ?? null;
     // sous la jauge des bonus quand il y en a une
     const y = this.app.state?.pouvoirs ? 31 : 4;
-    if (ms !== null) texte(g, `WIFI ${Math.max(1, Math.round(ms))} MS`, 4, y, ms < 60 ? '#6f7aa6' : '#ff9a5c', 1, 'g');
-    // spectateurs connectés (et, chez eux, le rappel qu'ils regardent seulement)
+    // le ping de chaque joueur, vu par l'hôte ; sans cela (spectateur), le sien
     const e = this.lan.partie;
+    const pings = this.lan.pings();
+    const joueurs = e ? e.sieges.flatMap((j, s) => (j && s > 0 ? [{ nom: j.nom, ms: pings[s] ?? null, moi: j.appareil === this.app.pref.appareil }] : [])) : [];
+    if (!joueurs.length && ms !== null) joueurs.push({ nom: 'VOUS', ms, moi: true });
+    joueurs.forEach((p, i) => {
+      const q = qualitePing(p.ms);
+      const couleur = q === 'bon' ? '#5cf08a' : q === 'moyen' ? C.or : q === 'mauvais' ? '#ff7a90' : '#6f7aa6';
+      px(g, 4, y + i * 9 + 2, 3, 3, couleur);
+      texte(g, `${p.nom.slice(0, 10)} ${texteLatence(p.ms)}`, 10, y + i * 9, p.moi ? C.blanc : '#6f7aa6', 1, 'g');
+    });
+    // spectateurs connectés (et, chez eux, le rappel qu'ils regardent seulement)
     const nb = e ? e.spectateurs.length + e.indecis.length : 0;
-    if (this.lan.spectateur) texte(g, 'SPECTATEUR', 4, y + 9, '#8fe3ff', 1, 'g');
-    else if (nb > 0) texte(g, `${nb} SPECT.`, 4, y + 9, '#6f7aa6', 1, 'g');
+    const yS = y + Math.max(1, joueurs.length) * 9;
+    if (this.lan.spectateur) texte(g, 'SPECTATEUR', 4, yS, '#8fe3ff', 1, 'g');
+    else if (nb > 0) texte(g, `${nb} SPECT.`, 4, yS, '#6f7aa6', 1, 'g');
     if (j.role === 'client' && !this.lan.pause && j.synchro.silence(performance.now() / 1000) > 1) {
       const cy = Math.round(H / 2);
       g.fillStyle = 'rgba(7,9,20,0.6)';
@@ -117,6 +131,12 @@ export class VuesLan {
     const { W, H, boutons } = app;
     const partie = this.lan.partie;
     switch (app.ecranUI) {
+      case 'multi':
+        dessineMulti(g, boutons, W, H, this.lan.ligne.vueMulti());
+        return true;
+      case 'lanLigne':
+        dessineLigne(g, boutons, W, H, temps, this.lan.ligne.vueLigne());
+        return true;
       case 'lan':
         dessineLan(g, boutons, W, H, temps, this.lanProps());
         return true;
@@ -314,12 +334,13 @@ export class VuesLan {
     const hote = !!this.lan.hote;
     const moiRole = this.lan.client?.role ?? { t: 'siege' as const, siege: 0 as Siege };
     const libres = siegesLibres(e);
+    const pings = this.lan.pings();
     const placeDe = (s: Siege): PlaceSalon | null => {
       const [n0, n1] = PLACES_FORMAT[e.config.format];
       if ((s >> 1 === 0 ? n0 : n1) <= (s & 1)) return null;
       const j = e.sieges[s];
       return {
-        joueur: j ? { nom: j.nom, moi: j.appareil === this.app.pref.appareil, hote: s === 0 } : null,
+        joueur: j ? { nom: j.nom, moi: j.appareil === this.app.pref.appareil, hote: s === 0, ping: pings[s] ?? null } : null,
         // le siège libre se prend d'un toucher ; l'hôte, assis d'office, ne bouge pas
         onPrendre: !j && !hote && libres.includes(s) ? () => this.lan.prendSiege(s) : null,
         onExclure: hote && j && s !== 0 ? () => this.lan.hote?.exclut(j.appareil) : null,
@@ -343,6 +364,7 @@ export class VuesLan {
       connexionEnCours: this.lan.hote?.connexionEnCours ?? false,
       code: hote ? codeHote : (this.lan.client?.code ?? null),
       latenceMs: session?.latenceMs ?? null,
+      ligne: this.lan.canal.type === 'ligne' && this.lan.canal.code ? this.salonEnLigne(this.lan.canal.code) : null,
       message,
       bonus: e.bonus,
       onBonus: hote
@@ -358,6 +380,11 @@ export class VuesLan {
       onRegarder: !hote && moiRole.t === 'siege' ? () => this.lan.regarde() : null,
       onQuitter: () => this.lan.ouvre(),
     };
+  }
+
+  /** Le code du salon en ligne et le partage de son lien, pour la salle d'attente. */
+  private salonEnLigne(code: string): { code: string; copie: boolean; onPartage: () => void } {
+    return { code, copie: this.lan.ligne.copie, onPartage: () => this.lan.ligne.partage(code) };
   }
 
   private roleProps(e: EtatPartieLan): EtatChoixRole {
