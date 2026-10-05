@@ -86,12 +86,15 @@ function carteSiege(
   if (j) {
     px(g, x, y, w, 2, j.moi ? C.blanc : j.hote ? TAG_HOTE : TAG_JOUEUR);
     const M = sprites.meta.portrait;
-    const sp = sprites.spritePortrait(maillot, miroir);
-    const sh = Math.min(44, h - 28);
-    const sw = Math.round((M.tileW * sh) / M.tileH);
-    if (sp) g.drawImage(sp.img, sp.rect.sx, sp.rect.sy, sp.rect.sw, sp.rect.sh, Math.round(x + w / 2 - sw / 2), y + 5, sw, sh);
-    texte(g, j.nom, x + w / 2, y + 6 + sh, C.blanc, 1, 'c');
     const ty = y + h - 11;
+    // le joueur et son nom forment un bloc, centré dans la place qui reste au-dessus de l'étiquette
+    const sh = Math.min(64, h - 34);
+    const sw = Math.round((M.tileW * sh) / M.tileH);
+    const bloc = sh + 10;
+    const haut = y + 3 + Math.max(0, Math.round((ty - 3 - (y + 3) - bloc) / 2));
+    const sp = sprites.spritePortrait(maillot, miroir);
+    if (sp) g.drawImage(sp.img, sp.rect.sx, sp.rect.sy, sp.rect.sw, sp.rect.sh, Math.round(x + w / 2 - sw / 2), haut, sw, sh);
+    texte(g, j.nom, x + w / 2, haut + sh + 1, C.blanc, 1, 'c');
     px(g, x + 8, ty, w - 16, 9, j.hote ? TAG_HOTE : TAG_JOUEUR);
     texte(g, j.moi ? (j.hote ? 'HOTE - VOUS' : 'VOUS') : j.hote ? 'HOTE' : 'JOUEUR', x + w / 2, ty + 1, '#06101a', 1, 'c', null);
     if (!j.hote) {

@@ -29,12 +29,13 @@ export function dessineMulti(g: CanvasRenderingContext2D, boutons: ZoneBouton[],
   const cx = Math.round(W / 2);
   texte(g, 'MULTIJOUEUR', cx, 6, C.blanc, 2, 'c');
   dessinePseudo(g, boutons, cx, 28, etat.pseudo, etat.onPseudo);
-  const pw = Math.min(W - 24, 280);
+  // deux boutons de même taille, à la largeur d'un bouton
+  const bw = 130;
+  const bh = 22;
   const py = 52;
-  panneau(g, cx - pw / 2, py, pw, 62);
-  bouton(g, boutons, 'EN LIGNE', cx - pw / 2 + 8, py + 8, pw - 16, 20, etat.onLigne, { ...BLEU, e: 2 });
-  texte(g, 'PAR INTERNET, AVEC UN CODE DE SALON', cx, py + 32, '#6f7aa6', 1, 'c');
-  bouton(g, boutons, 'RESEAU LOCAL', cx - pw / 2 + 8, py + 41, pw - 16, 14, etat.onLocal, VERT_BTN);
+  panneau(g, cx - bw / 2 - 10, py, bw + 20, bh * 2 + 24);
+  bouton(g, boutons, 'EN LIGNE', cx - bw / 2, py + 8, bw, bh, etat.onLigne, { ...BLEU, e: 1 });
+  bouton(g, boutons, 'RESEAU LOCAL', cx - bw / 2, py + 16 + bh, bw, bh, etat.onLocal, { ...VERT_BTN, e: 1 });
   bouton(g, boutons, '< RETOUR', cx - 45, H - 17, 90, 14, etat.onRetour, SOMBRE);
 }
 
