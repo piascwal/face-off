@@ -1,6 +1,6 @@
 /** Le palet : glisse, rebonds, filet, buts (et leurs conséquences), récupérations et interceptions. */
 
-import { lachePalet, pointCrosse, prendPalet } from './actions';
+import { distanceCrosse, lachePalet, pointCrosse, prendPalet } from './actions';
 import {
   ANNONCE_BUT_S,
   BUT_PROF,
@@ -281,9 +281,10 @@ export function recuperations(state: MatchState, dt: number): void {
     let dmin = Infinity;
     for (const s of state.patineurs) {
       if (s.recupCd > 0 || s.sonne > 0 || estGele(state, s)) continue;
-      const sp = pointCrosse(s);
-      // à la crosse, ou dans les patins : on contrôle aussi un palet qui arrive dans les pieds
-      const d = Math.min(Math.hypot(p.x - sp.x, p.y - sp.y), Math.hypot(p.x - s.x, p.y - s.y) - s.r + 1);
+      // sur la crosse, du talon (devant les patins) jusqu'à la spatule ; un palet qui
+      // vient buter dans les patins se contrôle aussi, mais seulement au contact
+      const pieds = Math.hypot(p.x - s.x, p.y - s.y) <= s.r + p.r ? 0 : Infinity;
+      const d = Math.min(distanceCrosse(s, p.x, p.y), pieds);
       const rel = Math.hypot(p.vx - s.vx, p.vy - s.vy);
       // pendant une passe, le receveur capte de plus loin, un adversaire doit être bien placé
       const visee = p.passe?.vers === s;

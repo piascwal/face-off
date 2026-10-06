@@ -23,10 +23,28 @@ import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types'
 import { estPatineur } from './types';
 import { angDiff, clamp, pointSegDist } from './utils';
 
+/**
+ * La crosse sur la glace. Les sprites sont de profil (tournés à gauche ou à
+ * droite selon `face`) : la spatule est toujours de ce côté, à LAME_COTE du
+ * centre, et ne glisse que d'un rien vers le haut ou le bas quand le joueur
+ * patine dans cette direction (sinon le palet finirait dans les patins).
+ */
+export const LAME_COTE = 12;
+const LAME_AVANT = 2;
+/** Le talon de la crosse, devant les patins : la zone de contrôle va de là à la spatule. */
+const TALON_COTE = 3;
+const coteCrosse = (s: Skater): 1 | -1 => (Math.cos(s.face) < 0 ? -1 : 1);
+
 export const pointCrosse = (s: Skater): { x: number; y: number } => ({
-  x: s.x + Math.cos(s.face) * 8,
-  y: s.y + Math.sin(s.face) * 8 + 1,
+  x: s.x + coteCrosse(s) * LAME_COTE,
+  y: s.y + 1 + Math.sin(s.face) * LAME_AVANT,
 });
+
+/** Distance du palet à la crosse (du talon à la spatule) : c'est là qu'on le reçoit et qu'on le ramasse. */
+export function distanceCrosse(s: Skater, x: number, y: number): number {
+  const sp = pointCrosse(s);
+  return pointSegDist(x, y, s.x + coteCrosse(s) * TALON_COTE, s.y + 1, sp.x, sp.y);
+}
 
 /**
  * Chaque humain ne pilote qu'un seul patineur de son équipe à la fois. Quand

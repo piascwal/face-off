@@ -346,6 +346,16 @@ mêlées et le gardien cachait sa cage. Le dessin est aussi décalé
 (`decalage` dans meta.json) : le patineur un peu en arrière, pour que la
 palette de sa crosse tombe sur le palet qu'il porte, et le gardien en avant,
 devant sa cage plutôt que dessus.
+
+**Le palet sur la spatule.** Les patineurs sont dessinés de profil : la
+spatule est toujours du côté où regarde le sprite, à 12 px du centre
+(`pointCrosse`, `core/actions.ts`), et ne glisse que de 2 px vers le haut ou
+le bas quand le joueur monte ou descend (avant, le palet finissait dans les
+patins ou caché derrière le joueur). Le palet tenu y est conduit et se dessine
+juste après son porteur, par-dessus la crosse. On reçoit et on ramasse le
+palet sur la crosse, du talon (devant les patins) jusqu'à la spatule
+(`distanceCrosse`) ; dans les patins, seulement au contact (avant, jusqu'à
+11 px du centre du joueur). Tests : `tests/crosse.test.ts`.
 `src/render/sprites.ts` ne connaît que ce contrat, jamais le contenu
 artistique. Même logique pour les écussons (`public/logos/<id>.png`, fond
 déjà transparent).

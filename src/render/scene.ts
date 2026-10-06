@@ -263,7 +263,8 @@ export function dessineScene(
     })),
     ...state.gardiens.map((gk) => ({ y: gk.y, f: () => dessineGardien(g, sprites, gk, state.temps, equipes) })),
     // pendant le loupé complet, le palet est « dans la caméra » (voir loupe-ecran.ts)
-    ...(state.phase === 'loupe' ? [] : [{ y: p.y - 2, f: () => dessinePalet(g, p, state.temps) }]),
+    // le palet tenu se dessine juste après son porteur : sur la spatule, pas caché derrière la crosse
+    ...(state.phase === 'loupe' ? [] : [{ y: p.porteur ? p.porteur.y + 0.01 : p.y - 2, f: () => dessinePalet(g, p, state.temps) }]),
     ...state.supporters.map((s, i) => ({ y: s.y, f: () => dessineSupporter(g, sprites, s, i, state.temps, equipes) })),
   ];
   liste.sort((a, b) => a.y - b.y);
