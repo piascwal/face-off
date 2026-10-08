@@ -17,7 +17,7 @@ import {
   UNE_TOUCHE_BONUS,
   UNE_TOUCHE_S,
 } from './constants';
-import { cassePasses, comptePasse, demiCage, effetActif, superPasse, tirLoupe, tirPuissant } from './pouvoirs';
+import { cassePasses, comptePasse, dansLeNoir, demiCage, effetActif, superPasse, tirLoupe, tirPuissant } from './pouvoirs';
 import { qualiteDuTir } from './shooting';
 import { equipe } from './state-helpers';
 import type { Goalie, MatchState, Porteur, Rink, Skater, TeamId } from './types';
@@ -341,6 +341,9 @@ export function changeJoueur(state: MatchState, eq: TeamId, siege: 0 | 1 = 0): v
 export function changeAutoSiLoin(state: MatchState): void {
   const p = state.palet;
   if (p.porteur || p.passe) return;
+  // blackout : on ne voit que la petite lueur du joueur piloté, qui semblerait sauter d'un
+  // patineur à l'autre au hasard de la glace ; le changement manuel reste possible
+  if (dansLeNoir(state, 0) || dansLeNoir(state, 1)) return;
   for (const c of state.controles) if (c) changeAutoEquipe(state, c, 0);
   for (const c of state.partenaires) if (c) changeAutoEquipe(state, c, 1);
 }
