@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LAME_COTE, distanceCrosse, pointCrosse, prendPalet } from '../src/core/actions';
+import { LAME_COTE, distanceCrosse, passeVers, pointCrosse, prendPalet } from '../src/core/actions';
 import { recuperations } from '../src/core/palet';
 import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
@@ -71,6 +71,23 @@ describe('la crosse : spatule, conduite et réception du palet', () => {
     expect(ramasse(0, 0, 10)).toBe(false);
     expect(ramasse(0, -10, 0)).toBe(false);
     expect(ramasse(Math.PI / 2, 0, 10)).toBe(false);
+  });
+
+  it('une passe vers l’arrière part de la crosse, pas dans les patins du passeur', () => {
+    // le passeur regarde à gauche, le receveur est à droite : sans se tourner, le palet
+    // partirait de la spatule côté gauche et rebondirait dans ses propres patins
+    for (let essai = 0; essai < 20; essai++) {
+      const { st, s } = seul(Math.PI);
+      const r = st.patineurs.find((o) => o.eq === s.eq && o !== s)!;
+      Object.assign(r, { x: s.x + 110, y: s.y, vx: 0, vy: 0, face: Math.PI });
+      for (const o of st.patineurs) Object.assign(o.ia, { t: 99, tx: o.x, ty: o.y });
+      prendPalet(st, s);
+      passeVers(st, s, r, 0);
+      expect(st.palet.vx).toBeGreaterThan(0);
+      expect(st.palet.x).toBeGreaterThan(s.x);
+      for (let i = 0; i < 90 && !st.palet.porteur; i++) pas(rink, st, 1 / 60);
+      expect(st.palet.porteur).toBe(r);
+    }
   });
 
   it('la zone de contrôle va du talon à la spatule', () => {

@@ -355,7 +355,9 @@ patins ou caché derrière le joueur). Le palet tenu y est conduit et se dessine
 juste après son porteur, par-dessus la crosse. On reçoit et on ramasse le
 palet sur la crosse, du talon (devant les patins) jusqu'à la spatule
 (`distanceCrosse`) ; dans les patins, seulement au contact (avant, jusqu'à
-11 px du centre du joueur). Tests : `tests/crosse.test.ts`.
+11 px du centre du joueur). Le passeur se tourne vers son receveur au moment
+de la passe (comme pour un tir) : une passe vers l'arrière part bien de la
+crosse au lieu de buter dans ses propres patins. Tests : `tests/crosse.test.ts`.
 `src/render/sprites.ts` ne connaît que ce contrat, jamais le contenu
 artistique. Même logique pour les écussons (`public/logos/<id>.png`, fond
 déjà transparent).
@@ -386,6 +388,14 @@ qu'un tir est tenté (`core/actions.ts`, `prendPalet`/`tir`).
 - passes plus appuyées ; le coéquipier visé capte le palet de plus loin et
   le palet est légèrement attiré vers sa crosse, un adversaire doit être
   bien sur la ligne pour l'intercepter ;
+- visée des passes resserrée (`PASSE_PRECISION` : l'écart de visée de
+  l'humain, de l'ordinateur et du gardien est multiplié par 0,75) ;
+- le receveur peut démarrer sa course après le départ de la passe : le
+  palet suit son décalage par rapport à là où il devait être, jusqu'à
+  `PASSE_SUIVI` (24 px) — à peu près une hauteur de joueur. Sur une passe
+  courte, on peut s'élancer environ 0,3 s ; sur une longue passe, un départ
+  bref seulement. S'il continue de s'éloigner, il la manque : ce n'est pas
+  une passe téléguidée (`tests/passe-suivi.test.ts`) ;
 - chaque passe de la séquence ajoute un petit bonus de qualité au tir
   suivant (pour 2 passes au plus) ;
 - **tir sur réception** (« une-touche ») : dans les 0,8 s qui suivent une

@@ -72,6 +72,15 @@ export const INTERCEPTION_RAYON = 6.5;
 export const PASSE_FACILE_MARGE = 1.5;
 /** Le palet est légèrement attiré vers la crosse du receveur dans ce rayon (px). */
 export const PASSE_AIMANT = 16;
+/** Précision de base des passes : l'écart de visée (humain, ordinateur, gardien) est multiplié par ce facteur. */
+export const PASSE_PRECISION = 0.75;
+/**
+ * Un receveur qui s'élance après le départ de la passe la reçoit quand même :
+ * le palet suit son décalage (par rapport à là où il devait être à
+ * l'arrivée), mais de PASSE_SUIVI px au plus. Parti plus loin (une vraie
+ * course), il la manque : une passe n'est pas téléguidée.
+ */
+export const PASSE_SUIVI = 24;
 /** Le gardien pivote moins vite pendant qu'une passe traverse devant lui. */
 export const GARDIEN_PASSE_LENTEUR = 0.9;
 /**

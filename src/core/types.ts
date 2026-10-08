@@ -88,7 +88,17 @@ export interface Puck {
   dernier: Porteur | null;
   tireur: TeamId | null;
   /** Passe en cours : receveur visé, temps restant, et passe « facile » (partie de sa propre moitié). */
-  passe: { vers: Skater; t: number; facile: boolean } | null;
+  passe: {
+    vers: Skater;
+    t: number;
+    facile: boolean;
+    /**
+     * Trajet prévu au départ : `cible`, là où le receveur devait être à
+     * l'arrivée ; `vise`, là où le palet allait (avec l'imprécision de la
+     * passe). Sert à suivre un receveur qui s'élance après le départ.
+     */
+    trajet?: { cible: { x: number; y: number }; vise: { x: number; y: number } };
+  } | null;
   trace: Vec2[];
   /**
    * Qualité (0..1) du tir en cours : combine la puissance et la précision du

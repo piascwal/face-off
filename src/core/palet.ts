@@ -6,6 +6,7 @@ import {
   BUT_PROF,
   INTERCEPTION_RAYON,
   PASSE_AIMANT,
+  PASSE_SUIVI,
   PASSE_FACILE_MARGE,
   RECEPTION_RAYON,
 } from './constants';
@@ -100,6 +101,26 @@ export function majPalet(rink: Rink, state: MatchState, dt: number, segsSansFace
       const v = Math.hypot(p.vx, p.vy);
       // super passe : le palet se dirige vers le receveur sur tout le trajet, sans jamais ralentir sous un seuil
       const guide = superPasse(state, rec.eq);
+      // le receveur s'est élancé après le départ : le palet suit son décalage (dans une certaine limite)
+      const tr = p.passe?.trajet;
+      if (tr && !guide && d >= PASSE_AIMANT && v > 20) {
+        // là où il sera à l'arrivée du palet (sa lancée sur un court instant : il freine ou tourne)
+        const reste = Math.min(d / v, 0.25);
+        const ox = rec.x + rec.vx * reste - tr.cible.x;
+        const oy = rec.y + rec.vy * reste - tr.cible.y;
+        // le palet suit ce décalage, mais jamais de plus de PASSE_SUIVI : parti trop loin, le receveur la manque
+        const o = Math.hypot(ox, oy);
+        const f = o > PASSE_SUIVI ? PASSE_SUIVI / o : 1;
+        const cx = tr.vise.x + ox * f - p.x;
+        const cy = tr.vise.y + oy * f - p.y;
+        const dc = Math.hypot(cx, cy);
+        // seulement tant que ce point est devant le palet
+        if (o > 0.5 && dc > 1 && cx * p.vx + cy * p.vy > 0) {
+          const k = Math.min(1, 8 * dt);
+          p.vx += ((cx / dc) * v - p.vx) * k;
+          p.vy += ((cy / dc) * v - p.vy) * k;
+        }
+      }
       if ((guide || d < PASSE_AIMANT) && d > 0.5 && v > 20) {
         const k = Math.min(1, (guide ? 14 : 6) * dt);
         const cible = guide ? Math.max(v, SUPER_PASSE_VITESSE) : v;

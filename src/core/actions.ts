@@ -10,6 +10,7 @@ import {
   ESQUIVE_SONNE,
   ESQUIVE_T,
   FLASH_T,
+  PASSE_PRECISION,
   POKE_RECHARGE,
   POKE_T,
   TIR_ANIM_S,
@@ -263,6 +264,7 @@ export function lancePasse(state: MatchState, x: number, y: number, m: Skater, e
   if (superPasse(state, m.eq)) err = 0;
   // dans sa moitié, loin de la pression : une passe plus précise et plus sûre
   const facile = dansSaMoitie(state, m.eq, x);
+  err *= PASSE_PRECISION;
   if (facile) err *= 0.5;
   const d = Math.hypot(m.x - x, m.y - y);
   // passes appuyées : moins de temps en l'air, moins de risque d'interception
@@ -275,7 +277,8 @@ export function lancePasse(state: MatchState, x: number, y: number, m: Skater, e
   p.y = y;
   p.vx = Math.cos(a) * v;
   p.vy = Math.sin(a) * v;
-  p.passe = { vers: m, t: 1.3, facile };
+  const dv = Math.hypot(tx - x, ty - y);
+  p.passe = { vers: m, t: 1.3, facile, trajet: { cible: { x: tx, y: ty }, vise: { x: x + Math.cos(a) * dv, y: y + Math.sin(a) * dv } } };
   p.tireur = null;
   p.puissant = false;
   p.qualite = 0;
@@ -288,6 +291,9 @@ export function lancePasse(state: MatchState, x: number, y: number, m: Skater, e
 
 export function passeVers(state: MatchState, s: Skater, m: Skater, err = 0.03): void {
   lachePalet(state, s, 0.3);
+  // le passeur se tourne vers le receveur : la passe part de la crosse, de ce côté
+  // (sinon, une passe vers l'arrière partirait de l'autre côté et buterait dans ses patins)
+  s.face = Math.atan2(m.y - s.y, m.x - s.x);
   const sp = pointCrosse(s);
   state.palet.dernier = s;
   lancePasse(state, sp.x, sp.y, m, err);
