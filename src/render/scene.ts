@@ -121,18 +121,22 @@ let calqueNoir: HTMLCanvasElement | null = null;
 
 /**
  * Blackout : les lumières de l'aréna s'éteignent (en deux clignotements) et
- * tout devient noir, sauf deux projecteurs : sur le joueur doré, et sur le
- * gardien adverse qu'il va défier. L'équipe dans le noir garde juste une
- * petite lueur autour du joueur qu'elle pilote, pour savoir où il est.
+ * tout devient noir, sauf trois projecteurs : sur le palet (la lueur dorée
+ * au sol montre qui le porte) et sur les deux gardiens. Les joueurs
+ * n'existent plus que par leur curseur : la flèche du joueur piloté sur cet
+ * écran (et celle de son coéquipier en coop ou en multi), pour savoir où l'on
+ * est et vers où se diriger.
  */
-function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eqLocal: TeamId | null, pilote: Skater | null): void {
+function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eqLocal: TeamId | null, moi: Skater | null): void {
+  let force = 0;
   for (const eq of [0, 1] as TeamId[]) {
     const pv = state.pouvoirs?.[eq];
     if (pv?.actif !== 'blackout') continue;
     const age = DEF_POUVOIRS.blackout.duree - pv.reste;
     // les lumières vacillent avant de s'éteindre, puis reviennent à la fin
     if (age < 0.35 && Math.floor(age * 12) % 2 === 1) continue;
-    const force = Math.min(1, age / 0.35, pv.reste / 0.6);
+    const f = Math.min(1, age / 0.35, pv.reste / 0.6);
+    force = Math.max(force, f);
     const W = Math.ceil(rink.x * 2 + rink.w);
     const H = Math.ceil(rink.y * 2 + rink.h);
     calqueNoir ??= document.createElement('canvas');
@@ -156,26 +160,32 @@ function blackout(g: CanvasRenderingContext2D, rink: Rink, state: MatchState, eq
         k.arc(x, y, r, 0, Math.PI * 2);
         k.fill();
       });
-    const spot = joueurDore(state, eq);
-    if (spot) trou(spot.x, spot.y - 8, [30, 25, 21]);
-    const gardien = state.gardiens[eq === 0 ? 1 : 0];
-    trou(gardien.x, gardien.y - 7, [26, 21, 17]);
-    const moi = eqLocal !== null && eqLocal !== eq ? pilote : null;
-    if (moi) trou(moi.x, moi.y - 8, [11, 8]);
+    // le palet : assez large pour qu'on voie son porteur (sa lueur au sol et son corps)
+    const p = state.palet;
+    if (state.phase !== 'loupe') trou(p.x, p.y - 8, [30, 25, 21]);
+    for (const gk of state.gardiens) trou(gk.x, gk.y - 7, [26, 21, 17]);
     k.globalAlpha = 1;
     k.globalCompositeOperation = 'source-over';
-    g.globalAlpha = force;
+    g.globalAlpha = f;
     g.drawImage(c, 0, 0);
     // les faisceaux des projecteurs sur la glace
-    g.globalAlpha = 0.2 * force;
+    g.globalAlpha = 0.2 * f;
     g.fillStyle = '#fff3b0';
-    for (const p of [spot, gardien]) {
-      if (!p) continue;
+    for (const o of [p, ...state.gardiens]) {
       g.beginPath();
-      g.ellipse(p.x, p.y + 2, 18, 7, 0, 0, Math.PI * 2);
+      g.ellipse(o.x, o.y + 2, 18, 7, 0, 0, Math.PI * 2);
       g.fill();
     }
     g.globalAlpha = 1;
+  }
+  if (force <= 0 || eqLocal === null) return;
+  // les curseurs restent visibles dans le noir : le joueur piloté, et son coéquipier humain
+  const bas = Math.sin(state.temps * 6);
+  const ecran = (s: Skater) => 24 + (s.chuteT > 0 ? -14 : 0);
+  g.globalAlpha = 1;
+  if (moi) flecheControle(g, Math.round(moi.x), Math.round(moi.y - ecran(moi) + bas));
+  for (const s of [state.controles[eqLocal], state.partenaires[eqLocal]]) {
+    if (s && s !== moi) flecheControle(g, Math.round(s.x), Math.round(s.y - ecran(s) + bas), '#ff2d3d');
   }
 }
 
