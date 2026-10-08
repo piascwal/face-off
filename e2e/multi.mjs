@@ -28,6 +28,9 @@ export default async function multi(env) {
   const prepare = (page) =>
     page.evaluate(() => {
       const st = window.faceOff.state;
+      // palet libre et lointain : sans cela, le changement automatique peut donner la main à un autre
+      // patineur entre deux lectures (les deux écrans comparent alors deux joueurs différents)
+      st.changementAuto = false;
       if (st.palet.porteur) st.palet.porteur.tient = false;
       st.palet.porteur = null;
       st.palet.x = st.palet.y = 30;
