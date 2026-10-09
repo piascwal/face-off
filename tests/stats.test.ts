@@ -4,7 +4,7 @@ import { collisionsPatineurs } from '../src/core/collisions';
 import { appliqueEntreeJoueur } from '../src/core/humanControl';
 import { calculeRink } from '../src/core/rink';
 import { creePartie } from '../src/core/rules';
-import { STAR_BONUS, estStar, mult, notesStar, resumeNotes, STATS_PATINEUR } from '../src/core/stats';
+import { estStar, moyenne, mult, resumeNotes, STATS_PATINEUR } from '../src/core/stats';
 import { EQUIPES_JOUABLES, PROFIL_NEUTRE, trouveEquipe, type TeamProfile } from '../src/core/teams';
 import { INTENT_VIDE, type MatchState, type Skater } from '../src/core/types';
 
@@ -13,6 +13,8 @@ const rink = calculeRink(400, 200);
 /** Une équipe dont toutes les notes valent `n` (sauf celles qu'on précise). */
 const equipe = (n: number, autres: Partial<TeamProfile> = {}): TeamProfile => ({
   id: 'test',
+  // le joueur star de ces équipes de test : 6 points de plus partout
+  star: { vit: n + 6, att: n + 6, def: n + 6, frappe: n + 6, puiss: n + 6, passe: n + 6, phys: n + 6 },
   vit: n,
   att: n,
   def: n,
@@ -58,14 +60,22 @@ describe('notes et multiplicateurs', () => {
     expect([...globales].sort((a, b) => b.globale - a.globale)[0]!.id).toBe('montpellier');
   });
 
-  it('le joueur star a les mêmes axes, plus haut, sans dépasser 100', () => {
-    const n = trouveEquipe('toulouse');
-    const star = notesStar(n);
-    for (const k of STATS_PATINEUR) {
-      expect(star[k]).toBe(Math.min(100, n[k] + STAR_BONUS));
-      expect(star[k]).toBeGreaterThan(n[k] - 1);
+  it('le joueur star a son propre profil : meilleur en moyenne, pas forcément sur chaque note', () => {
+    for (const e of EQUIPES_JOUABLES) {
+      // plus haut en moyenne que ses coéquipiers d'au moins 3 points
+      expect(moyenne(e.star) - moyenne(e), e.id).toBeGreaterThanOrEqual(3);
+      for (const k of STATS_PATINEUR) {
+        expect(e.star[k], `${e.id} ${k}`).toBeGreaterThanOrEqual(70);
+        expect(e.star[k], `${e.id} ${k}`).toBeLessThanOrEqual(100);
+      }
     }
-    expect(notesStar(equipe(100)).vit).toBe(100);
+    // un profil spécialisé : plusieurs équipes ont un joueur star moins bon que les autres sur au moins une note
+    expect(EQUIPES_JOUABLES.filter((e) => STATS_PATINEUR.some((k) => e.star[k] < e[k])).length).toBeGreaterThanOrEqual(10);
+    // et il n'est pas simplement « les mêmes notes plus un bonus » : l'écart varie d'une note à l'autre
+    for (const e of EQUIPES_JOUABLES) {
+      const ecarts = STATS_PATINEUR.map((k) => e.star[k] - e[k]);
+      expect(Math.max(...ecarts) - Math.min(...ecarts), e.id).toBeGreaterThanOrEqual(8);
+    }
   });
 });
 
@@ -88,6 +98,18 @@ describe('qui est le joueur star', () => {
     // les notes de l'adversaire s'appliquent à l'adversaire, pas à nous
     expect(normal(st, 1).st.vit).toBeCloseTo(mult(90));
     expect(normal(st, 0).st.vit).toBeCloseTo(mult(80));
+  });
+});
+
+describe('un vrai profil de joueur star', () => {
+  it('ses multiplicateurs sont ceux de son profil, pas ceux de ses coéquipiers gonflés', () => {
+    const nice = trouveEquipe('nice');
+    const st = match(nice);
+    // Nice : un joueur star bien plus passeur et moins costaud que le reste de l'équipe
+    expect(premier(st).st.passe).toBeCloseTo(mult(nice.star.passe));
+    expect(normal(st).st.passe).toBeCloseTo(mult(nice.passe));
+    expect(premier(st).st.passe).toBeGreaterThan(normal(st).st.passe);
+    expect(premier(st).st.def).toBeLessThan(normal(st).st.def);
   });
 });
 
@@ -186,7 +208,7 @@ describe('ce que font les notes', () => {
       expect(s.vit).toBeCloseTo(1);
       expect(s.st).toEqual({ vit: 1, att: 1, def: 1, frappe: 1, puiss: 1, passe: 1, phys: 1 });
     }
-    // le seul écart est celui du joueur star
-    expect(premier(st).st.vit).toBeCloseTo(mult(85 + STAR_BONUS));
+    // des notes neutres pour le joueur star aussi : tout le monde à 1
+    expect(premier(st).st.vit).toBeCloseTo(1);
   });
 });

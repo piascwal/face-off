@@ -6,7 +6,7 @@ import { px } from './primitives';
 import type { BanqueSprites } from './sprites';
 import { C } from './theme';
 import { couleurNom, palette, type TeamDef, type Variante } from './team-visuals';
-import { basculeStar, basculeStats, COULEUR_STAR, dessineRadar, etoile, modeStats, notesDuProfil } from './stats-ecran';
+import { basculeStar, basculeStats, COULEUR_PATINEUR, COULEUR_STAR, dessineRadar, etoile, modeStats, notesDuProfil } from './stats-ecran';
 import { bouton, type ZoneBouton } from './widgets';
 
 export interface CarteEquipe {
@@ -88,25 +88,27 @@ export function dessinePanneauEquipe(
   let yNotes = statsY;
 
   if (mode) {
-    // le radar à la place de l'écusson : code et nom, profil (flèches), radar
+    // le radar à la place de l'écusson : code et nom, profil montré, radar ; les flèches
+    // passent du patineur normal au joueur star (pour changer d'équipe : bouton EQUIPE)
     texte(g, def.code, cx, 13, couleurNom(pal), 1, 'c');
     texte(g, def.nom, cx, 22, C.gris, 1, 'c');
-    const yb = 32;
+    const yb = 33;
     const etiquette = mode.star ? 'JOUEUR STAR' : 'JOUEUR';
-    bouton(g, boutons, `< ${etiquette} >`, cx - 52, yb, 104, 12, () => basculeStar(cote), { couleur: mode.star ? '#5a4310' : '#232a58', clair: mode.star ? '#a8801f' : undefined });
+    const lw = etiquette.length * 6 - 1;
+    texte(g, etiquette, cx, yb, mode.star ? COULEUR_STAR : COULEUR_PATINEUR, 1, 'c');
     if (mode.star) {
-      etoile(g, cx - 52 + 9, yb + 3, COULEUR_STAR);
-      etoile(g, cx + 52 - 16, yb + 3, COULEUR_STAR);
+      etoile(g, cx - Math.round(lw / 2) - 11, yb - 1, COULEUR_STAR);
+      etoile(g, cx + Math.round(lw / 2) + 4, yb - 1, COULEUR_STAR);
     }
-    const haut = yb + 12 + 12;
+    const haut = yb + 8 + 12;
     const bas = statsY - 14;
     const R = Math.max(18, Math.min(Math.round((bas - haut) / 2.1), Math.round(w * 0.2)));
     const cy = Math.round(haut + (bas - haut) / 2 + 2);
     dessineRadar(g, cx, cy, R, notesDuProfil(carte.profil, mode.star), mode.star);
     const tf = 20;
     const yf = cy - Math.round(tf / 2);
-    if (onPrecedent) fleche(g, boutons, x + 4, yf, tf, false, onPrecedent);
-    if (onSuivant) fleche(g, boutons, x + w - 4 - tf, yf, tf, true, onSuivant);
+    fleche(g, boutons, x + 4, yf, tf, false, () => basculeStar(cote));
+    fleche(g, boutons, x + w - 4 - tf, yf, tf, true, () => basculeStar(cote));
   } else {
     // Le logo grossit avec la hauteur dispo, pour occuper tout le panneau plutôt
     // que de rester tassé en haut — les flèches restent calées sur son centre.
@@ -132,21 +134,21 @@ export function dessinePanneauEquipe(
     yNotes = Math.max(y + 12, statsY);
   }
 
-  // les quatre notes du résumé : attaque, défense, globale, et le gardien
+  // les quatre notes du résumé : gardien, défense, attaque, globale
   const cols: [string, number, string][] = [
-    ['ATT', notes.attaque, '#ff8a3d'],
-    ['DEF', notes.defense, '#6fd0ff'],
-    ['GLB', notes.globale, C.or],
     ['GAR', carte.profil.gardien, '#7be08a'],
+    ['DEF', notes.defense, '#6fd0ff'],
+    ['ATT', notes.attaque, '#ff8a3d'],
+    ['GLB', notes.globale, C.or],
   ];
-  const pad = 8;
+  const pad = 6;
   const colW = (w - pad * 2) / cols.length;
   cols.forEach(([label, valeur, couleur], i) => {
     const cxi = x + pad + colW * i + colW / 2;
-    texte(g, String(valeur), cxi, yNotes, couleur, 3, 'c');
-    texte(g, label, cxi, yNotes + 21, C.gris, 1, 'c');
+    texte(g, String(valeur), cxi, yNotes + 2, couleur, 2, 'c');
+    texte(g, label, cxi, yNotes + 19, C.gris, 1, 'c');
   });
-  bouton(g, boutons, mode ? 'ECUSSON' : 'STATS', cx - 28, yNotes + 32, 56, 13, () => basculeStats(cote), { couleur: '#232a58' });
+  bouton(g, boutons, mode ? 'EQUIPE' : 'STATS', cx - 28, yNotes + 30, 56, 13, () => basculeStats(cote), { couleur: '#232a58' });
 }
 
 export function dessineSelectionEquipe(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, etat: EtatSelectionEquipe): void {

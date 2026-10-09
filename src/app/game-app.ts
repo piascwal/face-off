@@ -12,15 +12,18 @@ import {
   clicSurBouton,
   construitFoule,
   construitGlace,
+  basculeStar,
   EQUIPES_JOUABLES,
   fermeStats,
   resoutEquipe,
+  modeStats,
   statsOuvertes,
   SystemeEffets,
   TracesGlace,
   trouveTeamDef,
   type DecorPatinoire,
   type EquipeVisuelle,
+  type ModeStats,
   type TeamDef,
   type ZoneBouton,
 } from '@render/index';
@@ -86,6 +89,10 @@ export class GameApp {
   /** Match en cours, ou démo derrière les menus. */
   state: MatchState | null = null;
   ecranUI: EcranUI = 'menu';
+  /** Les radars STATS ouverts (gauche, droite) : null si le panneau montre son écusson (pour les tests). */
+  get radars(): [ModeStats | null, ModeStats | null] {
+    return [modeStats(0), modeStats(1)];
+  }
   /** Pause solo (en Wi-Fi, la pause est partagée : voir `lan.pause`). */
   enPause = false;
   /** Zones cliquables de l'image en cours (remplies au rendu). */
@@ -351,10 +358,22 @@ export class GameApp {
       this.attenteDemarrage = false;
       return;
     }
-    // un radar STATS est ouvert : ÉCHAP le referme (les flèches continuent de changer d'équipe)
-    if (e.code === 'Escape' && statsOuvertes()) {
-      fermeStats();
-      return;
+    // un radar STATS est ouvert : ÉCHAP le referme ; les flèches passent du patineur au joueur star
+    // (gauche / droite : la moitié de gauche, haut / bas : celle de droite, comme pour changer d'équipe)
+    if (statsOuvertes()) {
+      if (e.code === 'Escape') {
+        fermeStats();
+        return;
+      }
+      if (e.code.startsWith('Arrow')) {
+        e.preventDefault();
+        if (!e.repeat) {
+          const horizontal = e.code === 'ArrowLeft' || e.code === 'ArrowRight';
+          const cote = (horizontal ? modeStats(0) : modeStats(1)) ? (horizontal ? 0 : 1) : modeStats(0) ? 0 : 1;
+          basculeStar(cote);
+        }
+        return;
+      }
     }
     this.entrees.onKeyDown(e);
     if (this.entrees.pauseDemandee) {

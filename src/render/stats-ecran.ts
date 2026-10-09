@@ -5,7 +5,7 @@
  * deux équipes côte à côte, en solo comme en multijoueur. Tout est dessiné au
  * pixel, avec la police du jeu.
  */
-import { notesStar, STATS_PATINEUR, type NotesPatineur, type StatPatineur } from '@core/stats';
+import { STATS_PATINEUR, type NotesEquipe, type NotesPatineur, type StatPatineur } from '@core/stats';
 import { texte } from './pixel-font';
 import { ligne, px } from './primitives';
 import { C } from './theme';
@@ -100,7 +100,7 @@ export function etoile(g: CanvasRenderingContext2D, x: number, y: number, couleu
 }
 
 /** Les notes d'un profil : celles de l'équipe, ou celles de son joueur star. */
-export const notesDuProfil = (equipe: NotesPatineur, star: boolean): NotesPatineur => (star ? notesStar(equipe) : equipe);
+export const notesDuProfil = (equipe: NotesEquipe, star: boolean): NotesPatineur => (star ? equipe.star : equipe);
 
 /**
  * Dessine le radar centré en (cx, cy), de rayon R : anneaux à 70, 80, 90 et

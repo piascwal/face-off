@@ -5,6 +5,7 @@ import { butAttaque } from '@core/shooting';
 import { equipe } from '@core/state-helpers';
 import type { MatchState, Rink, Skater, Supporter, TeamId } from '@core/types';
 import { celebrationEnCours, dessineButeurGlace } from './celebration';
+import { obtientLogo } from './logos';
 import { dessineGardien, dessinePalet } from './gardien-palet-render';
 import { dessineParticules, TracesGlace } from './particules-render';
 import { dessinePatineur, flecheControle, type AspectBonus } from './entities-render';
@@ -116,6 +117,21 @@ function sommeil(g: CanvasRenderingContext2D, state: MatchState): void {
   }
 }
 
+/**
+ * L'écusson de l'équipe qui reçoit (le joueur humain, ou l'hôte en multijoueur : la
+ * première équipe) au milieu du rond central, en transparence, comme sous la glace.
+ */
+function logoSousLaGlace(g: CanvasRenderingContext2D, rink: Rink, id: string): void {
+  const logo = obtientLogo(id);
+  if (!logo || !logo.complete || logo.naturalWidth === 0) return;
+  const t = 34;
+  g.globalAlpha = 0.3;
+  g.imageSmoothingEnabled = true;
+  g.drawImage(logo, Math.round(rink.cx - t / 2), Math.round(rink.cy - t / 2), t, t);
+  g.imageSmoothingEnabled = false;
+  g.globalAlpha = 1;
+}
+
 /** Calque du blackout (noir percé par les projecteurs), gardé d'une image à l'autre. */
 let calqueNoir: HTMLCanvasElement | null = null;
 
@@ -223,6 +239,7 @@ export function dessineScene(
   const bond = state.excite > 0.05 ? Math.floor(state.temps * 9) & 1 : Math.floor(state.temps * 0.7) % 5 === 0 ? 1 : 0;
   g.drawImage(decor.foule[bond], 0, 0);
   g.drawImage(decor.glace, 0, 0);
+  logoSousLaGlace(g, rink, equipes[0].teamId);
   decor.traces.dessine(g, state.patineurs, state.temps);
   dessineLampe(g, rink, 0, state.lampe[0], state.temps);
   dessineLampe(g, rink, 1, state.lampe[1], state.temps);

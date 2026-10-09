@@ -30,6 +30,8 @@ export const STATS_PATINEUR: readonly StatPatineur[] = ['vit', 'att', 'def', 'fr
 export type NotesPatineur = Record<StatPatineur, number>;
 export interface NotesEquipe extends NotesPatineur {
   gardien: number;
+  /** Les notes du joueur star de l'équipe : pas des notes gonflées, un profil à lui (voir teams.ts). */
+  star: NotesPatineur;
 }
 
 /** Multiplicateurs d'un patineur, un par stat (1 = neutre). */
@@ -46,20 +48,13 @@ export const INFLUENCE_STATS = 0.6;
 const NOTE_NEUTRE = 85;
 const ECART_PAR_15 = 0.15;
 
-/** Points de plus du joueur star sur chacune des sept stats (plafonné à 100). */
-export const STAR_BONUS = 6;
-
 /** Multiplicateur d'une note : 1 à 85, ±0,15 à 70 / 100 (× `influence`). */
 export function mult(note: number, influence = INFLUENCE_STATS): number {
   return 1 + ((note - NOTE_NEUTRE) / 15) * ECART_PAR_15 * influence;
 }
 
-/** Les notes du joueur star : celles de l'équipe, un cran plus haut. */
-export function notesStar(n: NotesPatineur): NotesPatineur {
-  const star = {} as NotesPatineur;
-  for (const k of STATS_PATINEUR) star[k] = Math.min(100, n[k] + STAR_BONUS);
-  return star;
-}
+/** La moyenne des sept notes d'un patineur. */
+export const moyenne = (n: NotesPatineur): number => STATS_PATINEUR.reduce((a, k) => a + n[k], 0) / STATS_PATINEUR.length;
 
 export function multPatineur(n: NotesPatineur, influence = INFLUENCE_STATS): MultPatineur {
   const m = {} as MultPatineur;
@@ -78,7 +73,7 @@ export interface ProfilsEquipe {
 }
 
 export function profilsEquipe(n: NotesEquipe, influence = INFLUENCE_STATS): ProfilsEquipe {
-  return { normal: multPatineur(n, influence), star: multPatineur(notesStar(n), influence), gardien: mult(n.gardien, influence) };
+  return { normal: multPatineur(n, influence), star: multPatineur(n.star, influence), gardien: mult(n.gardien, influence) };
 }
 
 /** Le joueur star d'une équipe : son premier patineur. */
@@ -90,10 +85,10 @@ export const estStar = (s: { rang: number; renfort: boolean }): boolean => s.ran
  * l'ensemble des patineurs (le star compte comme un patineur parmi `nb`).
  */
 export function resumeNotes(n: NotesEquipe, nb = 3): { attaque: number; defense: number; globale: number } {
-  const star = notesStar(n);
+  const star = n.star;
   const moy = (f: (x: NotesPatineur) => number) => (f(n) * (nb - 1) + f(star)) / nb;
   const attaque = moy((x) => (x.vit + x.att + x.frappe + x.puiss) / 4);
   const defense = (moy((x) => (x.def + x.phys) / 2) + n.gardien) / 2;
-  const globale = moy((x) => STATS_PATINEUR.reduce((a, k) => a + x[k], 0) / STATS_PATINEUR.length) * 0.75 + n.gardien * 0.25;
+  const globale = moy(moyenne) * 0.75 + n.gardien * 0.25;
   return { attaque: Math.round(attaque), defense: Math.round(defense), globale: Math.round(globale) };
 }

@@ -200,11 +200,13 @@ décisions et son placement (`core/stats.ts`) :
 | **PHYSIQUE** | force des mises en échec données (durée où la cible est sonnée, recul) et résistance à celles subies ; un porteur bien plus costaud garde parfois le palet malgré le choc |
 | **GARDIEN** | réflexes du gardien (note d'équipe) |
 
-Chaque équipe a un **joueur star** (son premier patineur) qui a les mêmes
-notes, `STAR_BONUS` (6) points plus haut (plafonné à 100) ; les autres
-patineurs ont les notes de l'équipe. Les trois notes du résumé (ATT, DEF et
-globale) sont des moyennes sur l'ensemble des patineurs, star compris, et le
-gardien.
+Chaque équipe a un **joueur star** (son premier patineur) qui a son propre
+profil (`star` dans `core/teams.ts`) : pas les notes de ses coéquipiers
+gonflées, mais un joueur spécialisé, très haut sur un ou deux axes, parfois
+moins bon que les autres sur une note, et au total meilleur (au moins 3 points
+de moyenne, vérifié par `tests/stats.test.ts`). Les autres patineurs ont les
+notes de l'équipe. Les trois notes du résumé (ATT, DEF et globale) sont des
+moyennes sur l'ensemble des patineurs, star compris, et le gardien.
 
 Une note devient un multiplicateur autour de 1 (85 → 1) : sans réglage, de 70
 à 100 on va de −15 % à +15 %. **`INFLUENCE_STATS`** (`core/stats.ts`) est un
@@ -218,14 +220,20 @@ d'équipe (solo, coupe, salon Wi-Fi) remplace l'écusson de **sa moitié d'écra
 par un radar à sept axes (`render/stats-ecran.ts`, dessiné au pixel avec la
 police du jeu) : on peut donc ouvrir celui de l'équipe de gauche et celui de
 l'équipe de droite en même temps, et comparer deux équipes côte à côte. Chaque
-moitié montre un seul profil à la fois : le bouton `< JOUEUR >` passe du
-patineur normal au joueur star (en doré). Les flèches du panneau changent
-toujours d'équipe et le radar suit ; ÉCHAP, le bouton ÉCUSSON ou un changement
-d'écran le referme. La rangée des notes montre ATT, DEF, GLB et GAR (le
-gardien). En match, le joueur star porte un **casque doré** : un calque de
+moitié montre un seul profil à la fois, et **les flèches** (à l'écran, ou au
+clavier : gauche / droite pour la moitié de gauche, haut / bas pour celle de
+droite) passent du patineur normal au joueur star (en doré). Le bouton EQUIPE
+revient à l'écusson, où les flèches changent de nouveau d'équipe ; ÉCHAP ou un
+changement d'écran referme les radars. La rangée des notes montre GAR, DEF,
+ATT et GLB. En match, le joueur star porte un **casque doré** : un calque de
 quelques pixels, commun à toutes les équipes, posé sur la feuille de l'équipe
 (`casque-star-*.png`, un par pose : patinage, tir, mise en échec, chute ;
 généré par `npm run sprites`). Test : `e2e/stats.mjs`.
+
+**L'écusson sous la glace.** Au milieu du rond central, l'écusson de l'équipe
+qui reçoit (le joueur humain, ou l'hôte en multijoueur : la première équipe)
+est dessiné en transparence, comme sous la glace (`logoSousLaGlace`,
+`render/scene.ts`).
 
 ### Sélection d'équipe
 
