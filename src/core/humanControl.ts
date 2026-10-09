@@ -99,7 +99,7 @@ export function appliqueEntreeJoueur(rink: Rink, state: MatchState, s: Skater, i
     } else {
       // sur réception, le tir se charge bien plus vite : on peut frapper en une touche
       const vitesse = surReception(state, s) ? UNE_TOUCHE_CHARGE : 1;
-      s.charge = Math.min(1, s.charge + (dt / 0.85) * vitesse);
+      s.charge = Math.min(1, s.charge + (dt / 0.85) * vitesse * s.st.frappe);
     }
   }
   s.vise = s.arme ? angleTirJoueur(rink, state, s, intent.ix, intent.iy, intent.viseeManuelle, true) : null;

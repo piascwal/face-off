@@ -31,7 +31,10 @@ export function bougePatineur(rink: Rink, state: MatchState, s: Skater, dt: numb
   const m = Math.min(1, Math.hypot(ix, iy));
   // bonus « super vitesse » : le joueur doré va plus vite et accélère plus fort
   const turbo = effetActif(state, s.eq, 'vitesse') && estDore(state, s) ? VITESSE_FACTEUR : 1;
-  const vmax = VMAX * s.vit * turbo * (s.tient ? 0.93 : 1) * (s.arme ? 1 - 0.35 * s.charge : 1);
+  // stats : ATTAQUE quand l'équipe a le palet, DÉFENSE quand c'est l'adversaire (la moitié de l'écart)
+  const porteur = state.palet.porteur;
+  const contexte = !porteur ? 1 : 1 + ((porteur.eq === s.eq ? s.st.att : s.st.def) - 1) * 0.5;
+  const vmax = VMAX * s.vit * contexte * turbo * (s.tient ? 0.93 : 1) * (s.arme ? 1 - 0.35 * s.charge : 1);
   if (m > 0.08) {
     const ux = ix / Math.hypot(ix, iy);
     const uy = iy / Math.hypot(ix, iy);

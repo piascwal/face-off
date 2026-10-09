@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { changeAutoSiLoin, controle } from '../src/core/actions';
 import { CHANGEMENT_AUTO_MARGE, CHANGEMENT_AUTO_SEUIL } from '../src/core/constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from '../src/core/entities';
+import { profilsEquipe } from '../src/core/stats';
+import { PROFIL_NEUTRE } from '../src/core/teams';
 import { statsVides, type MatchState } from '../src/core/types';
 
 function etatVide(): MatchState {
@@ -12,6 +14,7 @@ function etatVide(): MatchState {
       { nom: 'NORMAL', vit: 1, reac: 1, err: 0.05, poke: 1, check: 1, gk: 1.9, antic: 0.25, portee: 135, esquive: 0.25 },
       { nom: 'NORMAL', vit: 1, reac: 1, err: 0.05, poke: 1, check: 1, gk: 1.9, antic: 0.25, portee: 135, esquive: 0.25 },
     ],
+    profils: [profilsEquipe(PROFIL_NEUTRE), profilsEquipe(PROFIL_NEUTRE)],
     nb: 3,
     patineurs: [],
     humains: [true, false],

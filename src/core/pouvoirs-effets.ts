@@ -68,7 +68,8 @@ export function renversePuissant(state: MatchState): void {
 export function ajouteRenfort(rink: Rink, state: MatchState, eq: TeamId): void {
   const s = nouveauPatineur(eq, RANG_RENFORT);
   s.renfort = true;
-  s.vit = state.nivEq[eq].vit;
+  s.st = { ...state.profils[eq].normal };
+  s.vit = state.nivEq[eq].vit * s.st.vit;
   s.x = Math.max(rink.x + 30, Math.min(rink.x + rink.w - 30, state.palet.x));
   s.y = rink.y + 8;
   s.vy = 140;

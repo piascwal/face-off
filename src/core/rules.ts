@@ -2,6 +2,7 @@ import { controle } from './actions';
 import { ANNONCE_BUT_S, APPROCHE_COEQUIPIER, APPROCHE_MISE_AU_JEU, APPROCHE_S, DUREES, EFFECTIFS, NIVEAUX, niveauInterpole } from './constants';
 import { nouveauGardien, nouveauPalet, nouveauPatineur } from './entities';
 import { cassePasses, etatPouvoirsInitial, finPouvoir } from './pouvoirs';
+import { estStar, profilsEquipe, type ProfilsEquipe } from './stats';
 import { PROFIL_NEUTRE, type TeamProfile } from './teams';
 import { statsVides, type PouvoirId, type BonusEquipe, type GameMode, type LevelConfig, type MatchState, type Rink, type TeamId, type Vec2 } from './types';
 import { angDiff, clamp, decalageRang } from './utils';
@@ -47,25 +48,25 @@ export interface OptionsPartie {
 export const DUREE_BUT = ANNONCE_BUT_S + 0.2;
 
 /**
- * Un profil d'équipe (vitesse/tir/défense/gardien) module le niveau de
- * difficulté choisi : la vitesse de patinage vient directement de l'équipe,
- * les autres axes (précision, agressivité défensive, réflexes du gardien)
- * scalent la valeur de base de la difficulté. Un profil neutre (1 partout)
- * redonne exactement le niveau de difficulté d'origine — c'est ce qu'utilise
- * le mode démo, qui ne connaît pas d'équipes jouables.
+ * Les notes d'une équipe (stats.ts) modulent le niveau de difficulté choisi :
+ * le gardien ici (réflexes), les patineurs un par un (`Skater.st`). Des notes
+ * neutres (85 partout) redonnent exactement le niveau de difficulté d'origine
+ * — c'est ce qu'utilise le mode démo, qui ne connaît pas d'équipes jouables.
  */
-function combineProfil(niveau: LevelConfig, equipe: TeamProfile): LevelConfig {
+function combineProfil(niveau: LevelConfig, profils: ProfilsEquipe): LevelConfig {
+  // seuls le gardien et la vitesse de base (1, plus les bonus) passent par l'équipe ici ;
+  // les stats des patineurs sont lues patineur par patineur (`Skater.st`), le joueur star comptant à part
   return {
     nom: niveau.nom,
-    vit: equipe.vit,
+    vit: 1,
     reac: niveau.reac,
-    err: clamp(niveau.err * (2 - equipe.tir), 0.01, 1),
-    poke: niveau.poke * equipe.defense,
-    check: niveau.check * equipe.defense,
+    err: niveau.err,
+    poke: niveau.poke,
+    check: niveau.check,
     esquive: niveau.esquive,
-    gk: niveau.gk * equipe.gardien,
-    antic: Math.min(1, niveau.antic * equipe.gardien),
-    portee: niveau.portee * equipe.tir,
+    gk: niveau.gk * profils.gardien,
+    antic: Math.min(1, niveau.antic * profils.gardien),
+    portee: niveau.portee,
   };
 }
 
@@ -77,7 +78,8 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
   // vos coéquipiers jouent toujours calés sur le niveau normal ; le niveau
   // choisi dans le menu ne règle que le CPU. Les deux sont ensuite modulés
   // par le profil de l'équipe choisie.
-  const nivEq: [LevelConfig, LevelConfig] = [combineProfil(NIVEAUX[1]!, profilJoueur), combineProfil(niveauAdverse, profilAdverse)];
+  const profils: [ProfilsEquipe, ProfilsEquipe] = [profilsEquipe(profilJoueur), profilsEquipe(profilAdverse)];
+  const nivEq: [LevelConfig, LevelConfig] = [combineProfil(NIVEAUX[1]!, profils[0]), combineProfil(niveauAdverse, profils[1])];
   const bonus: [BonusEquipe, BonusEquipe] = opts.mode === 'demo' ? ['aucun', 'aucun'] : (opts.bonus ?? ['aucun', 'aucun']);
   for (const eq of [0, 1] as TeamId[]) {
     const n = nivEq[eq];
@@ -94,6 +96,7 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
     mode: opts.mode,
     niv: niveauAdverse,
     nivEq,
+    profils,
     nb,
     patineurs: [],
     humains: opts.mode === 'demo' ? [false, false] : [duo[0] || (opts.humains ?? [true, false])[0], duo[1] || (opts.humains ?? [true, false])[1]],
@@ -133,7 +136,8 @@ export function creePartie(rink: Rink, opts: OptionsPartie): MatchState {
   for (const eq of [0, 1] as TeamId[]) {
     for (let i = 0; i < nb; i++) {
       const s = nouveauPatineur(eq, i);
-      s.vit = nivEq[eq].vit;
+      s.st = { ...(estStar(s) ? profils[eq].star : profils[eq].normal) };
+      s.vit = nivEq[eq].vit * s.st.vit;
       state.patineurs.push(s);
     }
   }

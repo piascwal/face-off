@@ -1,4 +1,4 @@
-import { clamp } from '@core/utils';
+import { resumeNotes } from '@core/stats';
 import type { TeamProfile } from '@core/teams';
 import { obtientLogo } from './logos';
 import { texte } from './pixel-font';
@@ -24,17 +24,9 @@ export interface EtatSelectionEquipe {
   onRetour: () => void;
 }
 
-/** Convertit un multiplicateur de stat (~0.85..1.15) en note façon jeu de sport (65..99). */
-function note(x: number): number {
-  return Math.round(clamp((x - 0.85) / 0.3, 0, 1) * 34 + 65);
-}
-
+/** Les trois notes du résumé : moyennes sur tous les patineurs (le joueur star compris) et le gardien. */
 export function notesEquipe(p: TeamProfile): { attaque: number; defense: number; globale: number } {
-  return {
-    attaque: note((p.vit + p.tir) / 2),
-    defense: note((p.defense + p.gardien) / 2),
-    globale: note((p.vit + p.tir + p.defense + p.gardien) / 4),
-  };
+  return resumeNotes(p);
 }
 
 function fleche(g: CanvasRenderingContext2D, boutons: ZoneBouton[], x: number, y: number, taille: number, versDroite: boolean, act: () => void): void {

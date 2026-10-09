@@ -1,4 +1,5 @@
 import { POKE_RECHARGE } from './constants';
+import { MULT_NEUTRE } from './stats';
 import type { Goalie, Puck, Skater, TeamId } from './types';
 
 export function nouveauPatineur(eq: TeamId, rang: number): Skater {
@@ -32,6 +33,7 @@ export function nouveauPatineur(eq: TeamId, rang: number): Skater {
     ex: 0,
     ey: 0,
     vit: 1,
+    st: { ...MULT_NEUTRE },
     grince: 0,
     vise: null,
     ia: { t: 0, tx: 0, ty: 0, but: 0.5 },

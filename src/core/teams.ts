@@ -1,54 +1,52 @@
 /**
- * Les équipes jouables. Les stats sont des multiplicateurs (1 = neutre)
- * appliqués par-dessus le niveau de difficulté choisi dans le menu — voir
- * `rules.ts` (`combineProfil`). Elles influencent la simulation pour de vrai :
- * vitesse de patinage, portée/précision de tir, agressivité défensive
- * (échecs et harponnages) et réflexes du gardien. Montpellier a le meilleur
- * profil global, chaque autre équipe est forte sur deux axes et faible sur
- * un ou deux — comme dans un jeu de sport classique.
+ * Les équipes jouables. Chaque équipe a sept notes de patineur (de 70 à 100,
+ * voir `stats.ts` pour ce que chacune change en jeu) et une note de gardien.
+ * Ce sont les notes des patineurs « normaux » ; le joueur star de l'équipe
+ * (le premier patineur) a les mêmes axes, un peu plus haut (`STAR_BONUS`).
+ * Montpellier a le meilleur profil global, chaque autre équipe est forte sur
+ * deux ou trois axes et faible sur un ou deux — comme dans un jeu de sport
+ * classique.
  */
-export interface TeamProfile {
+import type { NotesEquipe } from './stats';
+
+export interface TeamProfile extends NotesEquipe {
   id: string;
-  vit: number;
-  tir: number;
-  defense: number;
-  gardien: number;
 }
 
 export const EQUIPES_JOUABLES: TeamProfile[] = [
-  { id: 'toulouse', vit: 1.0, tir: 0.95, defense: 1.1, gardien: 1.0 },
-  { id: 'nice', vit: 1.1, tir: 1.05, defense: 0.9, gardien: 0.95 },
-  { id: 'vaujany', vit: 0.88, tir: 0.92, defense: 1.15, gardien: 1.05 },
-  { id: 'nimes', vit: 1.05, tir: 1.1, defense: 0.88, gardien: 0.92 },
-  { id: 'grenoble', vit: 1.08, tir: 1.08, defense: 0.95, gardien: 0.98 },
-  { id: 'montpellier', vit: 1.12, tir: 1.12, defense: 1.05, gardien: 1.1 },
-  { id: 'montreal', vit: 1.1, tir: 1.08, defense: 1.0, gardien: 1.05 },
-  { id: 'ducks', vit: 0.95, tir: 0.92, defense: 1.12, gardien: 1.08 },
-  { id: 'marseille', vit: 0.9, tir: 0.88, defense: 1.15, gardien: 1.1 },
-  { id: 'valence', vit: 1.15, tir: 1.1, defense: 0.88, gardien: 0.9 },
-  { id: 'annecy', vit: 0.98, tir: 0.98, defense: 1.05, gardien: 1.02 },
-  { id: 'colorado', vit: 1.12, tir: 1.1, defense: 0.98, gardien: 0.95 },
+  { id: 'toulouse', vit: 85, att: 82, def: 95, frappe: 80, puiss: 85, passe: 85, phys: 93, gardien: 85 },
+  { id: 'nice', vit: 95, att: 93, def: 75, frappe: 90, puiss: 85, passe: 88, phys: 73, gardien: 80 },
+  { id: 'vaujany', vit: 73, att: 75, def: 100, frappe: 77, puiss: 85, passe: 82, phys: 100, gardien: 90 },
+  { id: 'nimes', vit: 90, att: 93, def: 73, frappe: 95, puiss: 88, passe: 83, phys: 73, gardien: 77 },
+  { id: 'grenoble', vit: 93, att: 93, def: 80, frappe: 93, puiss: 89, passe: 88, phys: 78, gardien: 83 },
+  { id: 'montpellier', vit: 97, att: 97, def: 90, frappe: 97, puiss: 95, passe: 96, phys: 84, gardien: 95 },
+  { id: 'montreal', vit: 95, att: 94, def: 85, frappe: 93, puiss: 90, passe: 93, phys: 81, gardien: 90 },
+  { id: 'ducks', vit: 80, att: 79, def: 97, frappe: 77, puiss: 84, passe: 87, phys: 97, gardien: 93 },
+  { id: 'marseille', vit: 75, att: 74, def: 100, frappe: 73, puiss: 82, passe: 85, phys: 100, gardien: 95 },
+  { id: 'valence', vit: 100, att: 98, def: 73, frappe: 95, puiss: 88, passe: 88, phys: 70, gardien: 75 },
+  { id: 'annecy', vit: 83, att: 83, def: 90, frappe: 83, puiss: 85, passe: 85, phys: 90, gardien: 87 },
+  { id: 'colorado', vit: 97, att: 96, def: 83, frappe: 95, puiss: 91, passe: 89, phys: 79, gardien: 80 },
   // renards de Roanne : vifs et malins, gardien solide
-  { id: 'roanne', vit: 1.08, tir: 0.97, defense: 0.98, gardien: 1.05 },
+  { id: 'roanne', vit: 93, att: 88, def: 83, frappe: 82, puiss: 82, passe: 92, phys: 80, gardien: 90 },
   // Senators d'Ottawa : physiques, solides en défense
-  { id: 'ottawa', vit: 0.95, tir: 1.02, defense: 1.1, gardien: 1.0 },
+  { id: 'ottawa', vit: 80, att: 84, def: 95, frappe: 87, puiss: 90, passe: 82, phys: 95, gardien: 85 },
   // Ducs d'Angers : équilibrés, un cran de plus en défense
-  { id: 'angers', vit: 1.02, tir: 1.0, defense: 1.05, gardien: 1.0 },
+  { id: 'angers', vit: 87, att: 86, def: 90, frappe: 85, puiss: 87, passe: 86, phys: 88, gardien: 85 },
   // Boxers de Bordeaux : durs au mal, solides derrière, lents à relancer
-  { id: 'bordeaux', vit: 0.94, tir: 1.02, defense: 1.13, gardien: 1.02 },
+  { id: 'bordeaux', vit: 79, att: 83, def: 98, frappe: 87, puiss: 91, passe: 83, phys: 98, gardien: 87 },
   // Dragons de Rouen : un tir de feu, une défense plus fragile
-  { id: 'rouen', vit: 0.98, tir: 1.12, defense: 0.95, gardien: 1.0 },
+  { id: 'rouen', vit: 83, att: 90, def: 80, frappe: 97, puiss: 91, passe: 84, phys: 82, gardien: 85 },
   // Oilers d'Edmonton : l'attaque avant tout, rapides, un gardien moyen
-  { id: 'edmonton', vit: 1.15, tir: 1.15, defense: 0.85, gardien: 0.92 },
+  { id: 'edmonton', vit: 100, att: 100, def: 70, frappe: 100, puiss: 90, passe: 88, phys: 70, gardien: 77 },
   // Blackhawks de Chicago : complets, un bon gardien
-  { id: 'chicago', vit: 1.07, tir: 1.0, defense: 1.05, gardien: 1.08 },
+  { id: 'chicago', vit: 92, att: 89, def: 90, frappe: 85, puiss: 87, passe: 93, phys: 86, gardien: 93 },
   // Castres Hockey Club : l'éclair de l'écusson, vifs en attaque, une défense plus légère
-  { id: 'castres', vit: 1.1, tir: 1.04, defense: 0.94, gardien: 0.98 },
+  { id: 'castres', vit: 95, att: 92, def: 79, frappe: 89, puiss: 86, passe: 89, phys: 76, gardien: 83 },
 ];
+
+/** Des notes à 85 partout : tous les multiplicateurs valent 1 (le mode démo, qui n'a pas d'équipes jouables). */
+export const PROFIL_NEUTRE: TeamProfile = { id: 'neutre', vit: 85, att: 85, def: 85, frappe: 85, puiss: 85, passe: 85, phys: 85, gardien: 85 };
 
 export function trouveEquipe(id: string): TeamProfile {
   return EQUIPES_JOUABLES.find((e) => e.id === id) ?? EQUIPES_JOUABLES[0]!;
 }
-
-/** Profil neutre (aucun multiplicateur) : utilisé par le mode démo, qui ne connaît pas d'équipe choisie. */
-export const PROFIL_NEUTRE: TeamProfile = { id: 'neutre', vit: 1, tir: 1, defense: 1, gardien: 1 };

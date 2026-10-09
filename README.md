@@ -180,6 +180,39 @@ police bitmap maison, puis agrandi sur le vrai canvas avec
 c'est le même procédé, juste réparti en modules (police, patinoire/foule,
 sprites, HUD, menus, effets).
 
+### Les notes des équipes
+
+Chaque équipe a **sept notes de patineur et une note de gardien**, de 70 à 100
+(`core/teams.ts`). Elles s'appliquent à **tous** les patineurs de l'équipe :
+l'ordinateur comme les humains, le joueur piloté comme ses coéquipiers non
+pilotés, et les adversaires avec leurs propres notes. Un humain en ressent
+l'effet sur son patinage, sa frappe et ses passes ; l'ordinateur y ajoute ses
+décisions et son placement (`core/stats.ts`) :
+
+| Note | Effet |
+|---|---|
+| **VITESSE** | vitesse de patinage |
+| **ATTAQUE** | un peu plus vite quand l'équipe a le palet ; l'ordinateur monte plus haut |
+| **DÉFENSE** | un peu plus vite quand l'adversaire a le palet ; l'ordinateur se resserre sur le porteur et vole plus souvent le palet à la crosse |
+| **FRAPPE** | rapidité de chargement de la jauge de tir (humain et ordinateur) |
+| **PUISSANCE** | vitesse du palet à la sortie de la crosse, portée de tir de l'ordinateur |
+| **PASSE** | précision des passes (humain, ordinateur) |
+| **PHYSIQUE** | force des mises en échec données (durée où la cible est sonnée, recul) et résistance à celles subies ; un porteur bien plus costaud garde parfois le palet malgré le choc |
+| **GARDIEN** | réflexes du gardien (note d'équipe) |
+
+Chaque équipe a un **joueur star** (son premier patineur) qui a les mêmes
+notes, `STAR_BONUS` (6) points plus haut (plafonné à 100) ; les autres
+patineurs ont les notes de l'équipe. Les trois notes du résumé (ATT, DEF et
+globale) sont des moyennes sur l'ensemble des patineurs, star compris, et le
+gardien.
+
+Une note devient un multiplicateur autour de 1 (85 → 1) : sans réglage, de 70
+à 100 on va de −15 % à +15 %. **`INFLUENCE_STATS`** (`core/stats.ts`) est un
+coefficient global qui règle d'un coup l'écart entre équipes sans toucher aux
+notes : 0 rend toutes les équipes égales, 1 donne ±15 %. Il vaut 0,6 : calé en
+faisant jouer l'ordinateur contre lui-même, la meilleure équipe y marque
+environ 1,8 fois plus que la plus faible. Tests : `tests/stats.test.ts`.
+
 ### Sélection d'équipe
 
 Vingt équipes jouables : des clubs français (Toulouse, Nice, Vaujany,
@@ -189,10 +222,9 @@ d'Anaheim, Avalanche du Colorado, Senators d'Ottawa, Oilers d'Edmonton,
 Blackhawks de Chicago). Pour en ajouter une : l'écusson dans
 `assets/logos-src/<id>.jpg`, sa palette dans `src/render/team-visuals.ts` et
 `scripts/generate-sprites.mjs`, son profil dans `src/core/teams.ts`, puis
-`npm run sprites`. Chacune avec un profil de stats (`core/teams.ts` : vitesse, tir,
-défense, gardien — des multiplicateurs qui modulent réellement la simulation,
-pas juste de la couleur) affiché en notes façon jeu de sport (ATT/DEF/note
-globale, 65 à 99). Le choix se fait en deux écrans pensés « manette »
+`npm run sprites`. Chacune avec un profil de stats (voir « Les notes des
+équipes » plus bas) affiché en notes façon jeu de sport (ATT / DEF / note
+globale, de 70 à 100). Le choix se fait en deux écrans pensés « manette »
 (flèches cliquables plutôt qu'une grille, `render/team-select.ts` +
 `app/game-app.ts`) :
 

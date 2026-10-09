@@ -147,7 +147,8 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
     const angleOk = Math.abs(dy) < Math.abs(dx) * 1.7;
     const bouche = eux.some((e) => pointSegDist(e.x, e.y, s.x, s.y, atk, cy) < 9 && Math.hypot(e.x - s.x, e.y - s.y) < d);
     const presse = eux.some((e) => Math.hypot(e.x - s.x, e.y - s.y) < 22);
-    const tirable = devant && angleOk && d < niv.portee;
+    const portee = niv.portee * s.st.puiss;
+    const tirable = devant && angleOk && d < portee;
     // passer quand on est pressé ou qu'on n'a pas d'angle de tir
     if (!s.arme && nous.length > 1 && ((presse && Math.random() < 0.5) || (!tirable && Math.random() < 0.25) || (bouche && Math.random() < 0.35))) {
       const r = meilleurReceveur(state, s, s.eq, s.x, s.y, null);
@@ -159,7 +160,7 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
     if (!s.arme && tirable && (!bouche || d < 55 || Math.random() < 0.2)) {
       s.arme = true;
       s.charge = 0;
-      ia.but = clamp(0.2 + (d / niv.portee) * 0.65 + alea(-0.1, 0.2), 0.15, 1);
+      ia.but = clamp(0.2 + (d / portee) * 0.65 + alea(-0.1, 0.2), 0.15, 1);
     }
     if (!devant) {
       ia.tx = atk - dir * 55;
@@ -205,7 +206,7 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
         }
         const dc = Math.hypot(c.x - s.x, c.y - s.y);
         // la mise en échec se prépare un instant (voir ECHEC_PREPA), puis part dans pilotageIA
-        if (dc < 44 && s.elanCd <= 0 && s.prepaEchecT <= 0 && Math.random() < niv.check * niv.reac * 1.2) {
+        if (dc < 44 && s.elanCd <= 0 && s.prepaEchecT <= 0 && Math.random() < niv.check * s.st.phys * niv.reac * 1.2) {
           s.prepaEchecT = ECHEC_PREPA_MAX;
         }
       } else {
@@ -290,9 +291,21 @@ function planIA(rink: Rink, state: MatchState, s: Skater): void {
       ia.ty = yCouloir;
     }
   }
+  // stats : une bonne attaque monte plus haut quand l'équipe a le palet ; une bonne défense
+  // se resserre sur le porteur adverse (les autres équipes sont plus lâches)
+  if (!s.tient) {
+    if (p.porteur && p.porteur.eq === s.eq) ia.tx += dir * (s.st.att - 1) * PLACEMENT_STATS;
+    else if (p.porteur && p.porteur.eq !== s.eq) {
+      ia.tx += (p.x - ia.tx) * (s.st.def - 1) * 1.5;
+      ia.ty += (p.y - ia.ty) * (s.st.def - 1) * 1.5;
+    }
+  }
   ia.tx = clamp(ia.tx, rink.x + 8, rink.x + rink.w - 8);
   ia.ty = clamp(ia.ty, rink.y + 8, rink.y + rink.h - 8);
 }
+
+/** Pixels d'avance d'un patineur d'attaque pour un multiplicateur de +1 (donc ≈ 10 px pour la meilleure attaque). */
+const PLACEMENT_STATS = 70;
 
 export function pilotageIA(rink: Rink, state: MatchState, s: Skater, dt: number): void {
   const ia = s.ia;
@@ -325,10 +338,10 @@ export function pilotageIA(rink: Rink, state: MatchState, s: Skater, dt: number)
     s.charge = 0;
   }
   if (s.arme) {
-    s.charge = Math.min(1, s.charge + dt / 0.85);
+    s.charge = Math.min(1, s.charge + (dt / 0.85) * s.st.frappe);
     if (s.charge >= ia.but) {
       const gardien = state.gardiens[s.eq === 0 ? 1 : 0];
-      tir(state, rink, s, angleVersCoinLoin(rink, s.eq, s.x, s.y, gardien, state.nivEq[s.eq].err, demiCage(state, s.eq === 0 ? 1 : 0)), s.charge);
+      tir(state, rink, s, angleVersCoinLoin(rink, s.eq, s.x, s.y, gardien, clamp(state.nivEq[s.eq].err * (2 - (s.st.frappe + s.st.puiss) / 2), 0.01, 1), demiCage(state, s.eq === 0 ? 1 : 0)), s.charge);
     }
   }
   // pilotage : vitesse désirée moins vitesse actuelle

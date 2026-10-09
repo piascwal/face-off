@@ -342,7 +342,7 @@ export function recuperations(state: MatchState, dt: number): void {
       const sp = pointCrosse(o);
       const d = Math.hypot(p.x - sp.x, p.y - sp.y);
       const portee = o.pokeT > 0 ? 10 : 6.5;
-      const taux = (o.humain ? (o.pokeT > 0 ? 7 : 0.7) : state.nivEq[o.eq].poke) * (dansLeNoir(state, o.eq) ? BLACKOUT_VOL : 1);
+      const taux = (o.humain ? (o.pokeT > 0 ? 7 : 0.7) : state.nivEq[o.eq].poke) * o.st.def * (dansLeNoir(state, o.eq) ? BLACKOUT_VOL : 1);
       if (d < portee && Math.random() < taux * dt) {
         lachePalet(state, c, 0.4);
         const a = o.face + alea(-0.8, 0.8);

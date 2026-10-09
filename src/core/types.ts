@@ -1,3 +1,5 @@
+import type { MultPatineur, ProfilsEquipe } from './stats';
+
 export type TeamId = 0 | 1;
 
 export interface Vec2 {
@@ -58,6 +60,8 @@ export interface Skater {
   ex: number;
   ey: number;
   vit: number;
+  /** Multiplicateurs de stats de ce patineur (voir stats.ts) : ceux de son équipe, plus hauts pour le joueur star. */
+  st: MultPatineur;
   grince: number;
   vise: number | null;
   ia: { t: number; tx: number; ty: number; but: number };
@@ -272,6 +276,8 @@ export interface MatchState {
   mode: GameMode;
   niv: LevelConfig;
   nivEq: [LevelConfig, LevelConfig];
+  /** Profils de stats des deux équipes (patineur normal, joueur star, gardien). */
+  profils: [ProfilsEquipe, ProfilsEquipe];
   nb: number;
   patineurs: Skater[];
   /** Équipes pilotées par un humain (l'une en solo, les deux en réseau local). */

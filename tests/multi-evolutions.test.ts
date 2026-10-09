@@ -20,7 +20,7 @@ describe('handicap', () => {
     const neutre = match();
     const aide = match({ bonus: ['vitesse', 'gardien'] });
     expect(aide.nivEq[0].vit).toBeCloseTo(neutre.nivEq[0].vit * 1.1);
-    expect(aide.patineurs.find((s) => s.eq === 0)!.vit).toBeCloseTo(neutre.nivEq[0].vit * 1.1);
+    expect(aide.patineurs.find((s) => s.eq === 0)!.vit).toBeCloseTo(neutre.patineurs.find((s) => s.eq === 0)!.vit * 1.1);
     expect(aide.gardiens[1].vit).toBeCloseTo(neutre.gardiens[1].vit * 1.2);
     expect(aide.gardiens[0].vit).toBeCloseTo(neutre.gardiens[0].vit);
   });

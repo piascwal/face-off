@@ -163,7 +163,7 @@ export function tir(state: MatchState, rink: Rink, s: Skater, ang: number, puiss
   const renfort = state.bonus[s.eq] === 'tir';
   // bonus « tir surpuissant » en cours : ce tir part bien plus vite
   const fort = tirPuissant(state, s);
-  const v = (150 + 290 * puissance) * (renfort ? 1.15 : 1) * fort.vitesse;
+  const v = (150 + 290 * puissance) * (renfort ? 1.15 : 1) * fort.vitesse * s.st.puiss;
   lachePalet(state, s, 0.3);
   s.tirT = TIR_ANIM_S;
   // le joueur finit tourné vers son tir : la crosse (d'où part le palet) est de ce côté
@@ -265,6 +265,8 @@ export function lancePasse(state: MatchState, x: number, y: number, m: Skater, e
   // dans sa moitié, loin de la pression : une passe plus précise et plus sûre
   const facile = dansSaMoitie(state, m.eq, x);
   err *= PASSE_PRECISION;
+  // la précision du passeur (stat PASSE) : ±15 % d'écart de visée
+  if (p.dernier && estPatineur(p.dernier)) err *= 2 - p.dernier.st.passe;
   if (facile) err *= 0.5;
   const d = Math.hypot(m.x - x, m.y - y);
   // passes appuyées : moins de temps en l'air, moins de risque d'interception

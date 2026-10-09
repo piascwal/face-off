@@ -134,20 +134,26 @@ export function collisionsPatineurs(state: MatchState): void {
       const nx = (o.x - s.x) / (d || 1);
       const ny = (o.y - s.y) / (d || 1);
       const p = state.palet;
-      if (o.tient) {
+      // PHYSIQUE : l'attaquant contre le défenseur ; > 1 le choc est plus fort, < 1 il est encaissé
+      const force = clamp(s.st.phys / o.st.phys, 0.75, 1.3);
+      // un porteur bien plus costaud que son assaillant garde parfois le palet malgré le choc
+      const garde = o.tient && Math.random() < clamp((1 - force) * 1.5, 0, 0.45);
+      if (o.tient && !garde) {
         lachePalet(state, o, 0.9);
         p.vx = nx * 110 + o.vx * 0.4 + alea(-30, 30);
         p.vy = ny * 110 + o.vy * 0.4 + alea(-30, 30);
         p.dernier = s;
         p.qualite = 0;
       }
-      o.sonne = o.tient ? 0.8 : 0.45;
+      o.sonne = 0.45 * force;
       o.flashT = FLASH_T;
       state.figeT = Math.max(state.figeT, ECHEC_FIGE);
-      o.vx += nx * 130;
-      o.vy += ny * 130;
-      s.vx *= 0.4;
-      s.vy *= 0.4;
+      o.vx += nx * 130 * force;
+      o.vy += ny * 130 * force;
+      // un assaillant plus faible que sa cible rebondit davantage
+      const recul = clamp(0.4 / force, 0.25, 0.6);
+      s.vx *= recul;
+      s.vy *= recul;
       s.elanT = 0;
       state.evenements.push({ type: 'secousse', force: 3 });
       state.evenements.push({ type: 'charge' });

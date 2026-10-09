@@ -13,6 +13,7 @@ import { NIVEAUX } from './constants';
  * suivant (FACILE -> finale entre FACILE et NORMAL). 0 = même niveau partout.
  */
 export const MONTEE_PAR_TOUR = 0.25;
+import { mult } from './stats';
 import { EQUIPES_JOUABLES, trouveEquipe } from './teams';
 
 export interface MatchCoupe {
@@ -126,8 +127,8 @@ function poisson(lambda: number, alea: Alea): number {
 export function simuleMatch(a: string, b: string, alea: Alea = Math.random): Pick<MatchCoupe, 'sa' | 'sb' | 'prol'> {
   const pa = trouveEquipe(a);
   const pb = trouveEquipe(b);
-  const att = (p: typeof pa) => p.tir * 0.6 + p.vit * 0.4;
-  const def = (p: typeof pa) => p.defense * 0.4 + p.gardien * 0.6;
+  const att = (p: typeof pa) => mult(p.frappe) * 0.25 + mult(p.puiss) * 0.25 + mult(p.att) * 0.25 + mult(p.vit) * 0.25;
+  const def = (p: typeof pa) => mult(p.def) * 0.3 + mult(p.phys) * 0.1 + mult(p.gardien) * 0.6;
   const la = (2.6 * att(pa)) / def(pb);
   const lb = (2.6 * att(pb)) / def(pa);
   let sa = poisson(la, alea);
