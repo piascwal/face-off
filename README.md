@@ -230,6 +230,13 @@ quelques pixels, commun à toutes les équipes, posé sur la feuille de l'équip
 (`casque-star-*.png`, un par pose : patinage, tir, mise en échec, chute ;
 généré par `npm run sprites`). Test : `e2e/stats.mjs`.
 
+**Les stats depuis la pause.** Le menu pause (solo, coupe et Wi-Fi, spectateur
+compris) a un bouton STATS : il ouvre les radars des deux équipes du match côte
+à côte (`render/stats-pause.ts`), avec le résumé GAR / DEF / ATT / GLB. Les
+flèches (écran ou clavier) passent du patineur normal au joueur star ; RETOUR ou
+ÉCHAP revient au menu pause. En Wi-Fi, la pause reste partagée : chacun consulte
+les stats sur son écran sans rien changer pour l'autre.
+
 **L'écusson sous la glace.** Au milieu du rond central, l'écusson de l'équipe
 qui reçoit (le joueur humain, ou l'hôte en multijoueur : la première équipe)
 est dessiné en transparence, comme sous la glace (`logoSousLaGlace`,

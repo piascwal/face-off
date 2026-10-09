@@ -145,6 +145,7 @@ export function dessinePause(
   H: number,
   onReprendre: () => void,
   onAbandonner: () => void,
+  onStats: () => void,
 ): void {
   g.fillStyle = 'rgba(7,9,20,0.6)';
   g.fillRect(0, 0, W, H);
@@ -152,7 +153,8 @@ export function dessinePause(
   const cy = Math.round(H / 2);
   texte(g, 'PAUSE', cx, cy - 40, C.blanc, 3, 'c');
   bouton(g, boutons, 'REPRENDRE', cx - 55, cy - 6, 110, 18, onReprendre, { couleur: '#1f7fb3', clair: '#6fd0ff', fonce: '#0f4d73' });
-  bouton(g, boutons, 'ABANDONNER', cx - 55, cy + 18, 110, 18, onAbandonner);
+  bouton(g, boutons, 'STATS', cx - 55, cy + 18, 110, 18, onStats, { couleur: '#2d3a8c' });
+  bouton(g, boutons, 'ABANDONNER', cx - 55, cy + 42, 110, 18, onAbandonner);
 }
 
 /** Tableau de statistiques de fin de match : valeur de l'équipe 0 à gauche, de l'équipe 1 à droite. */

@@ -31,6 +31,11 @@ import {
   dessineLigne,
   dessineMulti,
   dessinePauseLan,
+  dessineStatsPause,
+  cartesDuMatch,
+  ouvreStatsPause,
+  statsOuvertes,
+  fermeStats,
   dessineReactions,
   dessineRepriseLan,
   dessineSalon,
@@ -112,13 +117,20 @@ export class VuesLan {
     const app = this.app;
     const partie = this.lan.partie;
     if (partie && this.lan.jeu && partie.pause !== null && partie.absent <= 0) {
+      const cartes = cartesDuMatch(app.equipesActuelles);
+      if (cartes && statsOuvertes()) {
+        dessineStatsPause(g, app.boutons, app.W, app.H, cartes);
+        return true;
+      }
       dessinePauseLan(g, app.boutons, app.W, app.H, {
         par: partie.sieges[partie.pause]?.nom ?? '',
         onReprendre: this.lan.spectateur ? undefined : () => this.lan.agit({ a: 'pause', on: false }),
         onQuitter: () => this.lan.ouvre(),
+        onStats: ouvreStatsPause,
       });
       return true;
     }
+    fermeStats(); // plus de pause : les radars de la pause se referment
     if (!this.lan.pause) return false;
     // (coupure en cours : c'est son voile qui s'affiche, voir dessineCoupure)
     if (!this.lan.client?.reconnexion && !(partie && partie.absent > 0)) dessineRepriseLan(g, app.W, app.H, this.lan.repriseRestante());

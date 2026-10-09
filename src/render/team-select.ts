@@ -62,6 +62,8 @@ export interface OptionsPanneauEquipe {
   echelleLogo?: number;
   /** Position verticale des notes, en fraction de la hauteur d'écran. */
   hauteurNotes?: number;
+  /** Sans bouton STATS / EQUIPE : les deux radars sont ouverts ensemble (menu pause). */
+  sansBoutonStats?: boolean;
 }
 
 export function dessinePanneauEquipe(
@@ -148,7 +150,7 @@ export function dessinePanneauEquipe(
     texte(g, String(valeur), cxi, yNotes + 2, couleur, 2, 'c');
     texte(g, label, cxi, yNotes + 19, C.gris, 1, 'c');
   });
-  bouton(g, boutons, mode ? 'EQUIPE' : 'STATS', cx - 28, yNotes + 30, 56, 13, () => basculeStats(cote), { couleur: '#232a58' });
+  if (!opts.sansBoutonStats) bouton(g, boutons, mode ? 'EQUIPE' : 'STATS', cx - 28, yNotes + 30, 56, 13, () => basculeStats(cote), { couleur: '#232a58' });
 }
 
 export function dessineSelectionEquipe(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, etat: EtatSelectionEquipe): void {

@@ -20,6 +20,7 @@ export * from './screens';
 export { BanqueSprites } from './sprites';
 export * from './team-select';
 export * from './stats-ecran';
+export * from './stats-pause';
 export * from './team-visuals';
 export * from './theme';
 export * from './widgets';

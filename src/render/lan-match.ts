@@ -15,6 +15,7 @@ export interface EtatPauseLan {
   /** Absent pour un spectateur : seuls les joueurs relancent le match. */
   onReprendre?: () => void;
   onQuitter: () => void;
+  onStats: () => void;
 }
 
 export function dessinePauseLan(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, etat: EtatPauseLan): void {
@@ -25,7 +26,8 @@ export function dessinePauseLan(g: CanvasRenderingContext2D, boutons: ZoneBouton
   texte(g, 'PAUSE', cx, cy - 52, C.blanc, 3, 'c');
   texte(g, `DEMANDEE PAR ${etat.par}`, cx, cy - 16, C.or, 1, 'c');
   if (etat.onReprendre) bouton(g, boutons, 'REPRENDRE', cx - 55, cy + 2, 110, 18, etat.onReprendre, BLEU);
-  bouton(g, boutons, 'QUITTER LA PARTIE', cx - 55, cy + 26, 110, 18, etat.onQuitter);
+  bouton(g, boutons, 'STATS', cx - 55, cy + 26, 110, 18, etat.onStats, { couleur: '#2d3a8c' });
+  bouton(g, boutons, 'QUITTER LA PARTIE', cx - 55, cy + 50, 110, 18, etat.onQuitter);
 }
 
 /** Compte à rebours de reprise, pour que personne ne soit pris par surprise. */

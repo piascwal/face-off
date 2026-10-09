@@ -70,4 +70,40 @@ export default async function stats(env) {
   const rangs = await p.evaluate(() => window.faceOff.state.patineurs.filter((s) => s.rang === 0).map((s) => s.eq));
   env.verifie(rangs.length === 2 && rangs.includes(0) && rangs.includes(1), 'un joueur star par équipe');
   await env.capture(p, '4-match');
+  await statsPause(env, p);
+}
+
+/** Depuis le menu pause d'un match : le bouton STATS ouvre les deux radars, RETOUR revient à la pause. */
+async function statsPause(env, p) {
+  await p.keyboard.press('Escape');
+  await attends(400);
+  const ecran = () => p.evaluate(() => window.faceOff.ecranUI);
+  const radars = () => p.evaluate(() => window.faceOff.radars.map((r) => (r ? (r.star ? 'star' : 'normal') : null)));
+  env.verifie((await ecran()) === 'pause', 'ÉCHAP en match : pause');
+  const k = await p.evaluate(() => {
+    const r = document.querySelector('canvas').getBoundingClientRect();
+    return { x: r.width / window.faceOff.W, y: r.height / window.faceOff.H };
+  });
+  // le bouton STATS de la pause : 110 × 18, celui du milieu
+  const clique = async (f) => {
+    const b = await p.evaluate(f);
+    await p.mouse.click(b.x * k.x, b.y * k.y);
+    await attends(300);
+  };
+  await clique(() => {
+    const bs = window.faceOff.boutons.filter((x) => x.w === 110 && x.h === 18).sort((a, b) => a.y - b.y);
+    return { x: bs[1].x + 55, y: bs[1].y + 9 };
+  });
+  env.verifie(JSON.stringify(await radars()) === '["normal","normal"]', 'STATS de la pause : les deux radars sont ouverts');
+  await env.capture(p, '5-stats-pause');
+  await p.keyboard.press('ArrowRight');
+  await attends(200);
+  env.verifie(JSON.stringify(await radars()) === '["star","normal"]', 'les flèches passent au joueur star');
+  await env.capture(p, '6-stats-pause-star');
+  await p.keyboard.press('Escape');
+  await attends(300);
+  env.verifie((await ecran()) === 'pause' && JSON.stringify(await radars()) === '[null,null]', 'ÉCHAP referme les radars et reste en pause');
+  await p.keyboard.press('Enter');
+  await attends(300);
+  env.verifie((await ecran()) === 'jeu', 'le match reprend');
 }

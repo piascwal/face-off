@@ -15,6 +15,10 @@ import {
   dessineFin,
   dessineMenu,
   dessinePause,
+  dessineStatsPause,
+  cartesDuMatch,
+  ouvreStatsPause,
+  statsOuvertes,
   dessineSelectionEquipe,
   EQUIPES_JOUABLES,
   resoutEquipe,
@@ -285,7 +289,12 @@ export class ParcoursSolo {
         return true;
       case 'pause':
         // en coupe, abandonner un match ramène au tableau (le match n'est pas compté)
-        dessinePause(g, boutons, W, H, () => app.pause(false), () => (app.coupe.matchCoupe ? app.coupe.ouvreTableau() : app.retourMenu()));
+        const cartes = cartesDuMatch(app.equipesActuelles);
+        if (cartes && statsOuvertes()) {
+          dessineStatsPause(g, boutons, W, H, cartes);
+          return true;
+        }
+        dessinePause(g, boutons, W, H, () => app.pause(false), () => (app.coupe.matchCoupe ? app.coupe.ouvreTableau() : app.retourMenu()), ouvreStatsPause);
         return true;
       case 'fin':
         dessineFin(g, boutons, W, H, temps, this.finProps(state));

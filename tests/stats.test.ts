@@ -212,3 +212,15 @@ describe('ce que font les notes', () => {
     expect(premier(st).st.vit).toBeCloseTo(1);
   });
 });
+
+describe('stats depuis la pause', () => {
+  it('retrouve les deux équipes du match (variante comprise) avec leurs notes', async () => {
+    const { cartesDuMatch } = await import('../src/render/stats-pause');
+    const { EQUIPES_JOUABLES: defs, resoutEquipe } = await import('../src/render/team-visuals');
+    const cartes = cartesDuMatch([resoutEquipe(defs[0]!, 'exterieur'), resoutEquipe(defs[1]!, 'interieur')]);
+    expect(cartes).not.toBeNull();
+    expect(cartes![0].def.id).toBe(defs[0]!.id);
+    expect(cartes![1].profil).toEqual(trouveEquipe(defs[1]!.id));
+    expect(cartesDuMatch([{ ...resoutEquipe(defs[0]!, 'interieur'), teamId: 'inconnue' }, resoutEquipe(defs[1]!, 'interieur')])).toBeNull();
+  });
+});
