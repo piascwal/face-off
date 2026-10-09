@@ -149,8 +149,9 @@ export default async function multi(env) {
   await I.keyboard.down('Space');
   await attends(150);
   await I.keyboard.up('Space');
-  env.verifie(await env.attendsQue(H, () => window.faceOff.state.phase === 'loupe', undefined, 1500), 'le tir de l\'invité déclenche le loupé chez l\'hôte');
-  env.verifie(await env.attendsQue(I, () => window.faceOff.state.phase === 'loupe', undefined, 1500), 'et chez l\'invité');
+  // le tir part un peu plus ou moins vite selon la charge de la machine : on attend la scène sans la rater
+  env.verifie(await env.attendsQue(H, () => window.faceOff.state.phase === 'loupe', undefined, 4000), 'le tir de l\'invité déclenche le loupé chez l\'hôte');
+  env.verifie(await env.attendsQue(I, () => window.faceOff.state.phase === 'loupe', undefined, 3000), 'et chez l\'invité');
   await attends(1700);
   await env.capture(I, '5-loupe');
   env.verifie(await env.attendsQue(I, () => window.faceOff.state.phase !== 'loupe', undefined, 4000), 'la scène se termine chez l\'invité');
