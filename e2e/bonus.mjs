@@ -298,10 +298,12 @@ export default async function bonus(env) {
   for (let essai = 0; essai < 4 && !renfortOk; essai++) {
     const n0 = await p.evaluate(() => window.faceOff.state.patineurs.filter((s) => !s.renfort).length);
     env.verifie(await donne('surnombre'), 'SURNOMBRE en cours');
-    await attends(400);
-    renfortOk = await p.evaluate(
+    // le renfort arrive tout de suite, mais une machine chargée peut mettre un moment à le montrer
+    renfortOk = await env.attendsQue(
+      p,
       (n) => window.faceOff.state.patineurs.filter((s) => s.renfort).length === 1 && window.faceOff.state.patineurs.length === n + 1,
       n0,
+      2500,
     );
   }
   env.verifie(renfortOk, 'SURNOMBRE : un renfort entre');
