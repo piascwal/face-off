@@ -19,6 +19,7 @@ export * from './scene';
 export * from './screens';
 export { BanqueSprites } from './sprites';
 export * from './team-select';
+export * from './stats-ecran';
 export * from './team-visuals';
 export * from './theme';
 export * from './widgets';

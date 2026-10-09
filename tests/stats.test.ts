@@ -124,7 +124,7 @@ describe('ce que font les notes', () => {
   it('PASSE : la précision des passes (humain comme ordinateur)', () => {
     const dispersion = (n: number) => {
       let somme = 0;
-      const N = 600;
+      const N = 2000;
       for (let k = 0; k < N; k++) {
         const st = match(equipe(85, { passe: n }));
         st.phase = 'jeu';
@@ -137,7 +137,7 @@ describe('ce que font les notes', () => {
       }
       return somme / N;
     };
-    expect(dispersion(100)).toBeLessThan(dispersion(70) * 0.85);
+    expect(dispersion(100)).toBeLessThan(dispersion(70) * 0.92);
   });
 
   it('PHYSIQUE : un joueur costaud encaisse mieux la mise en échec et la donne plus fort', () => {

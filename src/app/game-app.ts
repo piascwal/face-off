@@ -13,7 +13,9 @@ import {
   construitFoule,
   construitGlace,
   EQUIPES_JOUABLES,
+  fermeStats,
   resoutEquipe,
+  statsOuvertes,
   SystemeEffets,
   TracesGlace,
   trouveTeamDef,
@@ -347,6 +349,11 @@ export class GameApp {
     // premier geste sur le menu : rien que le plein écran, aucune touche ne réagit
     if (this.attenteDemarrage && this.ecranUI === 'menu') {
       this.attenteDemarrage = false;
+      return;
+    }
+    // un radar STATS est ouvert : ÉCHAP le referme (les flèches continuent de changer d'équipe)
+    if (e.code === 'Escape' && statsOuvertes()) {
+      fermeStats();
       return;
     }
     this.entrees.onKeyDown(e);

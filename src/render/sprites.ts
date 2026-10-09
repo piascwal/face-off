@@ -126,6 +126,8 @@ export class BanqueSprites {
   private echecs = new Map<string, HTMLImageElement>();
   private supporters = new Map<string, HTMLImageElement>();
   private visagesEchec: HTMLImageElement | null = null;
+  /** Calques du casque doré du joueur star, un par pose (même disposition que les feuilles d'équipe). */
+  private casquesStar = new Map<'joueur' | 'tir' | 'echec' | 'chute', HTMLImageElement>();
   private celebrations = new Map<string, HTMLImageElement>();
   private visages: HTMLImageElement | null = null;
   private dores = new Map<string, HTMLCanvasElement>();
@@ -148,6 +150,18 @@ export class BanqueSprites {
       (img) => (this.visagesEchec = img),
       () => undefined,
     );
+    for (const cle of ['joueur', 'tir', 'echec', 'chute'] as const) {
+      chargeImage(`${base}/casque-star-${cle}.png`).then(
+        (img) => this.casquesStar.set(cle, img),
+        () => undefined, // sans le calque, le joueur star garde le casque de son équipe
+      );
+    }
+  }
+
+  /** Le casque doré du joueur star, à poser sur la case `base` (la même, dans la feuille du calque, que dans celle de l'équipe). */
+  casqueStar(cle: 'joueur' | 'tir' | 'echec' | 'chute', base: { rect: Rect } | null): { img: HTMLImageElement; rect: Rect } | null {
+    const img = this.casquesStar.get(cle);
+    return img && base ? { img, rect: base.rect } : null;
   }
 
   /** Précharge les feuilles d'une équipe (idempotent) — à appeler avant un match. */

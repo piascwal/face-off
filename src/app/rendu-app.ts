@@ -18,6 +18,7 @@ import {
   dessineScene,
   dessineTableau,
   texte,
+  suiviEcran,
 } from '@render/index';
 import { ECRANS_MENU } from './ecrans';
 import type { GameApp } from './game-app';
@@ -99,6 +100,8 @@ export function rendu(app: GameApp): void {
       });
     else if (app.maj.refusee) dessineRappelMiseAJour(g, app.boutons, () => app.maj.rouvre());
   }
+  // un changement d'écran referme les radars STATS des panneaux d'équipe
+  suiviEcran(app.ecranUI);
 }
 
 /** Bonus « tremblement » : l'écran tremble fort tant que les joueurs sont au sol. */

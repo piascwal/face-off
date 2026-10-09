@@ -1,5 +1,6 @@
 import { pointCrosse } from '@core/actions';
 import { CHUTE_PLONGEON, TIR_ANIM, TIR_ANIM_S } from '@core/constants';
+import { estStar } from '@core/stats';
 import type { Skater } from '@core/types';
 import { px } from './primitives';
 import type { BanqueSprites, Rect } from './sprites';
@@ -113,7 +114,11 @@ function dessineAuSol(
   if (sprite) {
     const { img, rect: r } = sprite;
     if (s.flashT > 0) dessineBlanc(g, img, r, bx, by, M.tileW * e, M.tileH * e);
-    else g.drawImage(img, r.sx, r.sy, r.sw, r.sh, bx, by, M.tileW * e, M.tileH * e);
+    else {
+      g.drawImage(img, r.sx, r.sy, r.sw, r.sh, bx, by, M.tileW * e, M.tileH * e);
+      const casque = estStar(s) ? sprites.casqueStar('chute', sprite) : null;
+      if (casque) g.drawImage(casque.img, r.sx, r.sy, r.sw, r.sh, bx, by, M.tileW * e, M.tileH * e);
+    }
   }
   const t = M.tete[frame] ?? M.pied;
   const hx = bx + miroir(t.x) * e;
@@ -264,6 +269,8 @@ export function dessinePatineur(
     sprite = or ? sprites.spriteJoueurDore(id, frame, gauche) : sprites.spriteJoueur(id, frame, gauche);
     visage = or ? null : sprites.spriteVisage(varianteVisage, frame, gauche);
   }
+  // le joueur star porte un casque doré (pas quand tout le joueur est déjà doré)
+  const casque = !or && estStar(s) ? sprites.casqueStar(poseEchec ? 'echec' : poseTir !== null ? 'tir' : 'joueur', sprite ?? null) : null;
   const tw = M.tileW * e;
   const th = M.tileH * e;
   // le tronc du joueur sur sa position (4 px sous son centre : là où il touche la glace)
@@ -283,6 +290,7 @@ export function dessinePatineur(
       return;
     }
     if (sprite) g.drawImage(sprite.img, sprite.rect.sx, sprite.rect.sy, sprite.rect.sw, sprite.rect.sh, bx + dx, by + dy, tw, th);
+    if (casque) g.drawImage(casque.img, casque.rect.sx, casque.rect.sy, casque.rect.sw, casque.rect.sh, bx + dx, by + dy, tw, th);
     if (visage) g.drawImage(visage.img, visage.rect.sx, visage.rect.sy, visage.rect.sw, visage.rect.sh, bx + dx, by + dy, tw, th);
   };
 

@@ -213,6 +213,20 @@ notes : 0 rend toutes les équipes égales, 1 donne ±15 %. Il vaut 0,6 : calé 
 faisant jouer l'ordinateur contre lui-même, la meilleure équipe y marque
 environ 1,8 fois plus que la plus faible. Tests : `tests/stats.test.ts`.
 
+**Le mode STATS et le casque doré.** Le bouton STATS de chaque panneau
+d'équipe (solo, coupe, salon Wi-Fi) remplace l'écusson de **sa moitié d'écran**
+par un radar à sept axes (`render/stats-ecran.ts`, dessiné au pixel avec la
+police du jeu) : on peut donc ouvrir celui de l'équipe de gauche et celui de
+l'équipe de droite en même temps, et comparer deux équipes côte à côte. Chaque
+moitié montre un seul profil à la fois : le bouton `< JOUEUR >` passe du
+patineur normal au joueur star (en doré). Les flèches du panneau changent
+toujours d'équipe et le radar suit ; ÉCHAP, le bouton ÉCUSSON ou un changement
+d'écran le referme. La rangée des notes montre ATT, DEF, GLB et GAR (le
+gardien). En match, le joueur star porte un **casque doré** : un calque de
+quelques pixels, commun à toutes les équipes, posé sur la feuille de l'équipe
+(`casque-star-*.png`, un par pose : patinage, tir, mise en échec, chute ;
+généré par `npm run sprites`). Test : `e2e/stats.mjs`.
+
 ### Sélection d'équipe
 
 Vingt équipes jouables : des clubs français (Toulouse, Nice, Vaujany,

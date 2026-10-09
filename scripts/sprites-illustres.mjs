@@ -251,6 +251,24 @@ function feuilleDeuxSens(img, tileW, tileH, nb) {
   return c;
 }
 
+/**
+ * Casque doré du joueur star : un calque (même disposition que la feuille de
+ * l'équipe, vers la droite puis en miroir) où seuls les pixels du casque sont
+ * dessinés, en or, à poser par-dessus le joueur. Il ne dépend pas de l'équipe.
+ */
+export function feuilleCasqueStar(S, cle = 'joueur') {
+  const { tileW, tileH, images } = S.meta[cle];
+  const R = Object.fromEntries(S.meta.roles.map((r, i) => [r, i]));
+  const roles = S[`${cle}Roles`];
+  const OR = { maillot: '#000000', fonce: '#9a5410', clair: '#fff2b0', casque: '#f0b72a' };
+  const img = repeint(S[cle], roles, S.meta.roles, OR, null, tileW, images);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const role = roles.data[i];
+    if (role !== R.casque && role !== R['casque-bande']) img.data[i + 3] = 0;
+  }
+  return feuilleDeuxSens(img, tileW, tileH, images);
+}
+
 export function feuilleJoueur(S, eq, logo) {
   const { tileW, tileH, images } = S.meta.joueur;
   return feuilleDeuxSens(repeint(S.joueur, S.joueurRoles, S.meta.roles, eq, logo, tileW, images), tileW, tileH, images);

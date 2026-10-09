@@ -6,6 +6,7 @@ import { px } from './primitives';
 import type { BanqueSprites } from './sprites';
 import { C } from './theme';
 import { couleurNom, palette, type TeamDef, type Variante } from './team-visuals';
+import { basculeStar, basculeStats, COULEUR_STAR, dessineRadar, etoile, modeStats, notesDuProfil } from './stats-ecran';
 import { bouton, type ZoneBouton } from './widgets';
 
 export interface CarteEquipe {
@@ -29,7 +30,7 @@ export function notesEquipe(p: TeamProfile): { attaque: number; defense: number;
   return resumeNotes(p);
 }
 
-function fleche(g: CanvasRenderingContext2D, boutons: ZoneBouton[], x: number, y: number, taille: number, versDroite: boolean, act: () => void): void {
+export function fleche(g: CanvasRenderingContext2D, boutons: ZoneBouton[], x: number, y: number, taille: number, versDroite: boolean, act: () => void): void {
   const w = taille;
   const h = taille;
   g.fillStyle = C.contour;
@@ -77,46 +78,75 @@ export function dessinePanneauEquipe(
 ): void {
   const cx = x + w / 2;
   titrePanneau(g, titre, x, w);
-
-  // Le logo grossit avec la hauteur dispo, pour occuper tout le panneau plutôt
-  // que de rester tassé en haut — les flèches restent calées sur son centre.
-  const tailleLogo = Math.round(H * (opts.echelleLogo ?? 0.5));
-  const logoY = 13;
-  const tailleFleche = Math.round(tailleLogo * 0.3);
-  const yFleche = Math.round(logoY + (tailleLogo - tailleFleche) / 2);
-  if (onPrecedent) fleche(g, boutons, x + 4, yFleche, tailleFleche, false, onPrecedent);
-  if (onSuivant) fleche(g, boutons, x + w - 4 - tailleFleche, yFleche, tailleFleche, true, onSuivant);
-
+  // chaque moitié d'écran a son propre mode STATS : on compare deux équipes côte à côte
+  const cote = x === 0 ? 0 : 1;
+  const mode = modeStats(cote);
   const def = carte.def;
   const pal = def.interieur;
-  const logo = obtientLogo(def.id);
-  if (logo) {
-    g.imageSmoothingEnabled = true;
-    g.drawImage(logo, cx - tailleLogo / 2, logoY, tailleLogo, tailleLogo);
-    g.imageSmoothingEnabled = false;
-  }
-  let y = logoY + tailleLogo + 5;
-  px(g, cx - tailleLogo / 2 - 3, y - 1, tailleLogo + 6, 4, '#c9d2e3');
-  px(g, cx - tailleLogo / 2 - 2, y, tailleLogo + 4, 2, pal.maillot);
-  y += 8;
-  texte(g, def.code, cx, y, couleurNom(pal), 1, 'c');
-  y += 9;
-  texte(g, def.nom, cx, y, C.gris, 1, 'c');
-
   const notes = notesEquipe(carte.profil);
-  const statsY = Math.max(y + 12, Math.round(H * (opts.hauteurNotes ?? 0.7)));
+  const statsY = Math.round(H * (opts.hauteurNotes ?? 0.7));
+  let yNotes = statsY;
+
+  if (mode) {
+    // le radar à la place de l'écusson : code et nom, profil (flèches), radar
+    texte(g, def.code, cx, 13, couleurNom(pal), 1, 'c');
+    texte(g, def.nom, cx, 22, C.gris, 1, 'c');
+    const yb = 32;
+    const etiquette = mode.star ? 'JOUEUR STAR' : 'JOUEUR';
+    bouton(g, boutons, `< ${etiquette} >`, cx - 52, yb, 104, 12, () => basculeStar(cote), { couleur: mode.star ? '#5a4310' : '#232a58', clair: mode.star ? '#a8801f' : undefined });
+    if (mode.star) {
+      etoile(g, cx - 52 + 9, yb + 3, COULEUR_STAR);
+      etoile(g, cx + 52 - 16, yb + 3, COULEUR_STAR);
+    }
+    const haut = yb + 12 + 12;
+    const bas = statsY - 14;
+    const R = Math.max(18, Math.min(Math.round((bas - haut) / 2.1), Math.round(w * 0.2)));
+    const cy = Math.round(haut + (bas - haut) / 2 + 2);
+    dessineRadar(g, cx, cy, R, notesDuProfil(carte.profil, mode.star), mode.star);
+    const tf = 20;
+    const yf = cy - Math.round(tf / 2);
+    if (onPrecedent) fleche(g, boutons, x + 4, yf, tf, false, onPrecedent);
+    if (onSuivant) fleche(g, boutons, x + w - 4 - tf, yf, tf, true, onSuivant);
+  } else {
+    // Le logo grossit avec la hauteur dispo, pour occuper tout le panneau plutôt
+    // que de rester tassé en haut — les flèches restent calées sur son centre.
+    const tailleLogo = Math.round(H * (opts.echelleLogo ?? 0.5));
+    const logoY = 13;
+    const tailleFleche = Math.round(tailleLogo * 0.3);
+    const yFleche = Math.round(logoY + (tailleLogo - tailleFleche) / 2);
+    if (onPrecedent) fleche(g, boutons, x + 4, yFleche, tailleFleche, false, onPrecedent);
+    if (onSuivant) fleche(g, boutons, x + w - 4 - tailleFleche, yFleche, tailleFleche, true, onSuivant);
+    const logo = obtientLogo(def.id);
+    if (logo) {
+      g.imageSmoothingEnabled = true;
+      g.drawImage(logo, cx - tailleLogo / 2, logoY, tailleLogo, tailleLogo);
+      g.imageSmoothingEnabled = false;
+    }
+    let y = logoY + tailleLogo + 5;
+    px(g, cx - tailleLogo / 2 - 3, y - 1, tailleLogo + 6, 4, '#c9d2e3');
+    px(g, cx - tailleLogo / 2 - 2, y, tailleLogo + 4, 2, pal.maillot);
+    y += 8;
+    texte(g, def.code, cx, y, couleurNom(pal), 1, 'c');
+    y += 9;
+    texte(g, def.nom, cx, y, C.gris, 1, 'c');
+    yNotes = Math.max(y + 12, statsY);
+  }
+
+  // les quatre notes du résumé : attaque, défense, globale, et le gardien
   const cols: [string, number, string][] = [
     ['ATT', notes.attaque, '#ff8a3d'],
     ['DEF', notes.defense, '#6fd0ff'],
     ['GLB', notes.globale, C.or],
+    ['GAR', carte.profil.gardien, '#7be08a'],
   ];
-  const pad = 18;
-  const colW = (w - pad * 2) / 3;
+  const pad = 8;
+  const colW = (w - pad * 2) / cols.length;
   cols.forEach(([label, valeur, couleur], i) => {
     const cxi = x + pad + colW * i + colW / 2;
-    texte(g, String(valeur), cxi, statsY, couleur, 3, 'c');
-    texte(g, label, cxi, statsY + 21, C.gris, 1, 'c');
+    texte(g, String(valeur), cxi, yNotes, couleur, 3, 'c');
+    texte(g, label, cxi, yNotes + 21, C.gris, 1, 'c');
   });
+  bouton(g, boutons, mode ? 'ECUSSON' : 'STATS', cx - 28, yNotes + 32, 56, 13, () => basculeStats(cote), { couleur: '#232a58' });
 }
 
 export function dessineSelectionEquipe(g: CanvasRenderingContext2D, boutons: ZoneBouton[], W: number, H: number, etat: EtatSelectionEquipe): void {

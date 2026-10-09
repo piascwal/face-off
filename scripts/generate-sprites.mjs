@@ -21,6 +21,7 @@ import {
   feuilleTir,
   feuilleEchec,
   feuilleSupporters,
+  feuilleCasqueStar,
   feuilleVisages,
   VISAGES,
 } from './sprites-illustres.mjs';
@@ -162,6 +163,8 @@ for (const eq of EQUIPES) {
 writeFileSync(path.join(OUT_SPRITES, 'visages.png'), feuilleVisages(sources).toBuffer('image/png'));
 writeFileSync(path.join(OUT_SPRITES, 'visages-tir.png'), feuilleVisages(sources, 'tir').toBuffer('image/png'));
 writeFileSync(path.join(OUT_SPRITES, 'visages-echec.png'), feuilleVisages(sources, 'echec').toBuffer('image/png'));
+// casque doré du joueur star : un calque par pose, commun à toutes les équipes
+for (const cle of ['joueur', 'tir', 'echec', 'chute']) writeFileSync(path.join(OUT_SPRITES, `casque-star-${cle}.png`), feuilleCasqueStar(sources, cle).toBuffer('image/png'));
 
 const { joueur, gardien, portrait, chute, celebration, tir, echec, supporters } = sources.meta;
 writeFileSync(
