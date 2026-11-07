@@ -7,7 +7,7 @@
 // chaque équipe et chaque maillot, pose l'écusson de l'équipe sur la poitrine
 // et dessine le calque des variantes de visage (voir sprites-illustres.mjs).
 import { createCanvas, loadImage } from '@napi-rs/canvas';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detoure } from './logo-cutout.mjs';
@@ -61,6 +61,7 @@ const INTERIEURS = [
   { id: 'edmonton', maillot: '#0a2a66', fonce: '#06183a', clair: '#f26a1b', casque: '#0a2a66' },
   { id: 'chicago', maillot: '#cf1126', fonce: '#111111', clair: '#ffffff', casque: '#111111' },
   { id: 'castres', maillot: '#16105a', fonce: '#9a9ca4', clair: '#ffffff', casque: '#16105a' },
+  { id: 'hcmp', maillot: '#14276a', fonce: '#5aa0d8', clair: '#ffffff', casque: '#14276a' },
 ];
 const VARIANTES = ['interieur', 'exterieur'];
 function palette(base, variante) {
@@ -100,12 +101,15 @@ async function traiteLogos() {
   // assez grand pour l'animation de but, où l'écusson occupe presque tout l'écran
   const TAILLE = 256;
   for (const eq of EQUIPES_LOGO) {
-    const img = await loadImage(path.join(SRC_LOGOS, `${eq.id}.jpg`));
+    // source PNG : déjà détourée (transparente), sinon JPEG au fond à retirer
+    const png = path.join(SRC_LOGOS, `${eq.id}.png`);
+    const detoure_ = !existsSync(png);
+    const img = await loadImage(detoure_ ? path.join(SRC_LOGOS, `${eq.id}.jpg`) : png);
     const brut = createCanvas(img.width, img.height);
     const bctx = brut.getContext('2d');
     bctx.drawImage(img, 0, 0);
     const imgData = bctx.getImageData(0, 0, img.width, img.height);
-    detoure(imgData);
+    if (detoure_) detoure(imgData);
     bctx.putImageData(imgData, 0, 0);
 
     // recadre sur la partie opaque : certaines sources ont une large marge de

@@ -44,6 +44,8 @@ export const EQUIPES_JOUABLES: TeamProfile[] = [
   { id: 'chicago', vit: 92, att: 89, def: 90, frappe: 85, puiss: 87, passe: 93, phys: 86, gardien: 93, star: { vit: 94, att: 90, def: 90, frappe: 87, puiss: 82, passe: 100, phys: 100 } },
   // Castres Hockey Club : l'éclair de l'écusson, vifs en attaque, une défense plus légère
   { id: 'castres', vit: 95, att: 92, def: 79, frappe: 89, puiss: 86, passe: 89, phys: 76, gardien: 83, star: { vit: 100, att: 94, def: 94, frappe: 90, puiss: 87, passe: 84, phys: 78 } },
+  // HC Méribel-Courchevel-Pralognan (Bouquetins) : les montagnards, physiques et puissants
+  { id: 'hcmp', vit: 88, att: 86, def: 84, frappe: 87, puiss: 88, passe: 84, phys: 92, gardien: 85, star: { vit: 85, att: 90, def: 86, frappe: 94, puiss: 97, passe: 80, phys: 98 } },
 ];
 
 /** Des notes à 85 partout : tous les multiplicateurs valent 1 (le mode démo, qui n'a pas d'équipes jouables). */

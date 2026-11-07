@@ -244,12 +244,12 @@ est dessiné en transparence, comme sous la glace (`logoSousLaGlace`,
 
 ### Sélection d'équipe
 
-Vingt équipes jouables : des clubs français (Toulouse, Nice, Vaujany,
+Vingt et une équipes jouables : des clubs français (Toulouse, Nice, Vaujany,
 Nîmes, Grenoble, Montpellier, Marseille, Valence, Annecy, Roanne, Angers,
-Bordeaux, Rouen, Castres) et des écussons « invités » (Canadiens de Montréal, Ducks
+Bordeaux, Rouen, Castres, les Bouquetins de Méribel-Courchevel-Pralognan) et des écussons « invités » (Canadiens de Montréal, Ducks
 d'Anaheim, Avalanche du Colorado, Senators d'Ottawa, Oilers d'Edmonton,
 Blackhawks de Chicago). Pour en ajouter une : l'écusson dans
-`assets/logos-src/<id>.jpg`, sa palette dans `src/render/team-visuals.ts` et
+`assets/logos-src/<id>.jpg` (ou `.png` s'il est déjà détouré), sa palette dans `src/render/team-visuals.ts` et
 `scripts/generate-sprites.mjs`, son profil dans `src/core/teams.ts`, puis
 `npm run sprites`. Chacune avec un profil de stats (voir « Les notes des
 équipes » plus bas) affiché en notes façon jeu de sport (ATT / DEF / note

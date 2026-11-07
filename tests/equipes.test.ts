@@ -30,4 +30,12 @@ describe('équipes jouables', () => {
     expect(def.exterieur.maillot).toBe('#ffffff');
     expect(trouveEquipe('castres').id).toBe('castres');
   });
+
+  it('les Bouquetins (HCMP) sont jouables, avec un écusson détouré', () => {
+    const def = trouveTeamDef('hcmp');
+    expect(def.code).toBe('HCMP');
+    expect(def.interieur.maillot).toBe('#14276a');
+    expect(existsSync(fichier('assets/logos-src/hcmp.png'))).toBe(true);
+    expect(trouveEquipe('hcmp').id).toBe('hcmp');
+  });
 });

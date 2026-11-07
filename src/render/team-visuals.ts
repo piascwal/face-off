@@ -186,6 +186,14 @@ const INTERIEURS: Omit<TeamDef, 'exterieur'>[] = [
     logo: 'logos/castres.png',
     interieur: { maillot: '#16105a', fonce: '#9a9ca4', clair: '#ffffff', casque: '#16105a' },
   },
+  {
+    id: 'hcmp',
+    nom: 'BOUQUETINS',
+    ville: 'Courchevel-Méribel-Pralognan',
+    code: 'HCMP',
+    logo: 'logos/hcmp.png',
+    interieur: { maillot: '#14276a', fonce: '#5aa0d8', clair: '#ffffff', casque: '#14276a' },
+  },
 ];
 
 export const EQUIPES_JOUABLES: TeamDef[] = INTERIEURS.map((def) => ({
